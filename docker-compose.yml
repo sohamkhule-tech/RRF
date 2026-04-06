@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: rrf-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=rrf_portal
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - rrf-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Backend API
+  backend:
+    build:
+      context: ./rrf-portal-backend
+      dockerfile: Dockerfile
+    container_name: rrf-backend
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=development
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=postgres
+      - DB_DATABASE=rrf_portal
+      # JWT_SECRET must always be set — app will refuse to start without it
+      - JWT_SECRET=RRF_PORTAL_SECRET_KEY_2026
+      - JWT_EXPIRES_IN=24h
+      # CORS: browser talks to localhost:3000, backend allows that origin
+      - ALLOWED_ORIGINS=http://localhost:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - rrf-network
+
+  # Frontend Next.js
+  frontend:
+    build:
+      context: ./rrf-portal-nextjs
+      dockerfile: Dockerfile
+    container_name: rrf-frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./rrf-portal-nextjs:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      # Browser (on the host machine) talks to localhost:4000 — NOT the internal service name.
+      # The internal docker name 'backend' is only for server-to-server calls,
+      # but this Next.js app is fully client-side so the browser URL is used.
+      - NEXT_PUBLIC_API_URL=http://localhost:4000
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
+    depends_on:
+      - backend
+    networks:
+      - rrf-network
+
+networks:
+  rrf-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
