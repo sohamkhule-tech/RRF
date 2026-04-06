@@ -1,0 +1,573 @@
+'use client'
+
+import Link from 'next/link'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useState } from 'react'
+import {
+  PrinterOutlined,
+  DownloadOutlined,
+  BuildOutlined,
+  UserOutlined,
+  ToolOutlined,
+  FileTextOutlined,
+  ArrowLeftOutlined,
+  CheckCircleOutlined,
+  SendOutlined
+} from '@ant-design/icons'
+import MaskedDateInput from '@/components/MaskedDateInput'
+import jsPDF from 'jspdf'
+import html2canvas from 'html2canvas'
+import toast from 'react-hot-toast'
+import InfoField from '@/components/InfoField'
+
+export default function PMOViewRRFPage() {
+  const params = useParams()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const submissionId = params.id
+  const fromSent = searchParams.get('from') === 'sent'
+  
+  // Section navigation state
+  const [activeSection, setActiveSection] = useState('requisition')
+  
+  // PMO Closure State
+  const [showCloseModal, setShowCloseModal] = useState(false)
+  const [internalRrfNumber, setInternalRrfNumber] = useState('')
+  const [candidateName, setCandidateName] = useState('')
+  const [dateOfJoining, setDateOfJoining] = useState('')
+
+  // PMO Open for Requisition State
+  const [showOpenModal, setShowOpenModal] = useState(false)
+  const [remark, setRemark] = useState('')
+  
+  // Section definitions
+  const sections = [
+    { id: 'requisition', label: 'Requisition Info', icon: <BuildOutlined className="text-lg" /> },
+    { id: 'position', label: 'Position Details', icon: <UserOutlined className="text-lg" /> },
+    { id: 'technical', label: 'Technical Requirements', icon: <ToolOutlined className="text-lg" /> },
+    { id: 'description', label: 'Job Description', icon: <FileTextOutlined className="text-lg" /> }
+  ]
+
+  // Mock data - in production this would come from API/database
+  const [rrfData] = useState({
+    submissionId: submissionId,
+    submittedDate: '20/03/2026',
+    status: fromSent ? 'Sent to HR Team - Open for Hiring' : 'Approved by Approver',
+    
+    // Requisition Details
+    managerName: 'John Doe',
+    entity: 'Datafortune Inc',
+    organisation: 'DataFortune',
+    function: 'Delivery',
+    subFunction: 'SGINTL',
+    department: 'Engineering',
+    requisitionType: 'Billable',
+    customerName: 'ABC Bank',
+    projectName: 'Banking Project',
+    jobTitle: 'Senior React Developer',
+    expectedBillingStartDate: '01/04/2026',
+    billingRate: '120',
+    
+    // Position Details
+    positionType: 'Permanent',
+    numberOfPositions: 2,
+    priorityLevel: 'High',
+    jobLocation: ['Pune', 'Bengaluru'],
+    remoteOption: 'Hybrid',
+    minimumExperience: '5-7 years',
+    
+    // Technical Requirements
+    primaryTechnologies: 'React, TypeScript, Next.js, Redux',
+    mustHaveSkills: 'React.js (5+ years), TypeScript, Redux/Context API, RESTful APIs, Git, Agile methodology',
+    niceToHaveSkills: 'Next.js, GraphQL, Docker, AWS, Unit Testing (Jest/React Testing Library)',
+    jobDescription: 'We are looking for an experienced React Developer to join our banking project team. The candidate will be responsible for developing and maintaining complex web applications, collaborating with cross-functional teams, and ensuring high-quality code delivery.',
+    additionalNotes: 'Candidate should be comfortable working in a fast-paced environment and have excellent communication skills.'
+  })
+
+  const handleCloseWithBench = () => {
+    // Validate Internal RRF Number
+    if (!internalRrfNumber.trim()) {
+      toast.error('Please enter Internal RRF Number')
+      return
+    }
+    
+    // Check format IN-RRF-XXX
+    const rrfPattern = /^IN-RRF-\d{3}$/
+    if (!rrfPattern.test(internalRrfNumber)) {
+      toast.error('Invalid format! Use IN-RRF-XXX (e.g., IN-RRF-001)')
+      return
+    }
+
+    if (!candidateName.trim()) {
+      toast.error('Please enter candidate name')
+      return
+    }
+
+    if (!dateOfJoining) {
+      toast.error('Please select date of joining')
+      return
+    }
+
+    toast.success(`Position filled from bench! Internal RRF: ${internalRrfNumber}`, {
+      duration: 4000,
+      style: {
+        fontWeight: '600',
+      },
+    })
+    
+    setShowCloseModal(false)
+    setInternalRrfNumber('')
+    setCandidateName('')
+    setDateOfJoining('')
+    setTimeout(() => {
+      router.push('/pmo/pending')
+    }, 500)
+  }
+
+  const handleOpenForRequisition = () => {
+    toast.success('RRF has been opened for HR recruitment!', {
+      duration: 4000,
+      style: {
+        fontWeight: '600',
+      },
+    })
+    
+    setShowOpenModal(false)
+    setRemark('')
+    setTimeout(() => {
+      router.push('/pmo/pending')
+    }, 500)
+  }
+
+  const handlePrint = () => {
+    window.print()
+  }
+
+  const handleExport = async () => {
+    const mainContainer = document.querySelector('.min-h-screen')
+    const content = document.querySelector('.rrf-content-area')
+    if (!content || !mainContainer) return
+    
+    const originalOverflow = content.style.overflow
+    mainContainer.classList.add('exporting-pdf')
+    content.style.overflow = 'visible'
+    content.style.height = 'auto'
+    
+    await new Promise(resolve => setTimeout(resolve, 300))
+    
+    const canvas = await html2canvas(content, {
+      scale: 2,
+      logging: false,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      height: content.scrollHeight,
+      windowHeight: content.scrollHeight
+    })
+    
+    mainContainer.classList.remove('exporting-pdf')
+    content.style.overflow = originalOverflow
+    content.style.height = ''
+    
+    const imgData = canvas.toDataURL('image/png')
+    const pdf = new jsPDF('p', 'mm', 'a4')
+    const pdfWidth = pdf.internal.pageSize.getWidth()
+    const pdfHeight = (canvas.height * pdfWidth) / canvas.width
+    
+    let position = 0
+    const pageHeight = pdf.internal.pageSize.getHeight()
+    
+    if (pdfHeight > pageHeight) {
+      while (position < pdfHeight) {
+        pdf.addImage(imgData, 'PNG', 0, -position, pdfWidth, pdfHeight)
+        position += pageHeight
+        if (position < pdfHeight) {
+          pdf.addPage()
+        }
+      }
+    } else {
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
+    }
+    
+    pdf.save(`SUB-${rrfData.submissionId}.pdf`)
+    toast.success('PDF exported successfully!')
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <style jsx global>{`
+        @media screen {
+          .screen-hidden {
+            display: none !important;
+          }
+          .print-header {
+            display: none !important;
+          }
+          .exporting-pdf .screen-hidden {
+            display: block !important;
+          }
+          .exporting-pdf .print-header {
+            display: block !important;
+          }
+          .exporting-pdf .no-print {
+            display: none !important;
+          }
+        }
+        @media print {
+          * {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .no-print {
+            display: none !important;
+          }
+          .screen-hidden {
+            display: block !important;
+          }
+          .print-section {
+            display: block !important;
+            page-break-inside: avoid;
+            margin-bottom: 30px;
+          }
+          .print-header {
+            display: block !important;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #cbd5e1;
+          }
+          body {
+            background: white !important;
+          }
+          .rrf-content-area {
+            overflow: visible !important;
+            height: auto !important;
+          }
+          .flex.h-screen {
+            height: auto !important;
+          }
+          .overflow-y-auto {
+            overflow: visible !important;
+          }
+        }
+      `}</style>
+
+      <div className="flex h-screen">
+        
+        {/* LEFT PANEL */}
+        <div className="w-80 bg-white border-r border-slate-200 flex flex-col overflow-y-auto no-print">
+          <div className="p-6 bg-gradient-to-br from-slate-700 to-slate-800 text-white">
+            <div className="space-y-3">
+              <h1 className="text-2xl font-bold tracking-tight leading-tight">{rrfData.jobTitle}</h1>
+              <div className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-900 shadow-lg">
+                {rrfData.status}
+              </div>
+              <div className="text-xs text-slate-300 font-medium space-y-1">
+                <div>SUB-{rrfData.submissionId}</div>
+                <div>Submitted: {rrfData.submittedDate}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex-1 p-6">
+            <div className="space-y-1">
+              {sections.map((section, index) => (
+                <div key={section.id}>
+                  <button
+                    onClick={() => setActiveSection(section.id)}
+                    className={`w-full flex items-center gap-4 p-4 rounded-lg transition-all duration-200 ${
+                      activeSection === section.id
+                        ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg'
+                        : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                  >
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                      activeSection === section.id
+                        ? 'bg-white/20'
+                        : 'bg-slate-100'
+                    }`}>
+                      {section.icon}
+                    </div>
+                    <span className="text-xs font-bold uppercase tracking-wider">{section.label}</span>
+                  </button>
+                  {index < sections.length - 1 && (
+                    <div className="w-px h-4 bg-slate-300 ml-9 my-0.5"></div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT PANEL */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          
+          <div className="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between no-print">
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => router.back()}
+                className="flex items-center gap-2 px-4 py-2 text-slate-700 hover:bg-slate-100 rounded-lg transition-all duration-200 border border-slate-300">
+                <ArrowLeftOutlined className="text-lg" />
+                <span className="font-medium">Back</span>
+              </button>
+              <h2 className="text-xl font-bold text-slate-800">RRF Details</h2>
+            </div>
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={handlePrint}
+                className="px-4 py-2 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium rounded-lg transition-all flex items-center gap-2"
+              >
+                <PrinterOutlined />
+                Print
+              </button>
+              <button 
+                onClick={handleExport}
+                className="px-4 py-2 bg-slate-700 text-white hover:bg-slate-800 font-medium rounded-lg transition-all flex items-center gap-2"
+              >
+                <DownloadOutlined />
+                Export PDF
+              </button>
+              {!fromSent && (
+                <>
+                  <button 
+                    onClick={() => setShowOpenModal(true)}
+                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 font-medium rounded-lg transition-all flex items-center gap-2 shadow-md"
+                  >
+                    <SendOutlined />
+                    Open for Requisition
+                  </button>
+                  <button 
+                    onClick={() => setShowCloseModal(true)}
+                    className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 font-medium rounded-lg transition-all flex items-center gap-2 shadow-md"
+                  >
+                    <CheckCircleOutlined />
+                    Fill from Bench
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto bg-white rrf-content-area">
+            <div className="p-8">
+              
+              <div className="print-header">
+                <h1 className="text-3xl font-bold text-slate-900 mb-2">{rrfData.jobTitle}</h1>
+                <div className="flex items-center gap-4 text-sm text-slate-600">
+                  <span>SUB-{rrfData.submissionId}</span>
+                  <span>•</span>
+                  <span>Submitted: {rrfData.submittedDate}</span>
+                  <span>•</span>
+                  <span className="font-semibold text-amber-600">{rrfData.status}</span>
+                </div>
+              </div>
+
+              {/* Requisition Info */}
+              <div className={`space-y-8 print-section ${activeSection === 'requisition' ? '' : 'screen-hidden'}`}>
+                <h3 className="text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Requisition Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <InfoField label="Requisition Manager" value={rrfData.managerName} />
+                  <InfoField label="Entity"              value={rrfData.entity} />
+                  <InfoField label="Organisation"        value={rrfData.organisation} />
+                  <InfoField label="Function"            value={rrfData.function} />
+                  <InfoField label="Sub-function"        value={rrfData.subFunction} />
+                  <InfoField label="Department"          value={rrfData.department} />
+                  <InfoField label="Requisition Type"    value={rrfData.requisitionType} />
+                  <InfoField label="Customer Name"       value={rrfData.customerName} />
+                  <InfoField label="Project Name"        value={rrfData.projectName} />
+                  {rrfData.requisitionType === 'Billable' && (
+                    <>
+                      <InfoField label="Billing Start Date" value={rrfData.expectedBillingStartDate} />
+                      <InfoField label="Billing Rate"       value={rrfData.billingRate ? `$${rrfData.billingRate}/day` : null} />
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Position Details */}
+              <div className={`space-y-8 print-section ${activeSection === 'position' ? '' : 'screen-hidden'}`}>
+                <h3 className="text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Position Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <InfoField label="Position Type"       value={rrfData.positionType} />
+                  <InfoField label="Number of Positions" value={rrfData.numberOfPositions} />
+                  {rrfData.priorityLevel && (
+                    <div className="bg-[#E3F2FD] rounded-lg p-4 shadow-sm">
+                      <p className="text-[10px] font-bold uppercase text-slate-500 tracking-wider mb-1">Priority Level</p>
+                      <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-bold ${
+                        rrfData.priorityLevel === 'High'     ? 'bg-orange-100 text-orange-800 border border-orange-200' :
+                        rrfData.priorityLevel === 'Critical' ? 'bg-red-100 text-red-800 border border-red-200' :
+                        rrfData.priorityLevel === 'Medium'   ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+                        'bg-gray-100 text-gray-800 border border-gray-200'
+                      }`}>{rrfData.priorityLevel}</span>
+                    </div>
+                  )}
+                  <InfoField label="Job Location"       value={Array.isArray(rrfData.jobLocation) ? rrfData.jobLocation : null} />
+                  <InfoField label="Work Mode"          value={rrfData.remoteOption} />
+                  <InfoField label="Experience Required" value={rrfData.minimumExperience} />
+                </div>
+              </div>
+
+              {/* Technical Requirements */}
+              <div className={`space-y-8 print-section ${activeSection === 'technical' ? '' : 'screen-hidden'}`}>
+                <h3 className="text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Technical Requirements</h3>
+                <div className="space-y-4">
+                  <InfoField label="Primary Technologies" value={rrfData.primaryTechnologies} rich />
+                  <InfoField label="Must Have Skills"     value={rrfData.mustHaveSkills}      rich />
+                  <InfoField label="Nice to Have Skills"  value={rrfData.niceToHaveSkills}    rich />
+                </div>
+              </div>
+
+              {/* Job Description */}
+              <div className={`space-y-8 print-section ${activeSection === 'description' ? '' : 'screen-hidden'}`}>
+                <h3 className="text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Job Description</h3>
+                <div className="space-y-4">
+                  <InfoField label="Job Description" value={rrfData.jobDescription} rich />
+                  <InfoField label="Additional Notes" value={rrfData.additionalNotes} rich />
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Open for Requisition Modal */}
+      {showOpenModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 no-print">
+          <div className="bg-white shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" style={{ borderRadius: '16px' }}>
+            {/* Modal Header */}
+            <div className="px-8 py-6 border-b-2 border-blue-100" style={{ background: 'linear-gradient(135deg, rgb(239, 246, 255) 0%, rgb(219, 234, 254) 100%)' }}>
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                  <SendOutlined style={{ fontSize: '24px', color: '#2563eb' }} />
+                </div>
+                <div className="flex-1">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-1">Open for Requisition</h2>
+                  <p className="text-sm text-gray-600">Add a remark and open this RRF for HR recruitment</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="px-8 py-6 space-y-6">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Remark (Optional)
+                </label>
+                <textarea
+                  value={remark}
+                  onChange={(e) => setRemark(e.target.value)}
+                  rows={4}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 focus:outline-none transition-all resize-none"
+                  placeholder="Add any additional remarks or notes..."
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-8 py-6 bg-gray-50 flex items-center justify-end gap-3" style={{ borderRadius: '0 0 16px 16px' }}>
+              <button
+                onClick={() => setShowOpenModal(false)}
+                className="px-6 py-3 bg-white border-2 border-gray-300 text-gray-700 hover:bg-gray-100 font-semibold transition-all duration-300"
+                style={{ borderRadius: '10px' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleOpenForRequisition}
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 font-semibold transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-2"
+                style={{ borderRadius: '10px' }}
+              >
+                <SendOutlined />
+                Confirm & Open
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Position Filled by Bench Modal */}
+      {showCloseModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 no-print">
+          <div className="bg-white shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" style={{ borderRadius: '16px' }}>
+            {/* Modal Header */}
+            <div className="px-8 py-6 border-b-2 border-green-100" style={{ background: 'linear-gradient(135deg, rgb(220, 252, 231) 0%, rgb(187, 247, 208) 100%)' }}>
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                  <CheckCircleOutlined style={{ fontSize: '24px', color: '#16a34a' }} />
+                </div>
+                <div className="flex-1">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-1">Position Filled by Bench</h2>
+                  <p className="text-sm text-gray-600">Close this requisition with internal resource allocation</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="px-8 py-6 space-y-6">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Internal RRF Number <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={internalRrfNumber}
+                  onChange={(e) => setInternalRrfNumber(e.target.value)}
+                  placeholder="IN-RRF-001"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:ring-4 focus:ring-green-100 focus:outline-none transition-all"
+                />
+                <p className="text-xs text-gray-500 mt-2">Format: IN-RRF-XXX (e.g., IN-RRF-001)</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Candidate Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={candidateName}
+                  onChange={(e) => setCandidateName(e.target.value)}
+                  placeholder="Enter candidate name"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:ring-4 focus:ring-green-100 focus:outline-none transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Date of Joining <span className="text-red-500">*</span>
+                </label>
+                <MaskedDateInput
+                  value={dateOfJoining}
+                  onChange={setDateOfJoining}
+                  placeholder="DD/MM/YYYY"
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-8 py-6 bg-gray-50 flex items-center justify-end gap-3" style={{ borderRadius: '0 0 16px 16px' }}>
+              <button
+                onClick={() => {
+                  setShowCloseModal(false)
+                  setInternalRrfNumber('')
+                  setCandidateName('')
+                  setDateOfJoining('')
+                }}
+                className="px-6 py-3 bg-white border-2 border-gray-300 text-gray-700 hover:bg-gray-100 font-semibold transition-all duration-300"
+                style={{ borderRadius: '10px' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCloseWithBench}
+                className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 font-semibold transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-2"
+                style={{ borderRadius: '10px' }}
+              >
+                <CheckCircleOutlined />
+                Confirm & Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
