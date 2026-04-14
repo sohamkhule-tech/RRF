@@ -3,9 +3,8 @@ import { Type } from 'class-transformer';
 import { RrfStatus } from '../entities/rrf.entity';
 
 export class RrfQueryDto {
-  @IsEnum(RrfStatus)
   @IsOptional()
-  status?: RrfStatus;
+  status?: string;
 
   @IsInt()
   @IsOptional()

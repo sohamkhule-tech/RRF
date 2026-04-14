@@ -15,12 +15,13 @@ import {
   PauseCircleOutlined,
   BarChartOutlined,
   UserOutlined,
-  SettingOutlined
+  SettingOutlined,
+  FormOutlined
 } from '@ant-design/icons'
 import { usePermission } from '@/hooks/usePermission'
 import { PERMISSIONS } from '@/utils/permissions'
 
-export default function PermissionBasedSidebar({ isCollapsed = false }) {
+export default function PermissionBasedSidebar({ isCollapsed = false, isMobile = false, isMobileOpen = false, onMobileClose }) {
   const pathname = usePathname()
   const {
     hasPermission,
@@ -83,7 +84,7 @@ export default function PermissionBasedSidebar({ isCollapsed = false }) {
         items.push({
           key: '/hiring-manager/my-requests',
           icon: <FileTextOutlined className="text-xl" />,
-          label: 'My Requests',
+          label: 'Requests',
           href: '/hiring-manager/my-requests',
         })
       }
@@ -128,6 +129,16 @@ export default function PermissionBasedSidebar({ isCollapsed = false }) {
       })
     }
 
+    // Edit Form - PMO Only
+    if (isPMORole) {
+      items.push({
+        key: '/pmo/form-config',
+        icon: <FormOutlined className="text-xl" />,
+        label: 'Edit Form',
+        href: '/pmo/form-config',
+      })
+    }
+
     // User Management
     if (canManageUsers) {
       items.push({
@@ -156,7 +167,9 @@ export default function PermissionBasedSidebar({ isCollapsed = false }) {
   return (
     <aside 
       className={`fixed left-0 top-0 bottom-0 text-white z-50 transition-all duration-300 ease-in-out ${
-        isCollapsed ? 'w-20' : 'w-64'
+        isMobile
+          ? `w-64 ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}`
+          : (isCollapsed ? 'w-20' : 'w-64')
       }`}
       style={{ 
         background: 'linear-gradient(180deg, #0f172a, #1e293b, #4f46e5)', 
@@ -164,15 +177,22 @@ export default function PermissionBasedSidebar({ isCollapsed = false }) {
       }}
     >
       {/* Logo */}
-      <div className="px-6 py-6 border-b border-white/10">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-400 via-indigo-400 to-purple-500 flex items-center justify-center text-white font-bold text-lg shadow-xl ring-2 ring-white/20 flex-shrink-0">
-            R
+      <div className="px-4 md:px-6 py-4 md:py-6 border-b border-white/10">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-400 via-indigo-400 to-purple-500 flex items-center justify-center text-white font-bold text-lg shadow-xl ring-2 ring-white/20 flex-shrink-0">
+              R
+            </div>
+            {(!isCollapsed || isMobile) && (
+              <h1 className="text-xl font-bold text-white transition-opacity duration-300">
+                RRF Portal
+              </h1>
+            )}
           </div>
-          {!isCollapsed && (
-            <h1 className="text-xl font-bold text-white transition-opacity duration-300">
-              RRF Portal
-            </h1>
+          {isMobile && (
+            <button onClick={onMobileClose} className="text-white/70 hover:text-white p-1">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
           )}
         </div>
       </div>

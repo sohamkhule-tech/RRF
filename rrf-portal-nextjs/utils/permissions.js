@@ -78,8 +78,12 @@ export const PERMISSIONS = {
   RRF: {
     CREATE: 'RRF.CREATE',
     READ: 'RRF.READ',
+    VIEW: 'RRF.READ',  // Alias for consistency
     UPDATE: 'RRF.UPDATE',
     DELETE: 'RRF.DELETE',
+    OPEN_FOR_HIRING: 'RRF.OPEN_FOR_HIRING',
+    FILL_FROM_BENCH: 'RRF.FILL_FROM_BENCH',
+    CLOSE: 'RRF.CLOSE',
   },
   
   // Approvals
@@ -87,6 +91,7 @@ export const PERMISSIONS = {
     READ: 'APPROVALS.READ',
     APPROVE: 'APPROVALS.APPROVE',
     REJECT: 'APPROVALS.REJECT',
+    ON_HOLD: 'APPROVALS.ON_HOLD',
   },
   
   // Users Management
@@ -95,6 +100,12 @@ export const PERMISSIONS = {
     READ: 'USERS.READ',
     UPDATE: 'USERS.UPDATE',
     DELETE: 'USERS.DELETE',
+  },
+  
+  // Roles Management
+  ROLES: {
+    READ: 'ROLES.READ',
+    UPDATE: 'ROLES.UPDATE',
   },
   
   // Reports
@@ -124,8 +135,8 @@ export const getHomePageByRole = (role) => {
     'APPROVER': '/approver',
     'hr': '/hr',
     'HR': '/hr',
-    'admin': '/hiring-manager/dashboard',
-    'ADMIN': '/hiring-manager/dashboard',
+    'admin': '/admin',
+    'ADMIN': '/admin',
   }
   return roleMap[role] || '/hiring-manager/dashboard'
 }
@@ -137,6 +148,11 @@ export const getHomePageByRole = (role) => {
 export const getHomePageByPermissions = (permissions = []) => {
   // Check for specific role-based permissions and route accordingly
   // Use unique permission combinations to identify role
+  
+  // Admin role - has USERS.CREATE (unique to admin)
+  if (hasPermission('USERS.CREATE', permissions)) {
+    return '/admin'
+  }
   
   // HR role - has REPORTS.EXPORT but NOT RRF.CREATE
   if (hasPermission('REPORTS.EXPORT', permissions) && !hasPermission('RRF.CREATE', permissions)) {

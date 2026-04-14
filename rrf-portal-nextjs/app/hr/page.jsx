@@ -1,56 +1,71 @@
 'use client'
 
-import Link from 'next/link'
-import { FolderOpenOutlined, CheckCircleOutlined, SearchOutlined, ClockCircleOutlined, CloseCircleOutlined, ReloadOutlined } from '@ant-design/icons'
+import { FolderOpenOutlined, CheckCircleOutlined, SearchOutlined, CloseCircleOutlined, ReloadOutlined } from '@ant-design/icons'
+import ActionButton from '@/components/ActionButton'
 import StatCard from '@/components/StatCard'
-import { useState, useEffect } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { rrfApi } from '@/lib/api/rrfApi'
+import { useSmartFetch } from '@/lib/useSmartFetch'
+import { useVisibilityRefresh } from '@/lib/useVisibilityRefresh'
+import { CACHE_TTL } from '@/lib/apiCache'
 
 export default function HRDashboard() {
   const [searchTerm, setSearchTerm] = useState('')
-  const [openPositions, setOpenPositions] = useState([])
-  const [loading, setLoading] = useState(true)
 
-  // Fetch open for hiring positions
-  const fetchOpenPositions = async () => {
-    try {
-      const response = await rrfApi.getOpenForHiring()
-      const rrfs = response?.data || response || []
-      
-      // Format for display
-      const formattedPositions = Array.isArray(rrfs)
-        ? rrfs.map(rrf => ({
+  // Shared all-rrfs cache (also used by pmo/closed, pmo/sent-to-approvers, hr/closed)
+  const {
+    data: allRrfs,
+    refresh: refreshAll,
+  } = useSmartFetch('all-rrfs', () => rrfApi.getAll({ limit: 1000 }), {
+    ttl: CACHE_TTL.LIST,
+    transform: (response) => response?.data?.data || response?.data || [],
+  })
+
+  // Open for hiring positions
+  const {
+    data: openData,
+    loading,
+    refresh: refreshOpen,
+  } = useSmartFetch('hr-open-for-hiring', () => rrfApi.getOpenForHiring(), {
+    ttl: CACHE_TTL.LIST,
+    transform: (res) => {
+      const data = res?.data || res || []
+      return Array.isArray(data)
+        ? data.map(rrf => ({
             id: rrf.id,
             rrfId: rrf.rrfNumber,
-            role: rrf.jobTitle,
+            role: rrf.jobTitle || rrf.positionTitle,
             project: rrf.projectName,
-            positions: rrf.numberOfPositions,
+            positions: rrf.numberOfPositions || rrf.headcount || 1,
             priority: rrf.priority,
             status: rrf.status,
             date: new Date(rrf.approvedAt || rrf.createdAt).toLocaleDateString('en-GB')
           }))
         : []
-      
-      setOpenPositions(formattedPositions)
-    } catch (error) {
-      console.error('Error fetching open positions:', error)
-    } finally {
-      setLoading(false)
+    },
+  })
+
+  const openPositions = openData || []
+
+  // Compute stats from cached allRrfs (no extra network call)
+  const stats = useMemo(() => {
+    const rrfs = allRrfs || []
+    const closedRrfs = rrfs.filter(r =>
+      r.status === 'CLOSED' || (r.status || '').toUpperCase() === 'CLOSED'
+    )
+    return {
+      positionsFilled: closedRrfs.reduce((sum, r) => sum + (r.headcount || r.numberOfPositions || 0), 0),
+      closedRequests: closedRrfs.length,
     }
-  }
+  }, [allRrfs])
 
-  // Manual refresh handler
-  const handleRefresh = () => {
-    setLoading(true)
-    fetchOpenPositions()
-  }
+  const handleRefresh = useCallback(() => {
+    refreshAll()
+    refreshOpen()
+  }, [refreshAll, refreshOpen])
 
-  // Initial load and auto-refresh
-  useEffect(() => {
-    fetchOpenPositions()
-    const interval = setInterval(fetchOpenPositions, 30000)
-    return () => clearInterval(interval)
-  }, [])
+  // Single polling + visibility handler (60 s, replaces 30 s double-fetch)
+  useVisibilityRefresh(handleRefresh, { intervalMs: 60_000 })
 
   const getStatusBadge = (status) => {
     return (
@@ -87,50 +102,38 @@ export default function HRDashboard() {
   })
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8">
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-5">
         <StatCard
           title="Open for Hiring"
           value={openPositions.length.toString()}
-          subtitle="Active positions"
+          subtitle="Active positions (IN_PROGRESS)"
           icon={<FolderOpenOutlined />}
           color="green"
-          href="/hr/open-hiring"
-        />
-        <StatCard
-          title="Hiring In Progress"
-          value="4"
-          subtitle="Interviews ongoing"
-          icon={<ClockCircleOutlined />}
-          color="blue"
-        />
-        <StatCard
-          title="Positions Filled"
-          value="28"
-          subtitle="This quarter"
-          icon={<CheckCircleOutlined />}
-          color="cyan"
+          href="/hr/open-for-hiring"
         />
         <StatCard
           title="Closed Requests"
-          value="45"
-          subtitle="All time"
+          value={stats.closedRequests.toString()}
+          subtitle="All time (CLOSED)"
           icon={<CloseCircleOutlined />}
           color="gray"
           href="/hr/closed"
         />
+        <StatCard
+          title="Positions Filled"
+          value={stats.positionsFilled.toString()}
+          subtitle="Computed total filled positions"
+          icon={<CheckCircleOutlined />}
+          color="cyan"
+        />
       </div>
 
       {/* Open Positions Table */}
-      <div className="bg-white overflow-hidden" style={{ borderRadius: '16px', boxShadow: '0 10px 25px rgba(0,0,0,0.08)', padding: '20px' }}>
-        <div className="px-2 py-4 mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-gray-900">Open for Hiring Positions</h3>
-          <Link href="/hr/open-hiring">
-            <button className="px-4 py-2 text-indigo-600 border-2 border-indigo-200 text-sm font-medium hover:bg-indigo-50 transition-all duration-300" style={{ borderRadius: '10px' }}>
-              View All Open
-            </button>
-          </Link>
+      <div className="bg-white overflow-hidden" style={{ borderRadius: '16px', boxShadow: '0 10px 25px rgba(0,0,0,0.08)', padding: '12px' }}>
+        <div className="px-2 py-3 md:py-4 mb-3 md:mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <h3 className="text-base md:text-lg font-bold text-gray-900">Open for Hiring Positions</h3>
         </div>
 
         {/* Search Box and Reload */}
@@ -159,7 +162,8 @@ export default function HRDashboard() {
           </button>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Desktop Table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
@@ -175,14 +179,7 @@ export default function HRDashboard() {
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
-                    <div className="flex flex-col items-center gap-2">
-                      <ReloadOutlined className="animate-spin" style={{ fontSize: '32px', color: '#6366f1' }} />
-                      <p className="text-sm font-medium">Loading...</p>
-                    </div>
-                  </td>
-                </tr>
+                <tr><td colSpan={8} className="px-6 py-8 text-center text-gray-500"><ReloadOutlined className="animate-spin" style={{ fontSize: '32px', color: '#6366f1' }} /></td></tr>
               ) : filteredPositions.length > 0 ? (
                 filteredPositions.map((request) => (
                   <tr key={request.id} className="border-b border-gray-100 transition-all duration-300 hover:bg-gray-50">
@@ -190,36 +187,59 @@ export default function HRDashboard() {
                     <td className="px-6 py-5 whitespace-nowrap text-sm font-medium text-gray-900">{request.role}</td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-600">{request.project}</td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm text-center">
-                      <span className="inline-flex items-center justify-center w-8 h-8 bg-indigo-100 text-indigo-700 rounded-full font-bold text-xs">
-                        {request.positions}
-                      </span>
+                      <span className="inline-flex items-center justify-center w-8 h-8 bg-indigo-100 text-indigo-700 rounded-full font-bold text-xs">{request.positions}</span>
                     </td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm">{getPriorityBadge(request.priority)}</td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm">{getStatusBadge(request.status)}</td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-600">{request.date}</td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm">
-                      <Link href={`/hr/view-rrf/${request.id}`}>
-                        <button className="px-4 py-2 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-300 hover:scale-105" style={{ borderRadius: '10px' }}>
-                          View
-                        </button>
-                      </Link>
+                      <ActionButton role="HR" status={request.status} href={`/hr/view-rrf/${request.id}`} />
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
                   <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
-                    <div className="flex flex-col items-center gap-2">
-                      <SearchOutlined style={{ fontSize: '32px', color: '#9ca3af' }} />
-                      <p className="text-sm font-medium">
-                        {searchTerm ? `No requests found matching "${searchTerm}"` : 'No open positions available'}
-                      </p>
-                    </div>
+                    <SearchOutlined style={{ fontSize: '32px', color: '#9ca3af' }} />
+                    <p className="text-sm font-medium mt-2">{searchTerm ? `No requests found matching "${searchTerm}"` : 'No open positions available'}</p>
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden px-2 pb-4 space-y-3">
+          {loading ? (
+            <div className="py-8 text-center"><ReloadOutlined className="animate-spin text-2xl text-indigo-600" /></div>
+          ) : filteredPositions.length > 0 ? (
+            filteredPositions.map((request) => (
+              <div key={request.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-bold text-indigo-600 mb-1">{request.rrfId}</div>
+                    <div className="text-sm font-bold text-gray-900 truncate">{request.role}</div>
+                    <div className="text-xs text-gray-500 truncate">{request.project}</div>
+                  </div>
+                  <span className="inline-flex items-center justify-center w-8 h-8 bg-indigo-100 text-indigo-700 rounded-full font-bold text-xs ml-2 flex-shrink-0">{request.positions}</span>
+                </div>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {getPriorityBadge(request.priority)}
+                  {getStatusBadge(request.status)}
+                  <span className="text-xs text-gray-500">{request.date}</span>
+                </div>
+                <div className="flex justify-end pt-2 border-t border-gray-100">
+                  <ActionButton role="HR" status={request.status} href={`/hr/view-rrf/${request.id}`} />
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="py-8 text-center text-gray-500">
+              <SearchOutlined style={{ fontSize: '32px', color: '#9ca3af' }} />
+              <p className="text-sm font-medium mt-2">{searchTerm ? `No requests found matching "${searchTerm}"` : 'No open positions available'}</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -1,54 +1,34 @@
 'use client'
 
 import Link from 'next/link'
+import ActionButton from '@/components/ActionButton'
 import { PlusOutlined, DownloadOutlined, FileTextOutlined, PlayCircleOutlined, ClockCircleOutlined, CheckCircleOutlined, LockOutlined, CloseCircleOutlined, SearchOutlined, EditOutlined, PauseCircleOutlined, ReloadOutlined } from '@ant-design/icons'
 import StatCard from '@/components/StatCard'
-import { useState, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import { useRRFStatistics } from '@/hooks/useRRFStatistics'
 import { useMyRequests } from '@/hooks/useMyRequests'
+import { useVisibilityRefresh } from '@/lib/useVisibilityRefresh'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { ErrorMessage } from '@/components/ErrorMessage'
 
 export default function DashboardPage() {
   const [searchTerm, setSearchTerm] = useState('')
   
-
-  
-  // Fetch statistics from API
+  // Fetch statistics from API (hook fetches on mount via useSmartFetch — no manual trigger needed)
   const { statistics, loading: statsLoading, error: statsError, refresh: refreshStats } = useRRFStatistics(false)
   
-  // Fetch recent requests from API
+  // Fetch recent requests from API (hook fetches on mount via useSmartFetch — no manual trigger needed)
   const { requests, loading: requestsLoading, error: requestsError, refresh: refreshRequests } = useMyRequests()
   
-  // Auto-refresh — pauses when tab is not visible
-  useEffect(() => {
+  // Combined refresh for polling + manual reload
+  const refreshAll = useCallback(() => {
     refreshStats()
     refreshRequests()
+  }, [refreshStats, refreshRequests])
 
-    const startInterval = () => setInterval(() => {
-      if (!document.hidden) {
-        refreshStats()
-        refreshRequests()
-      }
-    }, 30000)
-
-    let interval = startInterval()
-
-    const handleVisibility = () => {
-      if (!document.hidden) {
-        refreshStats()
-        refreshRequests()
-        clearInterval(interval)
-        interval = startInterval()
-      }
-    }
-
-    document.addEventListener('visibilitychange', handleVisibility)
-    return () => {
-      clearInterval(interval)
-      document.removeEventListener('visibilitychange', handleVisibility)
-    }
-  }, [])
+  // Single polling + visibility handler (60 s interval)
+  // Replaces the old: setInterval(30s) + visibilitychange + manual useEffect triggers
+  useVisibilityRefresh(refreshAll, { intervalMs: 60_000 })
   
   // Get recent 6 requests (exclude drafts)
   const recentRequests = (requests || []).filter(req => req.status?.toLowerCase() !== 'draft').slice(0, 6)
@@ -98,6 +78,8 @@ export default function DashboardPage() {
       'approved': { bg: '#dcfce7', color: '#166534', text: 'Approved' },
       'rejected': { bg: '#fee2e2', color: '#991b1b', text: 'Declined' },
       'declined': { bg: '#fee2e2', color: '#991b1b', text: 'Declined' },
+      'open-for-hiring': { bg: '#dbeafe', color: '#1e40af', text: 'In Progress' },
+      'in-progress': { bg: '#dbeafe', color: '#1e40af', text: 'In Progress' },
       'closed': { bg: '#f3f4f6', color: '#374151', text: 'Closed' }
     }
     const normalizedStatus = status?.toLowerCase() || 'draft'
@@ -151,8 +133,7 @@ export default function DashboardPage() {
         <ErrorMessage 
           message={statsError || requestsError} 
           onRetry={() => {
-            refreshStats()
-            refreshRequests()
+            refreshAll()
           }} 
         />
       </div>
@@ -164,13 +145,14 @@ export default function DashboardPage() {
   const byStatus = stats.byStatus || {}
   
   // Map new status enum to card values — supports both old and new status formats
-  const inProgressCount      = byStatus['draft'] || 0
+  const draftCount           = byStatus['draft'] || 0
+  const inProgressCount      = byStatus['openForHiring'] || byStatus['open-for-hiring'] || byStatus['in-progress'] || 0
   const pendingApprovalCount = (byStatus['pending'] || 0) + (byStatus['submitted'] || 0)
   const approvedCount        = byStatus['approved'] || 0
   const onHoldCount          = byStatus['on-hold'] || byStatus['onHold'] || 0
   const declinedCount        = (byStatus['declined'] || 0) + (byStatus['rejected'] || 0)
   const closedCount          = (byStatus['closed'] || 0) + (byStatus['closed-by-bench'] || 0)
-  const totalCount           = inProgressCount + pendingApprovalCount + approvedCount + onHoldCount + declinedCount + closedCount
+  const totalCount           = draftCount + inProgressCount + pendingApprovalCount + approvedCount + onHoldCount + declinedCount + closedCount
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8">
       {/* Stats Cards - Fully Dynamic */}
@@ -266,8 +248,7 @@ export default function DashboardPage() {
             </div>
             <button
               onClick={() => {
-                refreshStats()
-                refreshRequests()
+                refreshAll()
               }}
               className="px-4 py-3 border-2 border-gray-200 text-gray-700 hover:bg-indigo-50 hover:border-indigo-500 hover:text-indigo-600 transition-all duration-300 flex items-center justify-center gap-2"
               style={{ borderRadius: '10px' }}
@@ -309,11 +290,11 @@ export default function DashboardPage() {
                   <td className="px-6 py-5 whitespace-nowrap text-sm">{getStatusBadge(request.status)}</td>
                   <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-600">{formatDate(request.createdAt)}</td>
                   <td className="px-6 py-5 whitespace-nowrap text-sm">
-                    <Link href={`/hiring-manager/view-rrf/${request.id}`}>
-                      <button className="px-4 py-2 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-300 hover:scale-105" style={{ borderRadius: '10px' }}>
-                        View
-                      </button>
-                    </Link>
+                    <ActionButton 
+                      role="HM"
+                      status={request.status}
+                      href={`/hiring-manager/view-rrf/${request.id}`}
+                    />
                   </td>
                 </tr>
               ))
@@ -356,11 +337,11 @@ export default function DashboardPage() {
                   <div className="text-xs text-gray-500">
                     {formatDate(request.createdAt)}
                   </div>
-                  <Link href={`/hiring-manager/view-rrf/${request.id}`}>
-                    <button className="px-3 py-1.5 text-xs text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-300" style={{ borderRadius: '8px' }}>
-                      View Details
-                    </button>
-                  </Link>
+                  <ActionButton 
+                    role="HM"
+                    status={request.status}
+                    href={`/hiring-manager/view-rrf/${request.id}`}
+                  />
                 </div>
               </div>
             ))

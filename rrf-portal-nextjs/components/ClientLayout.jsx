@@ -15,8 +15,27 @@ function LayoutContent({ children }) {
   const router = useRouter()
   const { user, loading } = useAuth()
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
   
   // ALL HOOKS MUST BE AT THE TOP - before any conditional returns
+  // Detect mobile viewport
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768
+      setIsMobile(mobile)
+      if (mobile) setIsMobileSidebarOpen(false)
+    }
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    setIsMobileSidebarOpen(false)
+  }, [pathname])
+
   // Optional: Save sidebar state to localStorage
   useEffect(() => {
     const savedState = localStorage.getItem('sidebarCollapsed')
@@ -39,6 +58,11 @@ function LayoutContent({ children }) {
   // NOW we can do conditional returns
   // Skip layout for login page
   if (pathname === '/login') {
+    return <>{children}</>
+  }
+
+  // Skip layout for admin pages (admin has its own layout)
+  if (pathname.startsWith('/admin')) {
     return <>{children}</>
   }
 
@@ -67,17 +91,36 @@ function LayoutContent({ children }) {
   }
   
   const handleToggleSidebar = () => {
-    setIsSidebarCollapsed(!isSidebarCollapsed)
+    if (isMobile) {
+      setIsMobileSidebarOpen(!isMobileSidebarOpen)
+    } else {
+      setIsSidebarCollapsed(!isSidebarCollapsed)
+    }
   }
+
+  const sidebarWidth = isMobile ? 0 : (isSidebarCollapsed ? 80 : 260)
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <PermissionBasedSidebar isCollapsed={isSidebarCollapsed} />
-      <Layout style={{ marginLeft: isSidebarCollapsed ? 80 : 260, transition: 'margin-left 0.3s ease-in-out' }}>
+      {/* Mobile overlay backdrop */}
+      {isMobile && isMobileSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 transition-opacity duration-300"
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
+      <PermissionBasedSidebar
+        isCollapsed={isMobile ? false : isSidebarCollapsed}
+        isMobile={isMobile}
+        isMobileOpen={isMobileSidebarOpen}
+        onMobileClose={() => setIsMobileSidebarOpen(false)}
+      />
+      <Layout style={{ marginLeft: sidebarWidth, transition: 'margin-left 0.3s ease-in-out' }}>
         <Header 
           initialRole={user?.role?.code || user?.role || 'hiring-manager'} 
           onToggleSidebar={handleToggleSidebar} 
           isSidebarCollapsed={isSidebarCollapsed}
+          isMobile={isMobile}
         />
         <Content style={{ marginTop: '73px' }}>
           {children}

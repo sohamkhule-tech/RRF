@@ -66,7 +66,7 @@ export default function InProgressPage() {
   })
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       {/* Back Button */}
       <button 
         onClick={() => router.back()}
@@ -83,7 +83,7 @@ export default function InProgressPage() {
 
       {/* Search and Filter Bar */}
       <div className="mb-6 space-y-4">
-        <div className="flex gap-4">
+        <div className="flex flex-col md:flex-row gap-3">
           {/* Search Bar */}
           <div className="flex-1 relative group">
             <input
@@ -111,8 +111,7 @@ export default function InProgressPage() {
           <select
             value={selectedDepartment}
             onChange={(e) => setSelectedDepartment(e.target.value)}
-            className="px-5 py-3.5 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 focus:outline-none transition-all duration-300 bg-white hover:border-gray-300 hover:shadow-md text-sm font-medium text-gray-700 cursor-pointer"
-            style={{ minWidth: '180px' }}
+            className="w-full md:w-48 px-5 py-3.5 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 focus:outline-none transition-all duration-300 bg-white hover:border-gray-300 hover:shadow-md text-sm font-medium text-gray-700 cursor-pointer"
           >
             <option value="all">All Departments</option>
             {departments.map(dept => (
@@ -131,7 +130,46 @@ export default function InProgressPage() {
 
       {/* Requests Table */}
       <div className="bg-white overflow-hidden" style={{ borderRadius: '16px', boxShadow: '0 10px 25px rgba(0,0,0,0.08)' }}>
-        <div className="overflow-x-auto">
+        {/* Mobile Card View */}
+        <div className="md:hidden divide-y divide-gray-200">
+          {filteredRequests.length === 0 ? (
+            <div className="px-6 py-12 text-center">
+              <div className="flex flex-col items-center justify-center text-gray-400">
+                <SearchOutlined style={{ fontSize: '48px', marginBottom: '16px' }} />
+                <p className="text-lg font-medium text-gray-500">No requests found</p>
+                <p className="text-sm text-gray-400 mt-1">Try adjusting your search or filters</p>
+              </div>
+            </div>
+          ) : (
+            filteredRequests.map((request) => (
+              <div key={request.id} className="p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-indigo-600">{request.id}</span>
+                  {getPriorityBadge(request.priority)}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">{request.role}</p>
+                  <p className="text-xs text-gray-500 mt-1">{request.department} &middot; {request.project}</p>
+                </div>
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <span>{request.positions} position(s)</span>
+                  <span>{request.date}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  {getStatusBadge(request.status)}
+                  <Link href={`/hiring-manager/view-rrf/${request.id}`}>
+                    <button className="px-4 py-2 text-xs font-medium text-white bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 rounded-lg transition-all duration-200 hover:shadow-md">
+                      View Details
+                    </button>
+                  </Link>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="bg-gradient-to-r from-gray-50 to-gray-100" style={{ borderBottom: '2px solid #e5e7eb' }}>

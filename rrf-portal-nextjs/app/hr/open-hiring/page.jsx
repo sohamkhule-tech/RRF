@@ -280,7 +280,7 @@ export default function OpenHiringPage() {
   })
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       {/* Back Button */}
       <button 
         onClick={() => router.back()}
@@ -290,7 +290,7 @@ export default function OpenHiringPage() {
         <span>Back</span>
       </button>
 
-      <div className="mb-6 flex justify-between items-start">
+      <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <p className="text-lg text-gray-800 font-bold">{showDetailedView ? 'Complete information with export options' : 'RRFs assigned by PMO Team - currently open for recruitment'}</p>
         </div>
@@ -341,7 +341,7 @@ export default function OpenHiringPage() {
 
       {/* Search and Filter Bar */}
       <div className="mb-6 space-y-4">
-        <div className="flex gap-4">
+        <div className="flex flex-col md:flex-row gap-4">
           {/* Search Bar */}
           <div className="flex-1 relative group">
             <input
@@ -368,7 +368,7 @@ export default function OpenHiringPage() {
           </div>
           
           {/* Department Filter */}
-          <div className="w-72">
+          <div className="w-full md:w-72">
             <select
               value={selectedDepartment}
               onChange={(e) => setSelectedDepartment(e.target.value)}
@@ -397,25 +397,25 @@ export default function OpenHiringPage() {
           /* Stats Summary */
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 pb-6 border-b border-gray-200">
           <div className="text-center">
-            <p className="text-3xl font-bold text-green-600">{totalPositions}</p>
+            <p className="text-xl md:text-3xl font-bold text-green-600">{totalPositions}</p>
             <p className="text-sm text-gray-500 mt-1">Total Open Positions</p>
           </div>
           <div className="text-center">
-            <p className="text-3xl font-bold text-red-600">{criticalLosses}</p>
+            <p className="text-xl md:text-3xl font-bold text-red-600">{criticalLosses}</p>
             <p className="text-sm text-gray-500 mt-1">Critical Loss (10+ days)</p>
           </div>
           <div className="text-center">
-            <p className="text-3xl font-bold text-orange-600">{highLosses}</p>
+            <p className="text-xl md:text-3xl font-bold text-orange-600">{highLosses}</p>
             <p className="text-sm text-gray-500 mt-1">High Loss (6-10 days)</p>
           </div>
           <div className="text-center">
-            <p className="text-3xl font-bold text-indigo-600">{totalHeadcount}</p>
+            <p className="text-xl md:text-3xl font-bold text-indigo-600">{totalHeadcount}</p>
             <p className="text-sm text-gray-500 mt-1">Total Headcount</p>
           </div>
         </div>
         )}
 
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
           {!showDetailedView ? (
             <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
@@ -530,6 +530,57 @@ export default function OpenHiringPage() {
               </tbody>
             </table>
           )}
+        </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden px-2 pb-4 space-y-3">
+          {filteredPositions.map((position) => (
+            <div key={position.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-bold text-indigo-600 mb-1">{position.id}</div>
+                  <div className="text-sm font-bold text-gray-900 truncate">{position.role}</div>
+                  <div className="text-xs text-gray-500 truncate">{position.project} · {position.department}</div>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {getPriorityBadge(position.priority)}
+                <span className="inline-flex items-center px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full font-bold text-xs">
+                  {position.positions} pos
+                </span>
+                {showDetailedView && (
+                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                    position.status === 'Closed' ? 'bg-green-100 text-green-700' :
+                    position.status === 'Delayed' ? 'bg-red-100 text-red-700' :
+                    'bg-blue-100 text-blue-700'
+                  }`}>
+                    {position.status}
+                  </span>
+                )}
+              </div>
+              {showDetailedView && (
+                <div className="text-xs text-gray-500 mb-2 space-y-1">
+                  <div>Experience: {position.experience}</div>
+                  <div>Customer: {position.customerName}</div>
+                  <div>Created: {position.createdOn} · Expected: {position.expectedDate}</div>
+                  {position.remarks && <div className="text-gray-400 italic">{position.remarks}</div>}
+                </div>
+              )}
+              {!showDetailedView && (
+                <div className="text-xs text-gray-500 mb-2">
+                  <span>Requester: {position.requester}</span>
+                  <span className="ml-2">Appr: {position.approvedDate}</span>
+                </div>
+              )}
+              <div className="flex justify-end pt-2 border-t border-gray-100">
+                <Link href={`/hr/view-rrf/${position.id}`}>
+                  <button className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-200 text-xs" style={{ borderRadius: '6px' }}>
+                    View
+                  </button>
+                </Link>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

@@ -10,6 +10,7 @@ import { RolePermission } from '../role-permissions/role-permission.entity';
 import { User } from '../users/user.entity';
 import { Rrf } from '../rrf/entities/rrf.entity';
 import { RrfApprover } from '../rrf/entities/rrf-approver.entity';
+import { RrfFormConfig } from '../rrf/entities/rrf-form-config.entity';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { RrfApprover } from '../rrf/entities/rrf-approver.entity';
       User,
       Rrf,
       RrfApprover,
+      RrfFormConfig,
     ]),
   ],
   controllers: [SeedController],

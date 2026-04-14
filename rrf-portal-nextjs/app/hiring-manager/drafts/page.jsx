@@ -78,7 +78,7 @@ export default function DraftsPage() {
 
   if (loading) {
     return (
-      <div className="p-8 flex items-center justify-center min-h-screen" style={{ background: '#F5F7FB' }}>
+      <div className="p-4 md:p-8 flex items-center justify-center min-h-screen" style={{ background: '#F5F7FB' }}>
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-4 border-indigo-600 border-t-transparent mx-auto mb-4" />
           <p className="text-gray-600 font-medium">Loading drafts...</p>
@@ -88,17 +88,17 @@ export default function DraftsPage() {
   }
 
   return (
-    <div className="p-8 space-y-8" style={{ background: '#F5F7FB', minHeight: '100vh' }}>
+    <div className="p-4 md:p-8 space-y-8" style={{ background: '#F5F7FB', minHeight: '100vh' }}>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
-          <p className="text-lg text-gray-800 font-bold">Resume your incomplete RRF requests</p>
+          <p className="text-base md:text-lg text-gray-800 font-bold">Resume your incomplete RRF requests</p>
         </div>
         <div className="flex items-center gap-3 px-5 py-3 bg-white border-2 border-indigo-200 rounded-xl shadow-md">
           <div className="text-2xl">📝</div>
           <div>
             <p className="text-sm text-gray-700 font-bold">Total Drafts</p>
-            <p className="text-3xl font-bold text-indigo-600">{drafts.length}</p>
+            <p className="text-2xl md:text-3xl font-bold text-indigo-600">{drafts.length}</p>
           </div>
         </div>
       </div>
@@ -154,7 +154,7 @@ export default function DraftsPage() {
       {/* Drafts Table */}
       {drafts.length > 0 && (
         <div className="bg-white overflow-hidden" style={{ borderRadius: '16px', boxShadow: '0 10px 25px rgba(0,0,0,0.08)', padding: '20px' }}>
-          <div className="px-2 py-4 mb-4 flex items-center justify-between">
+          <div className="px-2 py-4 mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
               <h3 className="text-lg font-bold text-gray-900">Your Saved Drafts</h3>
               <p className="text-sm text-gray-500 mt-1">Click on any draft to continue editing</p>
@@ -170,7 +170,57 @@ export default function DraftsPage() {
             </Link>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-4">
+            {filteredDrafts.map((draft) => (
+              <div key={draft.id} className="border border-gray-200 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-gray-600">DRAFT-{draft.id}</span>
+                  {getPriorityBadge(draft.priority)}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{draft.positionTitle || 'Untitled'}</p>
+                  <p className="text-xs text-gray-500 mt-1">{draft.department || '-'}</p>
+                </div>
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <span>{draft.requisitionType || 'Not Set'}</span>
+                  <span>{draft.headcount || '-'} position(s)</span>
+                </div>
+                <div className="text-xs text-gray-400">
+                  {(() => {
+                    const d = new Date(draft.updatedAt || draft.createdAt)
+                    const day    = String(d.getDate()).padStart(2, '0')
+                    const month  = String(d.getMonth() + 1).padStart(2, '0')
+                    const year   = d.getFullYear()
+                    const hour   = String(d.getHours()).padStart(2, '0')
+                    const minute = String(d.getMinutes()).padStart(2, '0')
+                    return `${day}/${month}/${year} ${hour}:${minute}`
+                  })()}
+                </div>
+                <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                  <button
+                    onClick={() => handleEdit(draft.id)}
+                    className="flex-1 px-3 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-medium hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 flex items-center justify-center gap-1"
+                    style={{ borderRadius: '8px' }}
+                  >
+                    <EditOutlined />
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(draft.id)}
+                    className="flex-1 px-3 py-2 border-2 border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 hover:border-red-300 transition-all duration-300 flex items-center justify-center gap-1"
+                    style={{ borderRadius: '8px' }}
+                  >
+                    <DeleteOutlined />
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>

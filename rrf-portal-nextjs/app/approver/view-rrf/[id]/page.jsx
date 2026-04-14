@@ -69,7 +69,9 @@ export default function ApproverViewRRFPage() {
     projectName:      rrf.projectName,
     jobTitle:         rrf.positionTitle,
     billingStartDate: rrf.expectedStartDate ? new Date(rrf.expectedStartDate).toLocaleDateString('en-GB') : null,
-    positionType:       rrf.employmentType,
+    positionType:       rrf.positionType,
+    employmentType:     rrf.employmentType,
+    workMode:           rrf.workMode,
     numberOfPositions:  rrf.headcount,
     priorityLevel:      rrf.priority,
     jobLocation:        rrf.location ? [rrf.location] : null,
@@ -285,14 +287,14 @@ export default function ApproverViewRRFPage() {
       `}</style>
 
       {/* Split Panel Layout */}
-      <div className="flex h-screen">
+      <div className="flex flex-col md:flex-row h-screen">
         
         {/* LEFT PANEL - Dynamic Summary & Timeline */}
-        <div className="w-80 bg-white border-r border-slate-200 flex flex-col overflow-y-auto no-print">
+        <div className="w-full md:w-80 bg-white border-b md:border-b-0 md:border-r border-slate-200 flex flex-col md:overflow-y-auto no-print">
           {/* Header */}
-          <div className="p-6 bg-gradient-to-br from-slate-700 to-slate-800 text-white">
+          <div className="p-4 md:p-6 bg-gradient-to-br from-slate-700 to-slate-800 text-white">
             <div className="space-y-3">
-              <h1 className="text-2xl font-bold tracking-tight leading-tight">{rrfData.jobTitle}</h1>
+              <h1 className="text-lg md:text-2xl font-bold tracking-tight leading-tight">{rrfData.jobTitle}</h1>
               <div className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-900 shadow-lg">
                 {rrfData.status}
               </div>
@@ -303,30 +305,29 @@ export default function ApproverViewRRFPage() {
             </div>
           </div>
 
-          {/* Vertical Progress Timeline */}
-          <div className="flex-1 p-6">
-            <div className="space-y-1">
+          <div className="flex-1 p-3 md:p-6">
+            <div className="flex md:flex-col gap-2 md:gap-0 md:space-y-1 overflow-x-auto md:overflow-x-visible pb-2 md:pb-0">
               {sections.map((section, index) => (
                 <div key={section.id}>
                   <button
                     onClick={() => setActiveSection(section.id)}
-                    className={`w-full flex items-center gap-4 p-4 rounded-lg transition-all duration-200 ${
+                    className={`flex-shrink-0 md:flex-shrink md:w-full flex items-center gap-2 md:gap-4 p-3 md:p-4 rounded-lg transition-all duration-200 ${
                       activeSection === section.id
                         ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg'
                         : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
                     }`}
                   >
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                    <div className={`w-8 h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center ${
                       activeSection === section.id
                         ? 'bg-white/20'
                         : 'bg-slate-100'
                     }`}>
                       {section.icon}
                     </div>
-                    <span className="text-xs font-bold uppercase tracking-wider">{section.label}</span>
+                    <span className="text-xs font-bold uppercase tracking-wider whitespace-nowrap">{section.label}</span>
                   </button>
                   {index < sections.length - 1 && (
-                    <div className="w-px h-4 bg-slate-300 ml-9 my-0.5"></div>
+                    <div className="hidden md:block w-px h-4 bg-slate-300 ml-9 my-0.5"></div>
                   )}
                 </div>
               ))}
@@ -338,7 +339,7 @@ export default function ApproverViewRRFPage() {
         <div className="flex-1 flex flex-col overflow-hidden">
           
           {/* Top Action Bar */}
-          <div className="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between no-print">
+          <div className="bg-white border-b border-slate-200 px-4 md:px-8 py-3 md:py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 no-print">
             <div className="flex items-center gap-4">
               <Link href="/approver">
                 <button className="flex items-center gap-2 px-4 py-2 text-slate-700 hover:bg-slate-100 rounded-lg transition-all duration-200 border border-slate-300">
@@ -348,23 +349,23 @@ export default function ApproverViewRRFPage() {
               </Link>
               <h2 className="text-xl font-bold text-slate-800">RRF Details</h2>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 md:gap-3">
               <button 
                 onClick={handlePrint}
                 className="px-4 py-2 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium rounded-lg transition-all flex items-center gap-2"
               >
                 <PrinterOutlined />
-                Print
+                <span className="hidden sm:inline">Print</span>
               </button>
               <button 
                 onClick={handleExport}
                 className="px-4 py-2 bg-slate-700 text-white hover:bg-slate-800 font-medium rounded-lg transition-all flex items-center gap-2"
               >
                 <DownloadOutlined />
-                Export PDF
+                <span className="hidden sm:inline">Export PDF</span>
               </button>
               
-              <div className="w-px h-8 bg-slate-300 mx-2"></div>
+              <div className="hidden sm:block w-px h-8 bg-slate-300 mx-2"></div>
 
               {/* Action buttons: ONLY show when RRF is still pending — avoids 403 on already-actioned RRFs */}
               {rrf?.status === 'pending' ? (
@@ -430,7 +431,7 @@ export default function ApproverViewRRFPage() {
 
           {/* Content Area */}
           <div className="flex-1 overflow-y-auto bg-white rrf-content-area">
-            <div className="p-8">
+            <div className="p-4 md:p-8">
               
               {/* Print Header - Only visible when printing */}
               <div className="print-header">
@@ -446,7 +447,7 @@ export default function ApproverViewRRFPage() {
 
               {/* Requisition Info Section */}
               <div className={`space-y-8 print-section ${activeSection === 'requisition' ? '' : 'screen-hidden'}`}>
-                <h3 className="text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Requisition Information</h3>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Requisition Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   <InfoField label="Requisition Manager" value={rrfData.managerName} />
                   <InfoField label="Entity"              value={rrfData.entity} />
@@ -463,9 +464,11 @@ export default function ApproverViewRRFPage() {
 
               {/* Position Details Section */}
               <div className={`space-y-8 print-section ${activeSection === 'position' ? '' : 'screen-hidden'}`}>
-                <h3 className="text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Position Details</h3>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Position Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   <InfoField label="Position Type"       value={rrfData.positionType} />
+                  <InfoField label="Employment Type"       value={rrfData.employmentType} />
+                  <InfoField label="Work Mode"       value={rrfData.workMode} />
                   <InfoField label="Number of Positions" value={rrfData.numberOfPositions} />
                   {rrfData.priorityLevel && (
                     <div className="bg-[#E3F2FD] rounded-lg p-4 shadow-sm">
@@ -485,7 +488,7 @@ export default function ApproverViewRRFPage() {
 
               {/* Technical Requirements Section */}
               <div className={`space-y-8 print-section ${activeSection === 'technical' ? '' : 'screen-hidden'}`}>
-                <h3 className="text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Technical Requirements</h3>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Technical Requirements</h3>
                 <div className="space-y-4">
                   <InfoField label="Required Skills"  value={rrfData.requiredSkills}  rich />
                   <InfoField label="Preferred Skills" value={rrfData.preferredSkills} rich />
@@ -494,7 +497,7 @@ export default function ApproverViewRRFPage() {
 
               {/* Job Description Section */}
               <div className={`space-y-8 print-section ${activeSection === 'description' ? '' : 'screen-hidden'}`}>
-                <h3 className="text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Job Description</h3>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Job Description</h3>
                 <div className="space-y-4">
                   <InfoField label="Job Description" value={rrfData.jobDescription} rich />
                   <InfoField label="Additional Notes" value={rrfData.additionalNotes} rich />
@@ -511,7 +514,7 @@ export default function ApproverViewRRFPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden animate-slideIn">
             {/* Modal Header */}
-            <div className={`p-6 ${
+            <div className={`p-4 md:p-6 ${
               modalType === 'approve' ? 'bg-gradient-to-br from-emerald-50 to-green-50 border-b-2 border-emerald-200' :
               modalType === 'decline' ? 'bg-gradient-to-br from-red-50 to-rose-50 border-b-2 border-red-200' :
               'bg-gradient-to-br from-amber-50 to-orange-50 border-b-2 border-amber-200'
@@ -526,7 +529,7 @@ export default function ApproverViewRRFPage() {
                   {modalType === 'decline' && <CloseCircleOutlined className="text-2xl" />}
                   {modalType === 'onhold' && <span className="text-2xl">⏸️</span>}
                 </div>
-                <h3 className={`text-2xl font-bold tracking-tight ${
+                <h3 className={`text-xl md:text-2xl font-bold tracking-tight ${
                   modalType === 'approve' ? 'text-emerald-900' :
                   modalType === 'decline' ? 'text-red-900' :
                   'text-amber-900'
@@ -539,7 +542,7 @@ export default function ApproverViewRRFPage() {
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 space-y-4">
+            <div className="p-4 md:p-6 space-y-4">
               {modalType === 'approve' ? (
                 <div className="space-y-4">
                   <p className="text-gray-700 text-base leading-relaxed font-medium">
@@ -572,7 +575,7 @@ export default function ApproverViewRRFPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 bg-gray-50 flex gap-3 justify-end border-t border-gray-200">
+            <div className="px-4 md:px-6 py-4 bg-gray-50 flex gap-3 justify-end border-t border-gray-200">
               <button
                 onClick={handleCancelModal}
                 disabled={isSubmitting}

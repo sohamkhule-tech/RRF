@@ -87,14 +87,14 @@ export default function ReportsDashboard({ role }) {
   }
 
   const Stat = ({ icon, title, value, subtitle, gradient }) => (
-    <div className={`bg-gradient-to-br ${gradient} rounded-2xl p-6 shadow-sm border border-gray-200`}>
+    <div className={`bg-gradient-to-br ${gradient} rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm border border-gray-200`}>
       <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">{title}</p>
-          <p className="text-3xl font-bold text-gray-900 mt-2">{value}</p>
-          {subtitle ? <p className="text-xs text-gray-500 font-medium mt-1">{subtitle}</p> : null}
+        <div className="min-w-0 flex-1">
+          <p className="text-xs md:text-sm font-medium text-gray-500 uppercase tracking-wide truncate">{title}</p>
+          <p className="text-xl md:text-3xl font-bold text-gray-900 mt-1 md:mt-2">{value}</p>
+          {subtitle ? <p className="text-[10px] md:text-xs text-gray-500 font-medium mt-1 truncate">{subtitle}</p> : null}
         </div>
-        <div className="w-12 h-12 rounded-xl bg-white/70 border border-gray-100 flex items-center justify-center text-xl text-indigo-600">
+        <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-white/70 border border-gray-100 flex items-center justify-center text-lg md:text-xl text-indigo-600 flex-shrink-0 ml-2">
           {icon}
         </div>
       </div>
@@ -102,24 +102,24 @@ export default function ReportsDashboard({ role }) {
   )
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8">
       {/* Back Button */}
       <button 
         onClick={() => router.back()}
-        className="flex items-center gap-2 px-4 py-2 mb-4 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors duration-200 font-medium"
+        className="flex items-center gap-2 px-3 md:px-4 py-2 mb-2 md:mb-4 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors duration-200 font-medium text-sm"
       >
         <ArrowLeftOutlined />
         <span>Back</span>
       </button>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
-          <p className="text-sm text-gray-500 mt-1">Insights and ageing summary (common for PMO + Approver)</p>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">Reports</h1>
+          <p className="text-xs md:text-sm text-gray-500 mt-1">Insights and ageing summary</p>
         </div>
         <button
           onClick={exportCSV}
-          className="px-4 py-2 border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all duration-300 flex items-center gap-2"
+          className="px-4 py-2 border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all duration-300 flex items-center gap-2 w-full sm:w-auto justify-center"
           style={{ borderRadius: '10px' }}
         >
           <DownloadOutlined />
@@ -127,7 +127,7 @@ export default function ReportsDashboard({ role }) {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+      <div className="grid grid-cols-2 md:grid-cols-2 xl:grid-cols-4 gap-3 md:gap-5">
         <Stat
           icon={<WarningOutlined />}
           title="Revenue Loss Risk"
@@ -212,7 +212,7 @@ export default function ReportsDashboard({ role }) {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
@@ -239,24 +239,50 @@ export default function ReportsDashboard({ role }) {
                       <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-700">{r.priority}</td>
                       <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-700">{r.stage}</td>
                       <td className="px-6 py-5 whitespace-nowrap text-sm text-center">
-                        <span className="inline-flex items-center justify-center w-10 h-8 bg-indigo-100 text-indigo-700 rounded-full font-bold text-xs">
-                          {r.daysPending}
-                        </span>
+                        <span className="inline-flex items-center justify-center w-10 h-8 bg-indigo-100 text-indigo-700 rounded-full font-bold text-xs">{r.daysPending}</span>
                       </td>
                     </tr>
                   ))
               ) : (
                 <tr>
                   <td colSpan={7} className="px-6 py-10 text-center text-gray-500">
-                    <div className="flex flex-col items-center gap-2">
-                      <SearchOutlined style={{ fontSize: '32px', color: '#9ca3af' }} />
-                      <p className="text-sm font-medium">No requests found matching "{searchTerm}"</p>
-                    </div>
+                    <SearchOutlined style={{ fontSize: '32px', color: '#9ca3af' }} />
+                    <p className="text-sm font-medium mt-2">No requests found matching "{searchTerm}"</p>
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden px-2 pb-4 space-y-3">
+          {filteredRows.length > 0 ? (
+            filteredRows
+              .slice()
+              .sort((a, b) => b.daysPending - a.daysPending)
+              .map((r) => (
+                <div key={r.submissionId} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-bold text-indigo-600 mb-1">{r.submissionId}</div>
+                      <div className="text-sm font-bold text-gray-900 truncate">{r.role}</div>
+                      <div className="text-xs text-gray-500 truncate">{r.project} • {r.department}</div>
+                    </div>
+                    <span className="inline-flex items-center justify-center w-9 h-7 bg-indigo-100 text-indigo-700 rounded-full font-bold text-xs ml-2 flex-shrink-0">{r.daysPending}d</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="text-xs px-2 py-1 bg-gray-100 rounded-full text-gray-700">{r.priority}</span>
+                    <span className="text-xs px-2 py-1 bg-blue-50 rounded-full text-blue-700">{r.stage}</span>
+                  </div>
+                </div>
+              ))
+          ) : (
+            <div className="py-8 text-center text-gray-500">
+              <SearchOutlined style={{ fontSize: '32px', color: '#9ca3af' }} />
+              <p className="text-sm font-medium mt-2">No requests found</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

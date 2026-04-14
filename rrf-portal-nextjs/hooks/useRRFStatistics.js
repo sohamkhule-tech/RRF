@@ -1,85 +1,47 @@
 /**
  * useRRFStatistics Hook
- * Fetches and manages RRF statistics for dashboard
+ * Fetches and manages RRF statistics for dashboard.
+ *
+ * Uses useSmartFetch for caching (60 s TTL) + deduplication.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { rrfApi } from '@/lib/api/rrfApi';
-import toast from 'react-hot-toast';
+import { useSmartFetch } from '@/lib/useSmartFetch';
+import { CACHE_TTL } from '@/lib/apiCache';
+
+const EMPTY_STATS = {
+  total: 0,
+  byStatus: { draft: 0, pending: 0, approved: 0, rejected: 0, onHold: 0, closed: 0 },
+};
 
 export const useRRFStatistics = (includeAll = false) => {
-  const [statistics, setStatistics] = useState({
-    total: 0,
-    byStatus: {
-      draft: 0,
-      pending: 0,
-      approved: 0,
-      rejected: 0,
-      onHold: 0,
-      closed: 0,
-    },
-  });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const cacheKey = `statistics-${includeAll}`;
 
-  /**
-   * Fetch statistics from API
-   */
-  const fetchStatistics = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  // Stable fetcher — captured `includeAll` is constant for the hook's lifetime
+  const fetcher = useCallback(
+    () => rrfApi.getStatistics(includeAll),
+    [includeAll],
+  );
 
-    try {
-      const response = await rrfApi.getStatistics(includeAll);
-      
-      if (response.success) {
-        const statsData = response.data;
-        
-        if (!statsData || (!statsData.total && !statsData.byStatus)) {
-          setStatistics({
-            total: 0,
-            byStatus: { draft: 0, pending: 0, approved: 0, rejected: 0, onHold: 0, closed: 0 },
-          });
-        } else {
-          setStatistics(statsData);
-        }
-      } else {
-        throw new Error(response.message || 'Failed to fetch statistics');
-      }
-    } catch (err) {
-      setError(err.message);
-      setStatistics({
-        total: 0,
-        byStatus: {
-          draft: 0,
-          pending: 0,
-          approved: 0,
-          rejected: 0,
-          onHold: 0,
-          closed: 0,
-        },
-      });
-    } finally {
-      setLoading(false);
+  const transform = useCallback((response) => {
+    if (response?.success) {
+      const d = response.data;
+      if (!d || (!d.total && !d.byStatus)) return EMPTY_STATS;
+      return d;
     }
-  }, [includeAll]);
+    return EMPTY_STATS;
+  }, []);
 
-  /**
-   * Refresh statistics
-   */
-  const refresh = useCallback(() => {
-    fetchStatistics();
-  }, [fetchStatistics]);
-
-  // Initial fetch
-  useEffect(() => {
-    fetchStatistics();
-  }, [fetchStatistics]);
+  const { data, loading, error, refresh } = useSmartFetch(cacheKey, fetcher, {
+    ttl: CACHE_TTL.STATS,
+    transform,
+  });
 
   return {
-    statistics,
+    statistics: data ?? EMPTY_STATS,
     loading,
-    error,
+    error: error?.message || null,
     refresh,
   };
 };

@@ -9,13 +9,16 @@ import TagInput from './TagInput'
 import RichTextEditor from './RichTextEditor'
 import DateInput from './DateInput'
 import { rrfApi } from '@/lib/api/rrfApi'
+import { useFormConfig } from '@/hooks/useFormConfig'
 
 export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuth()
+  const { configs, getConfig } = useFormConfig()
   const [currentStep, setCurrentStep] = useState(1)
   const [currentDraftId, setCurrentDraftId] = useState(null)
+  const [isEditingRrf, setIsEditingRrf] = useState(false)
   const [requisitionType, setRequisitionType] = useState('')
   const [nonBillableSubType, setNonBillableSubType] = useState('')
   const [selectedFunction, setSelectedFunction] = useState('')
@@ -216,6 +219,8 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
         
         // Employment details — send undefined (not "") for unset enum values
         employmentType: formData.employmentType || undefined,
+        positionType: formData.positionType || undefined,
+        workMode: formData.workMode || undefined,
         priority: formData.priority || undefined,
         
         // Experience & Budget
@@ -247,10 +252,20 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
       // DEBUG: Log exact payload being sent (remove when no longer needed)
       console.log('[RRF Submit] Payload to POST /rrf:', JSON.stringify(backendData, null, 2))
       
-      // Step 1: Create RRF (status will be DRAFT)
-      const createResponse = await rrfApi.create(backendData)
-      const rrfId = createResponse.data.id
-      const subId = createResponse.data.subId
+      // Step 1: Create or Update RRF
+      let rrfId;
+      let subId;
+      
+      // If we are editing an existing backend request, use update
+      if (isEditingRrf && currentDraftId) {
+        const updateResponse = await rrfApi.update(currentDraftId, backendData);
+        rrfId = updateResponse.data?.id || currentDraftId;
+        subId = updateResponse.data?.subId || 'Updated';
+      } else {
+        const createResponse = await rrfApi.create(backendData)
+        rrfId = createResponse.data.id
+        subId = createResponse.data.subId
+      }
       
       // Step 2: Submit RRF (DRAFT → SUBMITTED)
       await rrfApi.submit(rrfId)
@@ -290,6 +305,8 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
         projectName: formData.projectName || undefined,
         nonBillableSubType: formData.nonBillableSubType || undefined,
         employmentType: formData.employmentType || undefined,
+        positionType: formData.positionType || undefined,
+        workMode: formData.workMode || undefined,
         priority: formData.priority || undefined,
         experienceMin: parseInt(formData.experienceMin) || 0,
         experienceMax: parseInt(formData.experienceMax) || 0,
@@ -346,17 +363,21 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
     }
   }, [user])
 
-  // Load draft if draftId is present in URL
+  // Load draft or existing RRF if draftId is present in URL
   useEffect(() => {
     const draftId = searchParams.get('draftId')
-    if (draftId) {
+    if (!draftId) return;
+
+    const loadData = async () => {
       try {
+        let foundLocal = false;
         const savedDrafts = localStorage.getItem('rrf_drafts')
         if (savedDrafts) {
           const drafts = JSON.parse(savedDrafts)
           const draft = drafts.find(d => d.id === draftId)
           if (draft) {
             // Handle backward compatibility for skills (string to array conversion)
+            foundLocal = true;
             const draftData = {
               ...draft.data,
               technologies: Array.isArray(draft.data.technologies)
@@ -370,8 +391,8 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
                 : (draft.data.niceToHaveSkills || '').split('\n').filter(s => s.trim())
             }
             setFormData(draftData)
-            setRequisitionType(draft.requisitionType || draft.data.requisitionType)
-            setNonBillableSubType(draft.nonBillableSubType || draft.data.nonBillableSubType)
+            setRequisitionType(draft.requisitionType || draft.data.requisitionType || '')
+            setNonBillableSubType(draft.nonBillableSubType || draft.data.nonBillableSubType || '')
             setSelectedLocations(draft.selectedLocations || draft.data.location || [])
             setBillingRateType(draft.billingRateType || 'amount')
             setBillingCurrency(draft.billingCurrency || draft.data.billingCurrency || 'USD')
@@ -379,10 +400,58 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
             setCurrentStep(draft.currentStep || 1)
           }
         }
+        
+        // If not found in local drafts, fetch from backend API
+        if (!foundLocal) {
+           const response = await rrfApi.getById(draftId)
+           if (response.success && response.data) {
+             const rrf = response.data;
+             const mappedData = {
+                managerName: rrf.createdBy?.fullName || rrf.createdBy?.username || '',
+                entity: rrf.entity || '',
+                organisation: rrf.organisation || 'DataFortune',
+                function: rrf.function || '',
+                subFunction: rrf.subFunction || '',
+                requisitionType: rrf.requisitionType || '',
+                customerName: rrf.customerName || '',
+                nonBillableSubType: rrf.nonBillableSubType || '',
+                projectName: rrf.projectName || '',
+                jobTitle: rrf.positionTitle || '',
+                billingRate: '', // Default empty mapping
+                billingCurrency: 'USD',
+                anticipatedBillingStartDate: '',
+                expectedOnboardingDate: '',
+                positionType: rrf.positionType || '',
+                employmentType: rrf.employmentType || '',
+                positions: rrf.headcount?.toString() || '1',
+                priority: rrf.priority || 'Medium',
+                location: rrf.location ? rrf.location.split(',').map(l => l.trim()) : [],
+                workMode: rrf.workMode || '',
+                experienceMin: rrf.experienceMin?.toString() || '',
+                experienceMax: rrf.experienceMax?.toString() || '',
+                technologies: rrf.technologies ? rrf.technologies.split(',').map(t => t.trim()).filter(t => t) : [],
+                mustHaveSkills: rrf.requiredSkills ? rrf.requiredSkills.split(',').map(s => s.trim()).filter(s => s) : [],
+                niceToHaveSkills: rrf.preferredSkills ? rrf.preferredSkills.split(',').map(s => s.trim()).filter(s => s) : [],
+                jobDescription: rrf.jobDescription || '',
+                additionalNotes: rrf.urgencyReason || '',
+                budgetMin: rrf.budgetMin?.toString() || '',
+                budgetMax: rrf.budgetMax?.toString() || ''
+             };
+             
+             setFormData(prev => ({ ...prev, ...mappedData }));
+             setRequisitionType(mappedData.requisitionType);
+             setNonBillableSubType(mappedData.nonBillableSubType);
+             setSelectedLocations(mappedData.location || []);
+             setCurrentDraftId(draftId);
+             setIsEditingRrf(true); // Flag to know we must call UPDATE, not CREATE
+           }
+        }
       } catch (error) {
-        console.error('Error loading draft:', error)
+        console.error('Error loading RRF for editing:', error)
       }
     }
+    
+    loadData();
   }, [searchParams])
 
   const nextStep = () => {
@@ -393,34 +462,34 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
     if (currentStep > 1) setCurrentStep(currentStep - 1)
   }
 
-  const allLocations = ['Pune', 'Chennai', 'Bengaluru', 'US', 'Other']
+  const allLocations = getConfig('location')?.options || ['Pune', 'Chennai', 'Bengaluru', 'US', 'Other']
 
   const progressPercentage = (currentStep / 3) * 100
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 py-8 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 py-4 md:py-8 px-3 md:px-4">
       <div className="max-w-6xl mx-auto">
         {/* Subtle Header Banner */}
-        <div className="bg-gradient-to-r from-slate-800 via-slate-700 to-purple-900 rounded-2xl p-6 mb-6 shadow-sm">
+        <div className="bg-gradient-to-r from-slate-800 via-slate-700 to-purple-900 rounded-xl md:rounded-2xl p-4 md:p-6 mb-4 md:mb-6 shadow-sm">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 md:gap-4 min-w-0">
               <button
                 type="button"
                 onClick={() => router.push(userRole === 'pmo' ? '/pmo' : '/hiring-manager/dashboard')}
-                className="text-white/70 hover:text-white transition-colors"
+                className="text-white/70 hover:text-white transition-colors flex-shrink-0"
               >
                 <ArrowLeftOutlined className="text-lg" />
               </button>
-              <div>
-                <h1 className="text-2xl font-semibold text-white">New Resource Requisition Request</h1>
-                <p className="text-white/60 text-sm mt-1">Submission Date: {currentDate}</p>
+              <div className="min-w-0">
+                <h1 className="text-lg md:text-2xl font-semibold text-white truncate">New Resource Requisition</h1>
+                <p className="text-white/60 text-xs md:text-sm mt-1">Submission Date: {currentDate}</p>
               </div>
             </div>
           </div>
         </div>
 
         {/* Modern Stepper */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 mb-6">
+        <div className="bg-white rounded-xl md:rounded-2xl shadow-sm border border-slate-200 p-4 md:p-8 mb-4 md:mb-6">
           <div className="flex items-center justify-center">
             {steps.map((step, index) => {
               const StepIcon = step.icon
@@ -429,9 +498,9 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
               
               return (
                 <div key={step.number} className="flex items-center" style={{ flex: '0 0 auto' }}>
-                  <div className="flex flex-col items-center px-8">
+                  <div className="flex flex-col items-center px-2 sm:px-4 md:px-8">
                     {/* Step Label */}
-                    <div className={`text-xs font-bold mb-2 ${
+                    <div className={`text-[10px] md:text-xs font-bold mb-1 md:mb-2 ${
                       isActive ? 'text-indigo-600' : 
                       isCompleted ? 'text-emerald-600' : 
                       'text-slate-400'
@@ -441,9 +510,9 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
                     
                     {/* Circle Icon */}
                     <div className={`
-                      w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 mb-3 text-lg
+                      w-9 h-9 md:w-12 md:h-12 rounded-full flex items-center justify-center transition-all duration-300 mb-2 md:mb-3 text-base md:text-lg
                       ${isCompleted ? 'bg-emerald-500 text-white shadow-lg' : 
-                        isActive ? 'bg-indigo-600 text-white shadow-lg ring-4 ring-indigo-100' : 
+                        isActive ? 'bg-indigo-600 text-white shadow-lg ring-2 md:ring-4 ring-indigo-100' : 
                         'border-2 border-slate-300 bg-white text-slate-400'}
                     `}>
                       {isCompleted ? <CheckOutlined /> : <StepIcon />}
@@ -451,14 +520,15 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
                     
                     {/* Title & Description */}
                     <div className="text-center">
-                      <div className={`text-sm font-semibold ${
+                      <div className={`text-xs md:text-sm font-semibold ${
                         isActive ? 'text-slate-900' : 
                         isCompleted ? 'text-slate-700' : 
                         'text-slate-500'
                       }`}>
-                        {step.title}
+                        <span className="hidden sm:inline">{step.title}</span>
+                        <span className="sm:hidden">Step {step.number}</span>
                       </div>
-                      <div className="text-xs text-slate-400 mt-1">
+                      <div className="hidden md:block text-xs text-slate-400 mt-1">
                         {step.description}
                       </div>
                     </div>
@@ -466,7 +536,7 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
                   
                   {/* Connecting Line */}
                   {index < steps.length - 1 && (
-                    <div className="flex-1 h-0.5 mx-4" style={{ marginTop: '20px', minWidth: '80px' }}>
+                    <div className="flex-1 h-0.5 mx-1 md:mx-4" style={{ marginTop: '20px', minWidth: '20px' }}>
                       <div className={`h-full transition-all duration-300 ${
                         currentStep > step.number ? 'bg-emerald-500' : 'bg-slate-200'
                       }`} />
@@ -479,7 +549,7 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
         </div>
 
         {/* Form Card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="bg-white rounded-xl md:rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           {/* Progress Bar */}
           <div className="h-1 bg-slate-100">
             <div 
@@ -488,25 +558,25 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
             />
           </div>
           
-          <div className="p-8">
+          <div className="p-4 md:p-8">
             <form onSubmit={handleSubmit}>
               {/* Step 1: Requisition Details */}
               {currentStep === 1 && (
                 <div>
                   {/* Section Header */}
-                  <div className="mb-8 pb-5 border-b border-slate-200">
+                  <div className="mb-6 md:mb-8 pb-4 md:pb-5 border-b border-slate-200">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                      <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0">
                         <BankOutlined className="text-indigo-600 text-lg" />
                       </div>
-                      <div>
-                        <h2 className="text-xl font-bold text-slate-800">Requisition Details</h2>
-                        <p className="text-sm text-slate-500 mt-0.5">Basic information about the requisition and organizational details</p>
+                      <div className="min-w-0">
+                        <h2 className="text-lg md:text-xl font-bold text-slate-800">Requisition Details</h2>
+                        <p className="text-xs md:text-sm text-slate-500 mt-0.5">Basic information about the requisition</p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 md:gap-x-8 gap-y-5 md:gap-y-6">
                   {/* Manager Name */}
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-2">
@@ -536,9 +606,10 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
                       className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 placeholder:text-slate-400 bg-white hover:border-slate-400"
                       required
                     >
-                      <option value="">Select entity</option>
-                      <option value="DataFortune Inc">DataFortune Inc</option>
-                      <option value="Techfortune Inc">Techfortune Inc</option>
+                      <option value="">Select {(getConfig('entity')?.label || 'entity').toLowerCase()}</option>
+                      {getConfig('entity')?.options?.map((option) => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
                     </select>
                   </div>
 
@@ -570,10 +641,10 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
                       className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 placeholder:text-slate-400 bg-white hover:border-slate-400"
                       required
                     >
-                      <option value="">Select function</option>
-                      <option value="Delivery">Delivery</option>
-                      <option value="Sales">Sales</option>
-                      <option value="Support">Support</option>
+                      <option value="">Select {(getConfig('function')?.label || 'function').toLowerCase()}</option>
+                      {getConfig('function')?.options?.map((option) => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
                     </select>
                   </div>
 
@@ -615,9 +686,10 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
                       className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 placeholder:text-slate-400 bg-white hover:border-slate-400 disabled:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-600"
                       required
                     >
-                      <option value="">Select requisition type</option>
-                      <option value="Billable">Billable</option>
-                      <option value="Non-Billable">Non-Billable</option>
+                      <option value="">Select {(getConfig('requisitionType')?.label || 'requisition type').toLowerCase()}</option>
+                      {getConfig('requisitionType')?.options?.map((option) => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
                     </select>
                   </div>
 
@@ -634,9 +706,10 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
                         className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 placeholder:text-slate-400 bg-white hover:border-slate-400"
                         required
                       >
-                        <option value="">Select sub type</option>
-                        <option value="Bench">Bench</option>
-                        <option value="Pipeline">Pipeline</option>
+                        <option value="">Select {(getConfig('nonBillableSubType')?.label || 'sub type').toLowerCase()}</option>
+                        {getConfig('nonBillableSubType')?.options?.map((option) => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
                       </select>
                     </div>
                   )}
@@ -781,22 +854,22 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
             {currentStep === 2 && (
               <div>
                 {/* Section Header */}
-                <div className="mb-8 pb-5 border-b border-slate-200">
+                <div className="mb-6 md:mb-8 pb-4 md:pb-5 border-b border-slate-200">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                    <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0">
                       <TeamOutlined className="text-indigo-600 text-lg" />
                     </div>
-                    <div>
-                      <h2 className="text-xl font-bold text-slate-800">Position Details</h2>
-                      <p className="text-sm text-slate-500 mt-0.5">Role requirements, location, and position specifications</p>
+                    <div className="min-w-0">
+                      <h2 className="text-lg md:text-xl font-bold text-slate-800">Position Details</h2>
+                      <p className="text-xs md:text-sm text-slate-500 mt-0.5">Role requirements, location, and position specifications</p>
                     </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 md:gap-x-8 gap-y-5 md:gap-y-6">
                   {/* Position Type */}
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-2">
-                      Position Type <span className="text-red-500">*</span>
+                      {getConfig('positionType')?.label || 'Position Type'} <span className="text-red-500">*</span>
                     </label>
                     <select
                       name="positionType"
@@ -805,17 +878,19 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
                       className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 placeholder:text-slate-400 bg-white hover:border-slate-400"
                       required
                     >
-                      <option value="">Select position type</option>
-                      <option value="New Position">New Position</option>
-                      <option value="Replacement">Replacement</option>
-                      <option value="Additional">Additional</option>
+                      <option value="">Select {(getConfig('positionType')?.label || 'position type').toLowerCase()}</option>
+                      {getConfig('positionType')?.options?.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
                   {/* Employment Type */}
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-2">
-                      Employment Type <span className="text-red-500">*</span>
+                      {getConfig('employmentType')?.label || 'Employment Type'} <span className="text-red-500">*</span>
                     </label>
                     <select
                       name="employmentType"
@@ -824,10 +899,12 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
                       className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 placeholder:text-slate-400 bg-white hover:border-slate-400"
                       required
                     >
-                      <option value="">Select employment type</option>
-                      <option value="Full-time">Full-time</option>
-                      <option value="Part-time">Part-time</option>
-                      <option value="Contract">Contract</option>
+                      <option value="">Select {(getConfig('employmentType')?.label || 'employment type').toLowerCase()}</option>
+                      {getConfig('employmentType')?.options?.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
@@ -860,18 +937,17 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
                       className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 placeholder:text-slate-400 bg-white hover:border-slate-400"
                       required
                     >
-                      <option value="">Select priority</option>
-                      <option value="Low">Low</option>
-                      <option value="Medium">Medium</option>
-                      <option value="High">High</option>
-                      <option value="Critical">Critical</option>
+                      <option value="">Select {(getConfig('priority')?.label || 'priority').toLowerCase()}</option>
+                      {getConfig('priority')?.options?.map((option) => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
                     </select>
                   </div>
 
                   {/* Work Mode */}
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-2">
-                      Work Mode <span className="text-red-500">*</span>
+                      {getConfig('workMode')?.label || 'Work Mode'} <span className="text-red-500">*</span>
                     </label>
                     <select
                       name="workMode"
@@ -880,10 +956,12 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
                       className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 placeholder:text-slate-400 bg-white hover:border-slate-400"
                       required
                     >
-                      <option value="">Select work mode</option>
-                      <option value="Remote">Remote</option>
-                      <option value="Hybrid">Hybrid</option>
-                      <option value="On-site">On-site</option>
+                      <option value="">Select {(getConfig('workMode')?.label || 'work mode').toLowerCase()}</option>
+                      {getConfig('workMode')?.options?.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
@@ -1081,18 +1159,18 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
             {currentStep === 3 && (
               <div>
                 {/* Section Header */}
-                <div className="mb-8 pb-5 border-b border-slate-200">
+                <div className="mb-6 md:mb-8 pb-4 md:pb-5 border-b border-slate-200">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                    <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0">
                       <CodeOutlined className="text-indigo-600 text-lg" />
                     </div>
-                    <div>
-                      <h2 className="text-xl font-bold text-slate-800">Technical Skills</h2>
-                      <p className="text-sm text-slate-500 mt-0.5">Technical requirements, skill sets, and detailed job description</p>
+                    <div className="min-w-0">
+                      <h2 className="text-lg md:text-xl font-bold text-slate-800">Technical Skills</h2>
+                      <p className="text-xs md:text-sm text-slate-500 mt-0.5">Technical requirements, skill sets, and job description</p>
                     </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 gap-6">
+                <div className="grid grid-cols-1 gap-4 md:gap-6">
                   {/* Primary Technologies */}
                   <TagInput
                     value={formData.technologies}
@@ -1147,22 +1225,22 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
             )}
 
             {/* Action Buttons */}
-            <div className="flex items-center justify-between mt-10 pt-6 border-t border-slate-200 gap-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between mt-6 md:mt-10 pt-4 md:pt-6 border-t border-slate-200 gap-3">
               <button
                 type="button"
                 onClick={saveDraft}
-                className="px-6 py-2.5 text-sm font-semibold text-indigo-600 bg-white hover:bg-indigo-50 border-2 border-indigo-200 rounded-xl transition-all duration-200 flex items-center gap-2"
+                className="px-4 md:px-6 py-2.5 text-sm font-semibold text-indigo-600 bg-white hover:bg-indigo-50 border-2 border-indigo-200 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 order-2 sm:order-1"
               >
                 <SaveOutlined className="text-base" />
                 Save Draft
               </button>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 md:gap-3 order-1 sm:order-2">
                 {currentStep > 1 && (
                   <button
                     type="button"
                     onClick={prevStep}
-                    className="px-6 py-2.5 text-sm font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-xl transition-all duration-200"
+                    className="px-4 md:px-6 py-2.5 text-sm font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-xl transition-all duration-200 flex-1 sm:flex-none"
                   >
                     Back
                   </button>
@@ -1172,7 +1250,7 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
                   <button
                     type="button"
                     onClick={nextStep}
-                    className="px-8 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 rounded-xl transition-all duration-200 flex items-center gap-2 shadow-lg shadow-indigo-200"
+                    className="px-6 md:px-8 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 flex-1 sm:flex-none"
                   >
                     Next
                     <RightOutlined className="text-base" />
@@ -1180,7 +1258,7 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
                 ) : (
                   <button
                     type="submit"
-                    className="px-8 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 rounded-xl transition-all duration-200 flex items-center gap-2 shadow-lg shadow-indigo-200"
+                    className="px-6 md:px-8 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 flex-1 sm:flex-none"
                   >
                     <SendOutlined className="text-base" />
                     Submit RRF

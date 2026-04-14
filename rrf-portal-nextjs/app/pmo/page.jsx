@@ -1,87 +1,68 @@
 'use client'
 
-import Link from 'next/link'
 import { ClockCircleOutlined, CheckCircleOutlined, SearchOutlined, SendOutlined, PlusOutlined, CloseCircleOutlined, ReloadOutlined } from '@ant-design/icons'
+import ActionButton from '@/components/ActionButton'
+import { useRouter } from 'next/navigation'
 import StatCard from '@/components/StatCard'
-import { useState, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import { rrfApi } from '@/lib/api/rrfApi'
+import { useSmartFetch } from '@/lib/useSmartFetch'
+import { useVisibilityRefresh } from '@/lib/useVisibilityRefresh'
+import { CACHE_TTL } from '@/lib/apiCache'
 
 export default function PMODashboard() {
+  const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
-  const [stats, setStats] = useState({
-    openedPositions: 0,
-    sentToHR: 0,
-    totalProcessed: 0,
-    closed: 0
+
+  // Fetch dashboard statistics — cached 60 s
+  const {
+    data: stats,
+    refresh: refreshStats,
+  } = useSmartFetch('pmo-dashboard-stats', () => rrfApi.getPMODashboardStats(), {
+    ttl: CACHE_TTL.STATS,
+    transform: (response) => {
+      const d = response?.data || response || {}
+      return {
+        openedPositions: d.openedPositions || 0,
+        sentToHR: d.sentToHR || 0,
+        totalProcessed: d.totalProcessed || 0,
+        closed: d.closed || 0,
+      }
+    },
   })
-  const [recentRequests, setRecentRequests] = useState([])
-  const [loading, setLoading] = useState(true)
 
-  // Fetch dashboard statistics
-  const fetchStats = async () => {
-    try {
-      const response = await rrfApi.getPMODashboardStats()
-      const statsData = response?.data || response || {}
-      setStats({
-        openedPositions: statsData.openedPositions || 0,
-        sentToHR: statsData.sentToHR || 0,
-        totalProcessed: statsData.totalProcessed || 0,
-        closed: statsData.closed || 0
-      })
-    } catch (error) {
-      console.error('Error fetching PMO dashboard stats:', error)
-    }
-  }
-
-  // Fetch recent open positions
-  const fetchRecentRequests = async () => {
-    try {
-      const response = await rrfApi.getOpenPositions()
+  // Fetch recent open positions — cached 30 s
+  const {
+    data: recentRequests,
+    loading,
+    refresh: refreshRecent,
+  } = useSmartFetch('pmo-open-positions', () => rrfApi.getOpenPositions(), {
+    ttl: CACHE_TTL.LIST,
+    transform: (response) => {
       const rrfs = response?.data || response || []
-      
-      // Format for display - take latest 5
-      const formattedRequests = Array.isArray(rrfs) 
+      return Array.isArray(rrfs)
         ? rrfs.slice(0, 5).map(rrf => ({
             id: rrf.id,
             rrfNumber: rrf.rrfNumber,
-            role: rrf.jobTitle,
-            manager: rrf.createdBy?.name || 'N/A',
-            project: rrf.projectName,
-            positions: rrf.numberOfPositions,
-            priority: rrf.priority,
+            role: rrf.positionTitle || '-',
+            manager: rrf.createdBy?.fullName || rrf.createdBy?.name || '-',
+            project: rrf.projectName || '-',
+            positions: rrf.headcount || 1,
+            priority: rrf.priority || 'Medium',
             status: rrf.status,
             date: new Date(rrf.approvedAt || rrf.createdAt).toLocaleDateString('en-GB')
           }))
         : []
-      
-      setRecentRequests(formattedRequests)
-    } catch (error) {
-      console.error('Error fetching open positions:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+    },
+  })
 
-  // Manual refresh handler
-  const handleRefresh = () => {
-    setLoading(true)
-    fetchStats()
-    fetchRecentRequests()
-  }
+  const handleRefresh = useCallback(() => {
+    refreshStats()
+    refreshRecent()
+  }, [refreshStats, refreshRecent])
 
-  // Initial load and auto-refresh setup
-  useEffect(() => {
-    fetchStats()
-    fetchRecentRequests()
-
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(() => {
-      fetchStats()
-      fetchRecentRequests()
-    }, 30000)
-
-    return () => clearInterval(interval)
-  }, [])
+  // Single polling + visibility handler (60 s, replaces 30 s unguarded interval)
+  useVisibilityRefresh(handleRefresh, { intervalMs: 60_000 })
 
   const getPriorityBadge = (priority) => {
     const priorityConfig = {
@@ -98,7 +79,10 @@ export default function PMODashboard() {
     )
   }
 
-  const filteredRequests = recentRequests.filter(request => {
+  const effectiveStats = stats || { openedPositions: 0, sentToHR: 0, totalProcessed: 0, closed: 0 }
+  const effectiveRequests = recentRequests || []
+
+  const filteredRequests = effectiveRequests.filter(request => {
     const searchLower = searchTerm.toLowerCase()
     return (
       request.rrfNumber?.toLowerCase().includes(searchLower) ||
@@ -110,12 +94,12 @@ export default function PMODashboard() {
   })
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8">
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5">
         <StatCard 
           title="Opened Positions" 
-          value={stats.openedPositions.toString()} 
+          value={effectiveStats.openedPositions.toString()} 
           subtitle="Awaiting review" 
           icon={<ClockCircleOutlined />} 
           color="orange" 
@@ -123,22 +107,23 @@ export default function PMODashboard() {
         />
         <StatCard 
           title="Sent to HR Team" 
-          value={stats.sentToHR.toString()} 
+          value={effectiveStats.sentToHR.toString()} 
           subtitle="Forwarded successfully" 
           icon={<SendOutlined />} 
           color="blue" 
-          href="/pmo/sent-to-hr" 
+          href="/pmo/sent-to-approvers" 
         />
         <StatCard 
           title="Closed" 
-          value={stats.closed.toString()} 
+          value={effectiveStats.closed.toString()} 
           subtitle="Completed positions" 
           icon={<CloseCircleOutlined />} 
           color="red" 
+          href="/pmo/closed"
         />
         <StatCard 
           title="Total Processed" 
-          value={stats.totalProcessed.toString()} 
+          value={effectiveStats.totalProcessed.toString()} 
           subtitle="All time" 
           icon={<CheckCircleOutlined />} 
           color="green" 
@@ -146,16 +131,18 @@ export default function PMODashboard() {
       </div>
 
       {/* Recent Requests Table */}
-      <div className="bg-white overflow-hidden" style={{ borderRadius: '16px', boxShadow: '0 10px 25px rgba(0,0,0,0.08)', padding: '20px' }}>
-        <div className="px-2 py-4 mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-gray-900">Recent Open Positions</h3>
-          <div className="flex gap-3">
-            <Link href="/pmo/create-rrf">
-              <button className="px-4 py-2 text-white text-sm font-medium hover:scale-105 transition-all duration-300 flex items-center gap-2" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', borderRadius: '10px' }}>
-                <PlusOutlined />
-                Create New RRF
-              </button>
-            </Link>
+      <div className="bg-white overflow-hidden" style={{ borderRadius: '16px', boxShadow: '0 10px 25px rgba(0,0,0,0.08)', padding: '12px md:20px' }}>
+        <div className="px-2 py-3 md:py-4 mb-3 md:mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <h3 className="text-base md:text-lg font-bold text-gray-900">Recent Open Positions</h3>
+          <div className="flex gap-2 md:gap-3 w-full sm:w-auto">
+            <button
+              onClick={() => router.push('/pmo/create-rrf')}
+              className="px-3 md:px-4 py-2 text-white text-sm font-medium hover:scale-105 transition-all duration-300 flex items-center gap-2 w-full sm:w-auto justify-center"
+              style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', borderRadius: '10px' }}
+            >
+              <PlusOutlined />
+              Create New RRF
+            </button>
           </div>
         </div>
 
@@ -184,7 +171,8 @@ export default function PMODashboard() {
           </button>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Desktop Table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
@@ -223,11 +211,7 @@ export default function PMODashboard() {
                     <td className="px-6 py-5 whitespace-nowrap text-sm">{getPriorityBadge(request.priority)}</td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-600">{request.date}</td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm">
-                      <Link href={`/pmo/view-rrf/${request.id}`}>
-                        <button className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 font-medium transition-all duration-300 flex items-center gap-2" style={{ borderRadius: '10px' }}>
-                          View RRF
-                        </button>
-                      </Link>
+                      <ActionButton role="PMO" status={request.status} href={`/pmo/view-rrf/${request.id}`} />
                     </td>
                   </tr>
                 ))
@@ -236,15 +220,45 @@ export default function PMODashboard() {
                   <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
                     <div className="flex flex-col items-center gap-2">
                       <SearchOutlined style={{ fontSize: '32px', color: '#9ca3af' }} />
-                      <p className="text-sm font-medium">
-                        {searchTerm ? `No requests found matching "${searchTerm}"` : 'No open positions available'}
-                      </p>
+                      <p className="text-sm font-medium">{searchTerm ? `No requests found matching "${searchTerm}"` : 'No open positions available'}</p>
                     </div>
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden px-2 pb-4 space-y-3">
+          {loading ? (
+            <div className="py-8 text-center"><ReloadOutlined className="animate-spin text-2xl text-indigo-600" /></div>
+          ) : filteredRequests.length > 0 ? (
+            filteredRequests.map((request) => (
+              <div key={request.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-bold text-indigo-600 mb-1">{request.rrfNumber}</div>
+                    <div className="text-sm font-bold text-gray-900 truncate">{request.role}</div>
+                    <div className="text-xs text-gray-500 truncate">{request.manager} • {request.project}</div>
+                  </div>
+                  <span className="inline-flex items-center justify-center w-8 h-8 bg-indigo-100 text-indigo-700 rounded-full font-bold text-xs ml-2 flex-shrink-0">{request.positions}</span>
+                </div>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {getPriorityBadge(request.priority)}
+                  <span className="text-xs text-gray-500">{request.date}</span>
+                </div>
+                <div className="flex justify-end pt-2 border-t border-gray-100">
+                  <ActionButton role="PMO" status={request.status} href={`/pmo/view-rrf/${request.id}`} />
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="py-8 text-center text-gray-500">
+              <SearchOutlined style={{ fontSize: '32px', color: '#9ca3af' }} />
+              <p className="text-sm font-medium mt-2">{searchTerm ? `No requests found matching "${searchTerm}"` : 'No open positions available'}</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

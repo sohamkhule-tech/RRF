@@ -1,24 +1,26 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import { SearchOutlined, ReloadOutlined, PlusOutlined } from '@ant-design/icons'
 import { rrfApi } from '@/lib/api/rrfApi'
+import { useSmartFetch } from '@/lib/useSmartFetch'
+import { useVisibilityRefresh } from '@/lib/useVisibilityRefresh'
+import { CACHE_TTL } from '@/lib/apiCache'
 
 export default function PMOMyRequests() {
   const [searchTerm, setSearchTerm] = useState('')
-  const [requests, setRequests] = useState([])
-  const [loading, setLoading] = useState(true)
 
-  // Fetch all RRFs created by current PMO user
-  const fetchRequests = async () => {
-    try {
-      setLoading(true)
-      const response = await rrfApi.getMyRequests()
+  // Fetch all RRFs created by current PMO user — cached + deduplicated
+  const {
+    data: requests,
+    loading,
+    refresh: refreshRequests,
+  } = useSmartFetch('pmo-my-requests', () => rrfApi.getMyRequests(), {
+    ttl: CACHE_TTL.LIST,
+    transform: (response) => {
       const rrfs = response?.data || response || []
-      
-      // Filter out drafts and format
-      const formattedRequests = Array.isArray(rrfs)
+      return Array.isArray(rrfs)
         ? rrfs
             .filter(rrf => rrf.status !== 'draft')
             .map(rrf => ({
@@ -32,26 +34,16 @@ export default function PMOMyRequests() {
               date: new Date(rrf.createdAt).toLocaleDateString('en-GB')
             }))
         : []
-      
-      setRequests(formattedRequests)
-    } catch (error) {
-      console.error('Error fetching PMO requests:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+    },
+  })
 
   // Manual refresh handler
-  const handleRefresh = () => {
-    fetchRequests()
-  }
+  const handleRefresh = useCallback(() => {
+    refreshRequests()
+  }, [refreshRequests])
 
-  // Initial load and auto-refresh
-  useEffect(() => {
-    fetchRequests()
-    const interval = setInterval(fetchRequests, 30000)
-    return () => clearInterval(interval)
-  }, [])
+  // Single visibility-aware polling (60 s, replaces unguarded 30 s setInterval)
+  useVisibilityRefresh(handleRefresh, { intervalMs: 60_000 })
 
   const getStatusBadge = (status) => {
     const statusConfig = {
@@ -59,8 +51,9 @@ export default function PMOMyRequests() {
       'approved': { bg: '#d1fae5', color: '#065f46', label: 'Approved' },
       'declined': { bg: '#fee2e2', color: '#991b1b', label: 'Declined' },
       'rejected': { bg: '#fee2e2', color: '#991b1b', label: 'Declined' },
-      'on-hold': { bg: '#e0e7ff', color: '#3730a3', label: 'On Hold' },
-      'open-for-hiring': { bg: '#dbeafe', color: '#1e40af', label: 'Open for Hiring' },
+      'on-hold': { bg: '#fef3c7', color: '#b45309', label: 'On Hold' },
+      'open-for-hiring': { bg: '#dbeafe', color: '#1e40af', label: 'Sent to HR' },
+      'in-progress': { bg: '#dbeafe', color: '#1e40af', label: 'Sent to HR' },
       'closed': { bg: '#f3f4f6', color: '#374151', label: 'Closed' },
       'closed-by-bench': { bg: '#f3f4f6', color: '#374151', label: 'Closed by Bench' }
     }
@@ -90,7 +83,7 @@ export default function PMOMyRequests() {
     )
   }
 
-  const filteredRequests = requests.filter(request => {
+  const filteredRequests = (requests || []).filter(request => {
     const searchLower = searchTerm.toLowerCase()
     return (
       request.displayId?.toLowerCase().includes(searchLower) ||
@@ -102,9 +95,9 @@ export default function PMOMyRequests() {
   })
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-4 md:p-8 space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">My RRF Requests</h1>
           <p className="text-gray-600 mt-1">View all your submitted requisition forms</p>
@@ -124,8 +117,8 @@ export default function PMOMyRequests() {
       <div className="bg-white overflow-hidden" style={{ borderRadius: '16px', boxShadow: '0 10px 25px rgba(0,0,0,0.08)', padding: '20px' }}>
         
         {/* Search and Reload */}
-        <div className="px-2 mb-4 flex items-center gap-3">
-          <div className="relative flex-1 max-w-md">
+        <div className="px-2 mb-4 flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1 sm:max-w-md">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
               <SearchOutlined className="text-gray-400" style={{ fontSize: '18px' }} />
             </div>
@@ -150,7 +143,7 @@ export default function PMOMyRequests() {
         </div>
 
         {/* Table */}
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
@@ -211,6 +204,44 @@ export default function PMOMyRequests() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden px-2 pb-4 space-y-3">
+          {loading ? (
+            <div className="py-8 text-center text-gray-500">
+              <ReloadOutlined className="animate-spin" style={{ fontSize: '32px', color: '#6366f1' }} />
+              <p className="text-sm font-medium mt-3">Loading...</p>
+            </div>
+          ) : filteredRequests.length > 0 ? (
+            filteredRequests.map((request) => (
+              <div key={request.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-bold text-indigo-600 mb-1">{request.displayId}</div>
+                    <div className="text-sm font-bold text-gray-900 truncate">{request.role}</div>
+                    <div className="text-xs text-gray-500 truncate">{request.project}</div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {getPriorityBadge(request.priority)}
+                  {getStatusBadge(request.status)}
+                </div>
+                <div className="text-xs text-gray-500 mb-3">Created: {request.date}</div>
+                <div className="flex justify-end pt-2 border-t border-gray-100">
+                  <Link href={`/pmo/view-rrf/${request.id}`}>
+                    <button className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 font-medium transition-all duration-300 text-sm" style={{ borderRadius: '10px' }}>
+                      View
+                    </button>
+                  </Link>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="py-8 text-center text-gray-500">
+              <p className="text-sm font-medium">No requests found</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -1,85 +1,54 @@
 'use client'
 
+import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeftOutlined } from '@ant-design/icons'
+import { EyeOutlined, LeftOutlined } from '@ant-design/icons'
+import { rrfApi, formatRrfForDisplay } from '@/lib/api/rrfApi'
+import { useSmartFetch } from '@/lib/useSmartFetch'
+import { CACHE_TTL } from '@/lib/apiCache'
+import { LoadingSpinner } from '@/components/LoadingSpinner'
+import toast from 'react-hot-toast'
 
-export default function ClosedPositionsPage() {
+export default function HRClosedPositionsPage() {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedDepartment, setSelectedDepartment] = useState('all')
   
   // Departments from RRF form
   const departments = ['HR', 'Talent Acquisition', 'Accounts', 'Sales & Marketing', 'PMO', 'SGINTL', 'VR', 'Support']
-  
-  const closedPositions = [
-    { 
-      id: 'RRF-001', 
-      role: 'HR Specialist', 
-      project: 'Recruitment Operations', 
-      positions: 1, 
-      priority: 'High', 
-      requester: 'John Smith', 
-      department: 'HR',
-      approvedDate: '10/02/2026', 
-      closedDate: '15/03/2026',
-      closureReason: 'Position Filled',
-      candidateName: 'Alex Johnson'
-    },
-    { 
-      id: 'RRF-002', 
-      role: 'Talent Acquisition Manager', 
-      project: 'Hiring Strategy', 
-      positions: 1, 
-      priority: 'Medium', 
-      requester: 'Sarah Davis', 
-      department: 'Talent Acquisition',
-      approvedDate: '15/02/2026', 
-      closedDate: '20/03/2026',
-      closureReason: 'Position Filled',
-      candidateName: 'Maria Garcia'
-    },
-    { 
-      id: 'RRF-003', 
-      role: 'Finance Controller', 
-      project: 'Budget Management', 
-      positions: 1, 
-      priority: 'High', 
-      requester: 'Tom Wilson', 
-      department: 'Accounts',
-      approvedDate: '18/02/2026', 
-      closedDate: '22/03/2026',
-      closureReason: 'Position Filled',
-      candidateName: 'James Lee'
-    },
-    { 
-      id: 'RRF-004', 
-      role: 'Marketing Coordinator', 
-      project: 'Campaign Management', 
-      positions: 2, 
-      priority: 'Medium', 
-      requester: 'Emma Brown', 
-      department: 'Sales & Marketing',
-      approvedDate: '20/02/2026', 
-      closedDate: '24/03/2026',
-      closureReason: 'Position Filled',
-      candidateName: 'Lisa Wang, David Chen'
-    },
-    { 
-      id: 'RRF-005', 
-      role: 'Senior Java Developer', 
-      project: 'Banking Portal', 
-      positions: 2, 
-      priority: 'Critical', 
-      requester: 'Mike Johnson', 
-      department: 'SGINTL',
-      approvedDate: '12/02/2026', 
-      closedDate: '18/03/2026',
-      closureReason: 'Position Filled',
-      candidateName: 'Rahul Kumar, Priya Sharma'
-    }
-  ]
+
+  // Shared all-rrfs cache (also used by hr/page, pmo/closed, pmo/sent-to-approvers)
+  const { data: allRrfs, loading } = useSmartFetch('all-rrfs', () => rrfApi.getAll({ limit: 1000 }), {
+    ttl: CACHE_TTL.LIST,
+    transform: (response) => response?.data?.data || response?.data || [],
+  })
+
+  // Derive closed requests from cached data (client-side filter)
+  const sentRequests = useMemo(() => {
+    if (!allRrfs) return []
+    const relevantStatuses = ['closed', 'closed-by-bench']
+    return allRrfs
+      .filter(rrf => rrf.status && relevantStatuses.includes(rrf.status.toLowerCase()))
+      .map(rrf => {
+        const formatted = formatRrfForDisplay(rrf) || {}
+        return {
+          rrfId: formatted.displayId || `RRF-${rrf.id}`,
+          submissionId: formatted.id || rrf.id,
+          role: formatted.role || '—',
+          manager: formatted.manager || '—',
+          project: formatted.project || '—',
+          department: formatted.department || '—',
+          positions: formatted.positions || 1,
+          priority: formatted.priority || 'Medium',
+          sentDate: new Date(rrf.sentToHrAt || rrf.updatedAt || rrf.createdAt || Date.now()).toLocaleDateString('en-GB'),
+          closedDate: rrf.closedAt ? new Date(rrf.closedAt).toLocaleDateString('en-GB') : new Date(rrf.updatedAt || rrf.createdAt).toLocaleDateString('en-GB'),
+          candidateName: rrf.candidateName || rrf.notes || '—',
+          closureStatus: rrf.closureStatus || 'Position Filled',
+          status: ['closed', 'closed-by-bench'].includes((rrf.status || '').toLowerCase()) ? 'Closed' : 'In Progress',
+        }
+      })
+  }, [allRrfs])
 
   const getPriorityBadge = (priority) => {
     const priorityConfig = {
@@ -96,10 +65,29 @@ export default function ClosedPositionsPage() {
     )
   }
 
-  // Filter positions based on search term and department
-  const filteredPositions = closedPositions.filter(position => {
+  const getStatusBadge = (status) => {
+    if (status === 'Closed') {
+      return (
+        <span className="text-xs font-medium" style={{ backgroundColor: '#e5e7eb', color: '#374151', borderRadius: '999px', padding: '6px 12px' }}>
+          ✓ Closed
+        </span>
+      )
+    }
+    return (
+      <span className="text-xs font-medium" style={{ backgroundColor: '#dcfce7', color: '#166534', borderRadius: '999px', padding: '6px 12px' }}>
+        🟢 In Progress
+      </span>
+    )
+  }
+
+  const totalClosed = sentRequests.length
+  const positionsFilled = sentRequests.reduce((sum, req) => sum + req.positions, 0)
+  const totalHires = sentRequests.filter(req => req.candidateName && req.candidateName !== '—').length || positionsFilled // Approximation for hires
+
+  // Filter requests based on search term and department
+  const filteredRequests = sentRequests.filter(request => {
     // Department filter
-    if (selectedDepartment !== 'all' && position.department !== selectedDepartment) {
+    if (selectedDepartment !== 'all' && request.department !== selectedDepartment) {
       return false
     }
     
@@ -107,33 +95,53 @@ export default function ClosedPositionsPage() {
     if (!searchTerm) return true
     const searchLower = searchTerm.toLowerCase()
     return (
-      position.id.toLowerCase().includes(searchLower) ||
-      position.role.toLowerCase().includes(searchLower) ||
-      position.project.toLowerCase().includes(searchLower) ||
-      position.department.toLowerCase().includes(searchLower) ||
-      position.requester.toLowerCase().includes(searchLower) ||
-      position.candidateName.toLowerCase().includes(searchLower)
+      request.rrfId.toLowerCase().includes(searchLower) ||
+      request.role.toLowerCase().includes(searchLower) ||
+      request.manager.toLowerCase().includes(searchLower) ||
+      request.project.toLowerCase().includes(searchLower) ||
+      request.department.toLowerCase().includes(searchLower) ||
+      request.status.toLowerCase().includes(searchLower) ||
+      request.candidateName.toLowerCase().includes(searchLower)
     )
   })
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8 space-y-8">
       {/* Back Button */}
-      <button 
+      <button
         onClick={() => router.back()}
-        className="flex items-center gap-2 px-4 py-2 mb-4 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors duration-200 font-medium"
+        className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:text-gray-900 font-semibold transition-all duration-200 rounded-lg hover:bg-gray-100 border border-gray-200 hover:border-gray-300"
       >
-        <ArrowLeftOutlined />
+        <LeftOutlined />
         <span>Back</span>
       </button>
 
-      <div className="mb-6">
-        <p className="text-lg text-gray-800 font-bold">Successfully filled or cancelled requisitions</p>
-      </div>
-
+      {/* Page Header */}
+      {loading ? (
+        <LoadingSpinner message="Loading requests..." />
+      ) : (
+        <>
+        <div>
+          <p className="text-lg text-gray-800 font-bold">Successfully filled or cancelled requisitions</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pb-6 mt-4">
+          <div className="text-center px-3 py-2 md:px-4 md:py-3 bg-white border-2 border-gray-200 rounded-xl shadow-md min-w-[150px]">
+             <p className="text-xl md:text-3xl font-bold text-gray-600">{totalClosed}</p>
+             <p className="text-base text-gray-700 mt-1 font-semibold">Total Closed</p>
+          </div>
+          <div className="text-center px-3 py-2 md:px-4 md:py-3 bg-white border-2 border-indigo-200 rounded-xl shadow-md min-w-[150px]">
+             <p className="text-xl md:text-3xl font-bold text-indigo-600">{positionsFilled}</p>
+             <p className="text-base text-gray-700 mt-1 font-semibold">Positions Filled</p>
+          </div>
+          <div className="text-center px-3 py-2 md:px-4 md:py-3 bg-white border-2 border-indigo-200 rounded-xl shadow-md min-w-[150px]">
+             <p className="text-xl md:text-3xl font-bold text-indigo-600">{totalHires}</p>
+             <p className="text-base text-gray-700 mt-1 font-semibold">Total Hires</p>
+          </div>
+        </div>
+      
       {/* Search and Filter Bar */}
       <div className="mb-6 space-y-4">
-        <div className="flex gap-4">
+        <div className="flex flex-col md:flex-row gap-4">
           {/* Search Bar */}
           <div className="flex-1 relative group">
             <input
@@ -160,7 +168,7 @@ export default function ClosedPositionsPage() {
           </div>
           
           {/* Department Filter */}
-          <div className="w-72">
+          <div className="w-full md:w-72">
             <select
               value={selectedDepartment}
               onChange={(e) => setSelectedDepartment(e.target.value)}
@@ -177,31 +185,20 @@ export default function ClosedPositionsPage() {
         
         {(searchTerm || selectedDepartment !== 'all') && (
           <p className="text-sm text-gray-600">
-            Found {filteredPositions.length} result{filteredPositions.length !== 1 ? 's' : ''}
+            Found {filteredRequests.length} result{filteredRequests.length !== 1 ? 's' : ''}
             {searchTerm && ` for "${searchTerm}"`}
             {selectedDepartment !== 'all' && ` in ${selectedDepartment}`}
           </p>
         )}
       </div>
-
+      
+      {/* Closed RRFs Table */}
       <div className="bg-white overflow-hidden" style={{ borderRadius: '16px', boxShadow: '0 10px 25px rgba(0,0,0,0.08)', padding: '20px' }}>
-        {/* Stats Summary */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 pb-6 border-b border-gray-200">
-          <div className="text-center">
-            <p className="text-3xl font-bold text-gray-600">2</p>
-            <p className="text-base text-gray-700 mt-1 font-semibold">Total Closed</p>
-          </div>
-          <div className="text-center">
-            <p className="text-3xl font-bold text-indigo-600">2</p>
-            <p className="text-base text-gray-700 mt-1 font-semibold">Positions Filled</p>
-          </div>
-          <div className="text-center">
-            <p className="text-3xl font-bold text-indigo-600">3</p>
-            <p className="text-base text-gray-700 mt-1 font-semibold">Total Hires</p>
-          </div>
+        <div className="px-2 py-4 mb-4">
+          <h3 className="text-lg font-bold text-gray-900">Closed Requests</h3>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
@@ -215,39 +212,104 @@ export default function ClosedPositionsPage() {
                 <th className="px-3 py-3 text-center text-xs font-bold text-gray-700 uppercase">Action</th>
               </tr>
             </thead>
-            <tbody>
-              {filteredPositions.map((position) => (
-                <tr key={position.id} className="border-b border-gray-100 transition-all duration-200 hover:bg-gray-50">
-                  <td className="px-3 py-3 whitespace-nowrap text-xs font-bold text-indigo-600">{position.id}</td>
-                  <td className="px-3 py-3 text-xs">
-                    <div className="font-medium text-gray-900">{position.role}</div>
-                    <div className="text-gray-500">{position.project}</div>
-                  </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-600">{position.department}</td>
-                  <td className="px-3 py-3 text-center">
-                    <span className="inline-flex items-center justify-center w-7 h-7 bg-gray-100 text-gray-700 rounded-full font-bold text-xs">
-                      {position.positions}
-                    </span>
-                  </td>
-                  <td className="px-3 py-3 text-xs">{getPriorityBadge(position.priority)}</td>
-                  <td className="px-3 py-3 text-xs">
-                    <span className="text-xs font-medium bg-green-100 text-green-700 px-2 py-1 rounded-full">{position.closureReason}</span>
-                    <div className="text-gray-500 mt-1">Closed: {position.closedDate}</div>
-                  </td>
-                  <td className="px-3 py-3 text-xs text-gray-600 max-w-xs truncate" title={position.candidateName}>{position.candidateName}</td>
-                  <td className="px-3 py-3 text-center">
-                    <Link href={`/hr/view-rrf/${position.id}`}>
-                      <button className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-200 text-xs" style={{ borderRadius: '6px' }}>
-                        View
-                      </button>
-                    </Link>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredRequests.length > 0 ? (
+                filteredRequests.map((request) => (
+                  <tr key={request.rrfId} className="hover:bg-gray-50 transition-colors duration-200">
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      <span className="text-xs font-bold text-indigo-600">{request.rrfId}</span>
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="font-medium text-xs text-gray-900">{request.role}</div>
+                      <div className="text-xs text-gray-500">{request.project}</div>
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-600">{request.department}</td>
+                    <td className="px-3 py-3 text-center">
+                      <span className="inline-flex items-center justify-center w-7 h-7 bg-gray-100 text-gray-700 rounded-full font-bold text-xs">{request.positions}</span>
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap">{getPriorityBadge(request.priority)}</td>
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      <span className="text-xs font-medium bg-green-100 text-green-700 px-2 py-1 rounded-full">{request.closureStatus}</span>
+                      <div className="text-xs text-gray-500 mt-1">Closed: {request.closedDate}</div>
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-600 max-w-[150px] truncate" title={request.candidateName}>{request.candidateName}</td>
+                    <td className="px-3 py-3 text-center whitespace-nowrap text-sm">
+                      <Link href={`/hr/view-rrf/${request.submissionId}`}>
+                        <button className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-200 text-xs flex items-center gap-1 mx-auto" style={{ borderRadius: '6px' }}>
+                          <EyeOutlined /> View RRF
+                        </button>
+                      </Link>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={9} className="px-6 py-12 text-center text-gray-500">
+                    <div className="flex flex-col items-center justify-center space-y-3">
+                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-2">
+                        <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                        </svg>
+                      </div>
+                      <p className="text-sm text-gray-500 max-w-sm text-center">
+                        There are currently no closed RRFs. Once HR closes a request, it will appear here.
+                      </p>
+                    </div>
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden px-2 pb-4 space-y-3">
+          {filteredRequests.length > 0 ? (
+            filteredRequests.map((request) => (
+              <div key={request.rrfId} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-bold text-indigo-600 mb-1">{request.rrfId}</div>
+                    <div className="text-sm font-bold text-gray-900 truncate">{request.role}</div>
+                    <div className="text-xs text-gray-500 truncate">{request.project} · {request.department}</div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {getPriorityBadge(request.priority)}
+                  <span className="inline-flex items-center px-2 py-1 bg-gray-100 text-gray-700 rounded-full font-bold text-xs">
+                    {request.positions} pos
+                  </span>
+                  <span className="text-xs font-medium bg-green-100 text-green-700 px-2 py-1 rounded-full">{request.closureStatus}</span>
+                </div>
+                <div className="text-xs text-gray-500 mb-2 space-y-1">
+                  <div>Candidate: {request.candidateName}</div>
+                  <div>Closed: {request.closedDate}</div>
+                </div>
+                <div className="flex justify-end pt-2 border-t border-gray-100">
+                  <Link href={`/hr/view-rrf/${request.submissionId}`}>
+                    <button className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-200 text-xs flex items-center gap-1" style={{ borderRadius: '6px' }}>
+                      <EyeOutlined /> View RRF
+                    </button>
+                  </Link>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="flex flex-col items-center justify-center space-y-3 py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-2">
+                <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                </svg>
+              </div>
+              <p className="text-sm text-gray-500 max-w-sm text-center">
+                There are currently no closed RRFs. Once HR closes a request, it will appear here.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
+        </>
+      )}
     </div>
   )
 }

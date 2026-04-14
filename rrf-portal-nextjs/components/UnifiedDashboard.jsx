@@ -52,23 +52,23 @@ export default function UnifiedDashboard() {
   const isHR = canReadRRF && !canCreateRRF && !canApprove
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-4 md:p-8 space-y-6 md:space-y-8">
       {/* Welcome Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
             Welcome back, {user?.name || 'User'}!
           </h1>
-          <p className="text-gray-600 mt-1">
+          <p className="text-gray-600 mt-1 text-sm md:text-base">
             Here's what's happening with your requests today
           </p>
         </div>
 
         {/* Quick Actions */}
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-2 sm:gap-3">
           {canCreateRRF && (
             <Link href="/hiring-manager/create-rrf">
-              <button className="px-5 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 flex items-center gap-2 shadow-lg">
+              <button className="px-4 py-2.5 sm:px-5 sm:py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 flex items-center gap-2 shadow-lg text-sm sm:text-base">
                 <PlusOutlined />
                 Create RRF
               </button>
@@ -76,7 +76,7 @@ export default function UnifiedDashboard() {
           )}
 
           {canExportReports && (
-            <button className="px-5 py-3 border-2 border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-all duration-300 flex items-center gap-2">
+            <button className="px-4 py-2.5 sm:px-5 sm:py-3 border-2 border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-all duration-300 flex items-center gap-2 text-sm sm:text-base">
               <DownloadOutlined />
               Export
             </button>
@@ -238,8 +238,8 @@ export default function UnifiedDashboard() {
       </div>
 
       {/* Recent Items Section */}
-      <div className="bg-white rounded-2xl shadow-lg p-6">
-        <div className="flex items-center justify-between mb-6">
+      <div className="bg-white rounded-2xl shadow-lg p-4 md:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <h2 className="text-xl font-bold text-gray-900">
             {isHiringManager && 'My Recent Requests'}
             {isPMO && 'Recent Submissions'}
@@ -248,7 +248,7 @@ export default function UnifiedDashboard() {
           </h2>
 
           {/* Search Box */}
-          <div className="relative w-96">
+          <div className="relative w-full sm:w-72 md:w-96">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
               <SearchOutlined className="text-gray-400" />
             </div>
@@ -263,7 +263,8 @@ export default function UnifiedDashboard() {
         </div>
 
         {/* Sample Table - Replace with your actual data */}
-        <div className="overflow-x-auto">
+        {/* Desktop Table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b-2 border-gray-200">
               <tr>
@@ -301,7 +302,7 @@ export default function UnifiedDashboard() {
                   March 20, 2026
                 </td>
                 <td className="px-6 py-4 text-sm">
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {canReadRRF && (
                       <Link href="/hiring-manager/view-rrf/1">
                         <button className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all duration-300">
@@ -333,6 +334,34 @@ export default function UnifiedDashboard() {
               {/* Add more rows with your actual data */}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden space-y-3">
+          <div className="border border-gray-200 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-bold text-indigo-600">RRF-001</span>
+              <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-semibold">Pending</span>
+            </div>
+            <p className="text-sm text-gray-900 font-medium">Senior Backend Developer</p>
+            <p className="text-xs text-gray-500 mt-1">March 20, 2026</p>
+            <div className="flex flex-wrap gap-2 mt-3">
+              {canReadRRF && (
+                <Link href="/hiring-manager/view-rrf/1">
+                  <button className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all text-xs">View</button>
+                </Link>
+              )}
+              {canUpdateRRF && (
+                <button className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all text-xs">Edit</button>
+              )}
+              {canApprove && (
+                <button className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all text-xs">Approve</button>
+              )}
+              {canDeleteRRF && (
+                <button className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all text-xs">Delete</button>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* View All Link */}

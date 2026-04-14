@@ -309,9 +309,9 @@ export default function ApproverEditRRF() {
       <div className="max-w-6xl mx-auto">
 
         {/* ── Header Banner ─────────────────────────────────────── */}
-        <div className="bg-gradient-to-r from-slate-800 via-slate-700 to-purple-900 rounded-2xl p-6 mb-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+        <div className="bg-gradient-to-r from-slate-800 via-slate-700 to-purple-900 rounded-2xl p-4 md:p-6 mb-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3 md:gap-4">
               <button
                 type="button"
                 onClick={() => router.back()}
@@ -331,7 +331,7 @@ export default function ApproverEditRRF() {
         </div>
 
         {/* ── Stepper ───────────────────────────────────────────── */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 mb-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-8 mb-6">
           <div className="flex items-center justify-center">
             {STEPS.map((step, idx) => {
               const Icon       = step.icon
@@ -339,25 +339,26 @@ export default function ApproverEditRRF() {
               const isComplete = currentStep > step.number
               return (
                 <div key={step.number} className="flex items-center" style={{ flex: '0 0 auto' }}>
-                  <div className="flex flex-col items-center px-8">
+                  <div className="flex flex-col items-center px-2 sm:px-4 md:px-8">
                     <div className={`text-xs font-bold mb-2 ${isActive ? 'text-indigo-600' : isComplete ? 'text-emerald-600' : 'text-slate-400'}`}>
                       STEP {step.number}
                     </div>
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 mb-3 text-lg
+                    <div className={`w-9 h-9 md:w-12 md:h-12 rounded-full flex items-center justify-center transition-all duration-300 mb-3 text-base md:text-lg
                       ${isComplete ? 'bg-emerald-500 text-white shadow-lg' :
                         isActive   ? 'bg-indigo-600 text-white shadow-lg ring-4 ring-indigo-100' :
                         'border-2 border-slate-300 bg-white text-slate-400'}`}>
                       {isComplete ? <CheckOutlined /> : <Icon />}
                     </div>
                     <div className="text-center">
-                      <div className={`text-sm font-semibold ${isActive ? 'text-slate-900' : isComplete ? 'text-slate-700' : 'text-slate-500'}`}>
-                        {step.title}
+                      <div className={`text-xs sm:text-sm font-semibold ${isActive ? 'text-slate-900' : isComplete ? 'text-slate-700' : 'text-slate-500'}`}>
+                        <span className="hidden sm:inline">{step.title}</span>
+                        <span className="sm:hidden">Step {step.number}</span>
                       </div>
-                      <div className="text-xs text-slate-400 mt-1">{step.description}</div>
+                      <div className="text-xs text-slate-400 mt-1 hidden sm:block">{step.description}</div>
                     </div>
                   </div>
                   {idx < STEPS.length - 1 && (
-                    <div className="flex-1 h-0.5 mx-4" style={{ marginTop: '20px', minWidth: '80px' }}>
+                    <div className="flex-1 h-0.5 mx-1 sm:mx-4" style={{ marginTop: '20px', minWidth: '30px' }}>
                       <div className={`h-full transition-all duration-300 ${currentStep > step.number ? 'bg-emerald-500' : 'bg-slate-200'}`} />
                     </div>
                   )}
@@ -374,7 +375,7 @@ export default function ApproverEditRRF() {
             <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-500" style={{ width: `${progress}%` }} />
           </div>
 
-          <div className="p-8">
+          <div className="p-4 md:p-8">
 
             {/* ════ STEP 1 ════ */}
             {currentStep === 1 && (
@@ -797,23 +798,23 @@ export default function ApproverEditRRF() {
             )}
 
             {/* ── Footer Buttons ───────────────────────────────── */}
-            <div className="flex items-center justify-between mt-10 pt-6 border-t border-slate-200">
+            <div className="flex flex-col sm:flex-row items-center justify-between mt-8 sm:mt-10 pt-6 border-t border-slate-200 gap-3">
               <div className="text-sm text-slate-500">Step {currentStep} of 3</div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 w-full sm:w-auto">
                 {currentStep > 1 && (
                   <button type="button" onClick={prevStep}
-                    className="px-6 py-2.5 text-sm font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-xl transition-all">
+                    className="flex-1 sm:flex-initial px-4 sm:px-6 py-2.5 text-sm font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-xl transition-all">
                     Back
                   </button>
                 )}
                 {currentStep < 3 ? (
                   <button type="button" onClick={nextStep}
-                    className="px-8 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 rounded-xl transition-all shadow-lg shadow-indigo-200 flex items-center gap-2">
+                    className="flex-1 sm:flex-initial px-6 sm:px-8 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 rounded-xl transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2">
                     Next <RightOutlined className="text-base" />
                   </button>
                 ) : (
                   <button type="button" onClick={handleSave} disabled={saving}
-                    className="px-8 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 rounded-xl transition-all shadow-lg shadow-green-200 flex items-center gap-2 disabled:opacity-50">
+                    className="flex-1 sm:flex-initial px-6 sm:px-8 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 rounded-xl transition-all shadow-lg shadow-green-200 flex items-center justify-center gap-2 disabled:opacity-50">
                     <SaveOutlined className="text-base" />
                     {saving ? 'Saving...' : 'Save Changes'}
                   </button>

@@ -1,45 +1,52 @@
 /**
  * useApproverRequests Hook
- * Fetches and manages RRF requests for approver (all pending/on-hold RRFs)
+ * Fetches and manages RRF requests for approver (all pending/on-hold RRFs).
+ *
+ * Uses useSmartFetch for caching + deduplication.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { rrfApi } from '@/lib/api/rrfApi';
+import { useSmartFetch } from '@/lib/useSmartFetch';
+import { invalidateCachePattern, CACHE_TTL } from '@/lib/apiCache';
 import toast from 'react-hot-toast';
 
-export const useApproverRequests = (status = null) => {
-  const [requests, setRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+export const useApproverRequests = (status = null, options = {}) => {
+  const { limit = 10 } = options;
+  const cacheKey = status ? `approver-${status}-${limit}` : `approver-all-${limit}`;
 
-  const fetchRequests = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const fetcher = useCallback(() => {
+    const params = { limit };
+    if (status) params.status = status;
+    return rrfApi.getAll(params);
+  }, [status, limit]);
 
-    try {
-      const params = {};
-      if (status) {
-        params.status = status;
-      }
+  const transform = useCallback((response) => {
+    if (response?.success) return response.data || [];
+    return [];
+  }, []);
 
-      const response = await rrfApi.getAll(params);
+  const {
+    data,
+    loading: smartLoading,
+    error: smartError,
+    refresh: smartRefresh,
+  } = useSmartFetch(cacheKey, fetcher, {
+    ttl: CACHE_TTL.LIST,
+    transform,
+  });
 
-      if (response.success) {
-        setRequests(response.data || []);
-      } else {
-        throw new Error(response.message || 'Failed to fetch RRF requests');
-      }
-    } catch (err) {
-      setError(err.message);
-      setRequests([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [status]);
+  // Local overrides for optimistic mutations
+  const [localOverrides, setLocalOverrides] = useState(null);
+
+  const requests = localOverrides ?? data ?? [];
+  const loading = smartLoading && requests.length === 0;
+  const error = smartError?.message || null;
 
   const refresh = useCallback(() => {
-    fetchRequests();
-  }, [fetchRequests]);
+    setLocalOverrides(null);
+    smartRefresh();
+  }, [smartRefresh]);
 
   const approveRequest = useCallback(async (id, comments = '') => {
     try {
@@ -47,7 +54,10 @@ export const useApproverRequests = (status = null) => {
 
       if (response.success) {
         toast.success(response.message || 'RRF approved successfully');
-        setRequests(prev => prev.filter(req => req.id !== id));
+        setLocalOverrides((prev) =>
+          (prev ?? requests).filter(req => req.id !== id),
+        );
+        invalidateCachePattern(/approver|statistics|my-requests/);
         return { success: true, data: response.data };
       } else {
         throw new Error(response.message || 'Failed to approve RRF');
@@ -56,7 +66,7 @@ export const useApproverRequests = (status = null) => {
       toast.error(err.message);
       return { success: false, error: err.message };
     }
-  }, []);
+  }, [requests]);
 
   const rejectRequest = useCallback(async (id, comments) => {
     if (!comments || comments.trim() === '') {
@@ -65,13 +75,14 @@ export const useApproverRequests = (status = null) => {
     }
 
     try {
-      // Use rrfApi.decline (/decline endpoint) — not rrfApi.reject (/reject endpoint).
-      // /decline saves rrf.declineReason + rrf.declinedAt so the HM view can display the reason.
       const response = await rrfApi.decline(id, comments);
 
       if (response.success) {
         toast.success(response.message || 'RRF declined successfully');
-        setRequests(prev => prev.filter(req => req.id !== id));
+        setLocalOverrides((prev) =>
+          (prev ?? requests).filter(req => req.id !== id),
+        );
+        invalidateCachePattern(/approver|statistics|my-requests/);
         return { success: true, data: response.data };
       } else {
         throw new Error(response.message || 'Failed to decline RRF');
@@ -80,7 +91,7 @@ export const useApproverRequests = (status = null) => {
       toast.error(err.message);
       return { success: false, error: err.message };
     }
-  }, []);
+  }, [requests]);
 
   const putOnHold = useCallback(async (id, comments = '') => {
     try {
@@ -88,9 +99,12 @@ export const useApproverRequests = (status = null) => {
 
       if (response.success) {
         toast.success('RRF put on hold successfully');
-        setRequests(prev =>
-          prev.map(req => req.id === id ? { ...req, status: 'on-hold' } : req)
+        setLocalOverrides((prev) =>
+          (prev ?? requests).map(req =>
+            req.id === id ? { ...req, status: 'on-hold' } : req,
+          ),
         );
+        invalidateCachePattern(/approver|statistics/);
         return { success: true, data: response.data };
       } else {
         throw new Error(response.message || 'Failed to put RRF on hold');
@@ -99,11 +113,7 @@ export const useApproverRequests = (status = null) => {
       toast.error(err.message);
       return { success: false, error: err.message };
     }
-  }, []);
-
-  useEffect(() => {
-    fetchRequests();
-  }, [fetchRequests]);
+  }, [requests]);
 
   return {
     requests,

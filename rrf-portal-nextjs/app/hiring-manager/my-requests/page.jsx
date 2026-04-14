@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
+import ActionButton from '@/components/ActionButton'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { PlusOutlined, DownloadOutlined, ArrowLeftOutlined } from '@ant-design/icons'
 import toast from 'react-hot-toast'
@@ -20,7 +21,7 @@ function MyRequestsContent() {
   const [selectedSubFunction, setSelectedSubFunction] = useState('all')
   const [selectedStatus, setSelectedStatus] = useState('all')
   
-  // Fetch requests from API
+  // Fetch requests from API (hook fetches on mount via useSmartFetch — no extra useEffect needed)
   const { requests, loading, error, refresh } = useMyRequests()
   
   // Sub-function values from RRF form
@@ -42,25 +43,8 @@ function MyRequestsContent() {
     }
   }, [statusParam])
 
-  // Refresh data when page becomes visible (after navigation back)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        refresh()
-      }
-    }
-
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
-  }, [refresh])
-
-  // Force refresh when component mounts or when navigating back
-  useEffect(() => {
-    refresh()
-  }, []) // Empty deps - only run on mount
+  // NOTE: Removed duplicate useEffect(() => refresh(), []) — hook already fetches on mount.
+  // NOTE: Removed visibilitychange listener — useSmartFetch cache handles stale data.
 
   // Handler for tab clicks - updates URL
   const handleTabClick = (tab) => {
@@ -78,8 +62,7 @@ function MyRequestsContent() {
       // Show pending/submitted requests waiting for approval
       filtered = allRequests.filter(req => req.status?.toLowerCase() === 'pending' || req.status?.toLowerCase() === 'submitted')
     } else if (activeTab === 'in-progress') {
-      // Show only requests that PMO has opened for hiring
-      filtered = allRequests.filter(req => req.status?.toLowerCase() === 'open-for-hiring')
+      filtered = allRequests.filter(req => req.status?.toLowerCase() === 'open-for-hiring' || req.status?.toLowerCase() === 'in-progress')
     } else if (activeTab === 'all') {
       // Exclude drafts from 'all' - they have a dedicated drafts section
       filtered = allRequests.filter(req => req.status?.toLowerCase() !== 'draft')
@@ -123,13 +106,14 @@ function MyRequestsContent() {
       'draft': { bg: '#f3f4f6', color: '#6b7280', text: 'Draft' },
       'pending': { bg: '#fef3c7', color: '#92400e', text: 'Pending Approval' },
       'submitted': { bg: '#fef3c7', color: '#92400e', text: 'Pending Approval' },
-      'open-for-hiring': { bg: '#dbeafe', color: '#1e40af', text: 'In Progress' },
-      'on-hold': { bg: '#fef9c3', color: '#854d0e', text: 'On Hold' },
+      'on-hold': { bg: '#fef3c7', color: '#b45309', text: 'On Hold' },
       'approved': { bg: '#dcfce7', color: '#166534', text: 'Approved' },
       'rejected': { bg: '#fee2e2', color: '#991b1b', text: 'Declined' },
       'declined': { bg: '#fee2e2', color: '#991b1b', text: 'Declined' },
+      'open-for-hiring': { bg: '#dbeafe', color: '#1e40af', text: 'In Progress' },
+      'in-progress': { bg: '#dbeafe', color: '#1e40af', text: 'In Progress' },
       'closed': { bg: '#f3f4f6', color: '#374151', text: 'Closed' },
-      'closed-by-bench': { bg: '#f3f4f6', color: '#374151', text: 'Closed' }
+      'closed-by-bench': { bg: '#d1fae5', color: '#065f46', text: 'Filled by Bench' }
     }
     
     // Normalize status to lowercase for case-insensitive matching
@@ -361,23 +345,23 @@ function MyRequestsContent() {
   }
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-4 md:p-6 lg:p-8 space-y-4 md:space-y-8">
       {/* Back Button */}
       <button 
         onClick={() => router.back()}
-        className="flex items-center gap-2 px-4 py-2 mb-4 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors duration-200 font-medium"
+        className="flex items-center gap-2 px-3 md:px-4 py-2 mb-2 md:mb-4 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors duration-200 font-medium text-sm"
       >
         <ArrowLeftOutlined />
         <span>Back</span>
       </button>
 
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
-          <p className="text-lg text-gray-800 font-bold">{getPageDescription()}</p>
+          <p className="text-base md:text-lg text-gray-800 font-bold">{getPageDescription()}</p>
         </div>
-        <Link href="/hiring-manager/create-rrf">
-          <button className="px-6 py-3 text-white text-sm font-bold hover:scale-105 transition-all duration-300 flex items-center gap-2 shadow-lg" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', borderRadius: '12px' }}>
+        <Link href="/hiring-manager/create-rrf" className="w-full sm:w-auto">
+          <button className="px-4 md:px-6 py-2.5 md:py-3 text-white text-sm font-bold hover:scale-105 transition-all duration-300 flex items-center justify-center gap-2 shadow-lg w-full sm:w-auto" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', borderRadius: '12px' }}>
             <PlusOutlined />
             Create New RRF
           </button>
@@ -390,7 +374,8 @@ function MyRequestsContent() {
       ) : (
         <>
           {/* Filter Tabs */}
-          <div className="flex gap-3 border-b-2 border-gray-200 pb-0">
+          <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+            <div className="flex gap-1 md:gap-3 border-b-2 border-gray-200 pb-0 min-w-max">
         <button onClick={() => handleTabClick('all')} style={getTabStyle('all')}>
           All Requests ({allRequests.filter(r => r.status?.toLowerCase() !== 'draft').length})
         </button>
@@ -398,7 +383,7 @@ function MyRequestsContent() {
           Pending Approval ({allRequests.filter(r => r.status?.toLowerCase() === 'pending' || r.status?.toLowerCase() === 'submitted').length})
         </button>
         <button onClick={() => handleTabClick('in-progress')} style={getTabStyle('in-progress')}>
-          In Progress ({allRequests.filter(r => r.status?.toLowerCase() === 'open-for-hiring').length})
+          In Progress ({allRequests.filter(r => r.status?.toLowerCase() === 'open-for-hiring' || r.status?.toLowerCase() === 'in-progress').length})
         </button>
         <button onClick={() => handleTabClick('approved')} style={getTabStyle('approved')}>
           Approved ({allRequests.filter(r => r.status?.toLowerCase() === 'approved').length})
@@ -413,19 +398,19 @@ function MyRequestsContent() {
           Closed ({allRequests.filter(r => r.status?.toLowerCase() === 'closed').length})
         </button>
       </div>
+      </div>
 
       {/* Search and Filter Bar */}
-      <div className="mb-6 space-y-4">
-        <div className="flex gap-4">
+      <div className="mb-4 md:mb-6 space-y-3 md:space-y-4">
+        <div className="flex flex-col md:flex-row gap-3 md:gap-4">
           {/* Search Bar */}
           <div className="flex-1 relative group">
             <input
               type="text"
-              placeholder="Search by Request ID, Role, Sub-Function, Project, or Status..."
+              placeholder="Search by ID, Role, Project..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-5 py-3.5 pl-12 pr-10 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 focus:outline-none transition-all duration-300 bg-white hover:border-gray-300 hover:shadow-md text-sm placeholder-gray-400"
-              style={{ fontSize: '14px' }}
+              className="w-full px-4 md:px-5 py-3 md:py-3.5 pl-10 md:pl-12 pr-10 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 focus:outline-none transition-all duration-300 bg-white hover:border-gray-300 text-sm placeholder-gray-400"
             />
             <svg className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 transition-colors group-hover:text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -443,7 +428,7 @@ function MyRequestsContent() {
           </div>
           
           {/* Sub-Function Filter */}
-          <div className="w-72">
+          <div className="w-full md:w-48 lg:w-72">
             <select
               value={selectedSubFunction}
               onChange={(e) => setSelectedSubFunction(e.target.value)}
@@ -458,7 +443,7 @@ function MyRequestsContent() {
           </div>
           
           {/* Status Filter */}
-          <div className="w-64">
+          <div className="w-full md:w-44 lg:w-64">
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
@@ -496,10 +481,10 @@ function MyRequestsContent() {
       </div>
 
       {/* Table Card */}
-      <div className="bg-white overflow-hidden" style={{ borderRadius: '16px', boxShadow: '0 10px 25px rgba(0,0,0,0.08)', padding: '20px' }}>
+      <div className="bg-white overflow-hidden" style={{ borderRadius: '16px', boxShadow: '0 10px 25px rgba(0,0,0,0.08)', padding: '12px' }}>
         {/* Table Header */}
-        <div className="px-2 py-4 mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-gray-900">
+        <div className="px-2 py-3 md:py-4 mb-3 md:mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <h3 className="text-base md:text-lg font-bold text-gray-900">
             {activeTab === 'open' 
               ? 'Open RRF Requests' 
               : activeTab === 'all' 
@@ -545,8 +530,8 @@ function MyRequestsContent() {
           </div>
         </div>
 
-        {/* Table */}
-        <div className="overflow-x-auto">
+        {/* Desktop Table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
@@ -578,11 +563,11 @@ function MyRequestsContent() {
                     <td className="px-6 py-5 whitespace-nowrap text-sm">{getStatusBadge(request.status)}</td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-600">{request.date}</td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm">
-                      <Link href={`/hiring-manager/view-rrf/${request.id}`}>
-                        <button className="px-4 py-2 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-300 hover:scale-105" style={{ borderRadius: '10px' }}>
-                          View
-                        </button>
-                      </Link>
+                      <ActionButton 
+                        role="HM"
+                        status={request.status}
+                        href={`/hiring-manager/view-rrf/${request.id}`}
+                      />
                     </td>
                   </tr>
                 ))
@@ -599,6 +584,37 @@ function MyRequestsContent() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden space-y-3 px-1">
+          {filteredRequests.length > 0 ? (
+            filteredRequests.map((request) => (
+              <div key={request.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-bold text-indigo-600 mb-1">{request.displayId}</div>
+                    <div className="text-sm font-bold text-gray-900 truncate">{request.role}</div>
+                    <div className="text-xs text-gray-500 truncate">{request.project} {request.subFunction ? `• ${request.subFunction}` : ''}</div>
+                  </div>
+                  <span className="inline-flex items-center justify-center w-8 h-8 bg-indigo-100 text-indigo-700 rounded-full font-bold text-xs ml-2 flex-shrink-0">{request.positions}</span>
+                </div>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {getPriorityBadge(request.priority)}
+                  {getStatusBadge(request.status)}
+                  <span className="text-xs text-gray-500">{request.date}</span>
+                </div>
+                <div className="flex justify-end pt-2 border-t border-gray-100">
+                  <ActionButton role="HM" status={request.status} href={`/hiring-manager/view-rrf/${request.id}`} />
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="py-8 text-center text-gray-500">
+              <div className="text-4xl opacity-50 mb-3">📋</div>
+              <p className="text-sm font-medium">No requests found</p>
+            </div>
+          )}
         </div>
 
         {/* Pagination Info */}

@@ -8,6 +8,7 @@ import { RolePermission } from '../role-permissions/role-permission.entity';
 import { User } from '../users/user.entity';
 import { Rrf, RrfStatus, Priority, EmploymentType } from '../rrf/entities/rrf.entity';
 import { RrfApprover, ApprovalLevel, ApprovalStatus } from '../rrf/entities/rrf-approver.entity';
+import { RrfFormConfig } from '../rrf/entities/rrf-form-config.entity';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -29,6 +30,8 @@ export class SeedService {
     private rrfRepository: Repository<Rrf>,
     @InjectRepository(RrfApprover)
     private rrfApproverRepository: Repository<RrfApprover>,
+    @InjectRepository(RrfFormConfig)
+    private rrfFormConfigRepository: Repository<RrfFormConfig>,
   ) {}
 
   async seedAll() {
@@ -52,6 +55,9 @@ export class SeedService {
 
       // 6. Seed Sample RRFs
       await this.seedRrfs();
+
+      // 7. Seed Form Configurations
+      await this.seedFormConfigs();
 
       this.logger.log('✅ Database seed completed successfully!');
     } catch (error) {
@@ -629,5 +635,159 @@ export class SeedService {
     this.logger.log('   RRF-003: DevOps Engineer (Draft)');
     this.logger.log('   RRF-004: QA Automation Engineer (On Hold)');
     this.logger.log('   RRF-005: UI/UX Designer (Closed)');
+  }
+
+  private async seedFormConfigs() {
+    this.logger.log('\n🌱 Seeding form configurations...');
+
+    const formConfigs = [
+      // ========== STEP 1: REQUISITION DETAILS ==========
+      {
+        fieldName: 'entity',
+        label: 'Entity',
+        options: ['DataFortune Inc', 'Techfortune Inc'],
+        step: 1,
+        section: 'Organization',
+        displayOrder: 1,
+        isActive: true,
+      },
+      {
+        fieldName: 'function',
+        label: 'Function',
+        options: ['Delivery', 'Sales', 'Support'],
+        step: 1,
+        section: 'Organization',
+        displayOrder: 2,
+        isActive: true,
+      },
+      {
+        fieldName: 'subFunction',
+        label: 'Sub Function',
+        options: [
+          'SGINTL',
+          'VR',
+          'PMO',
+          'BDE',
+          'Sales',
+          'MR',
+          'Marketing',
+          'Human Resources',
+          'Talent Acquisition',
+          'Accounts',
+          'IT Networking'
+        ],
+        step: 1,
+        section: 'Organization',
+        displayOrder: 3,
+        isActive: true,
+      },
+      {
+        fieldName: 'requisitionType',
+        label: 'Requisition Type',
+        options: ['Billable', 'Non-Billable'],
+        step: 1,
+        section: 'Request Type',
+        displayOrder: 4,
+        isActive: true,
+      },
+      {
+        fieldName: 'nonBillableSubType',
+        label: 'Non-Billable Sub Type',
+        options: ['Bench', 'Pipeline'],
+        step: 1,
+        section: 'Request Type',
+        displayOrder: 5,
+        isActive: true,
+      },
+
+      // ========== STEP 2: POSITION DETAILS ==========
+      {
+        fieldName: 'positionType',
+        label: 'Position Type',
+        options: ['New Position', 'Replacement', 'Additional'],
+        step: 2,
+        section: 'Position Information',
+        displayOrder: 1,
+        isActive: true,
+      },
+      {
+        fieldName: 'employmentType',
+        label: 'Employment Type',
+        options: ['Full-time', 'Part-time', 'Contract'],
+        step: 2,
+        section: 'Position Information',
+        displayOrder: 2,
+        isActive: true,
+      },
+      {
+        fieldName: 'priority',
+        label: 'Priority',
+        options: ['Low', 'Medium', 'High', 'Critical'],
+        step: 2,
+        section: 'Position Information',
+        displayOrder: 3,
+        isActive: true,
+      },
+      {
+        fieldName: 'workMode',
+        label: 'Work Mode',
+        options: ['Remote', 'Hybrid', 'On-site'],
+        step: 2,
+        section: 'Position Information',
+        displayOrder: 4,
+        isActive: true,
+      },
+      {
+        fieldName: 'location',
+        label: 'Location',
+        options: ['Pune', 'Chennai', 'Bengaluru', 'US', 'Other'],
+        step: 2,
+        section: 'Position Information',
+        displayOrder: 5,
+        isActive: true,
+      },
+    ];
+
+    for (const configData of formConfigs) {
+      const existingConfig = await this.rrfFormConfigRepository.findOne({
+        where: { fieldName: configData.fieldName },
+      });
+
+      if (!existingConfig) {
+        const config = this.rrfFormConfigRepository.create(configData);
+        await this.rrfFormConfigRepository.save(config);
+        this.logger.log(`✓ Created form config: ${configData.fieldName} (Step ${configData.step})`);
+      } else {
+        // Update existing config to add step/section if missing
+        let needsUpdate = false;
+        if (!existingConfig.step || existingConfig.step !== configData.step) {
+          existingConfig.step = configData.step;
+          needsUpdate = true;
+        }
+        if (!existingConfig.section || existingConfig.section !== configData.section) {
+          existingConfig.section = configData.section;
+          needsUpdate = true;
+        }
+        if (existingConfig.displayOrder !== configData.displayOrder) {
+          existingConfig.displayOrder = configData.displayOrder;
+          needsUpdate = true;
+        }
+        
+        if (needsUpdate) {
+          await this.rrfFormConfigRepository.save(existingConfig);
+          this.logger.log(`↻ Updated form config: ${configData.fieldName} (Step ${configData.step})`);
+        } else {
+          this.logger.log(`⊙ Form config already exists: ${configData.fieldName}`);
+        }
+      }
+    }
+
+    this.logger.log('\n📋 Form Configurations Created:');
+    this.logger.log('   Step 1 - Requisition Details:');
+    this.logger.log('     • Entity, Function, Sub Function');
+    this.logger.log('     • Requisition Type, Non-Billable Sub Type');
+    this.logger.log('   Step 2 - Position Details:');
+    this.logger.log('     • Position Type, Employment Type, Priority');
+    this.logger.log('     • Work Mode, Location');
   }
 }

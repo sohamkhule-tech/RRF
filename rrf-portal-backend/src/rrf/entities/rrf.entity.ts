@@ -41,7 +41,8 @@ export enum RrfStatus {
   DECLINED = 'declined',                 // After Approver declines
   REJECTED = 'rejected',                 // Alias for DECLINED (backward compatibility)
   ON_HOLD = 'on-hold',                   // After Approver puts on hold
-  OPEN_FOR_HIRING = 'open-for-hiring',   // After PMO opens for hiring
+  IN_PROGRESS = 'in-progress',           // New: After PMO opens for hiring (Sent to HR)
+  OPEN_FOR_HIRING = 'open-for-hiring',   // Deprecated: Kept for backward compat
   CLOSED_BY_BENCH = 'closed-by-bench',   // After PMO fills from bench
   CLOSED = 'closed',                     // After HR closes or final state
 }
@@ -147,6 +148,12 @@ export class Rrf {
   @Column({ name: 'budget_max', type: 'decimal', precision: 12, scale: 2, nullable: true })
   budgetMax: number;
 
+  @Column({ name: 'position_type', length: 50, nullable: true })
+  positionType: string;
+
+  @Column({ name: 'work_mode', length: 50, nullable: true })
+  workMode: string;
+
   @Column({
     name: 'employment_type',
     type: 'enum',
@@ -196,6 +203,9 @@ export class Rrf {
   @Column({ name: 'approved_at', type: 'timestamp', nullable: true })
   approvedAt: Date;
 
+  @Column({ name: 'sent_to_hr_at', type: 'timestamp', nullable: true })
+  sentToHrAt: Date;
+
   @Column({ name: 'approved_by_id', nullable: true })
   approvedById: number;
 
@@ -228,6 +238,15 @@ export class Rrf {
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'closed_by_id' })
   closedBy: User;
+
+  @Column({ name: 'candidate_name', type: 'varchar', length: 255, nullable: true })
+  candidateName: string;
+
+  @Column({ name: 'joining_date', type: 'timestamp', nullable: true })
+  joiningDate: Date;
+
+  @Column({ name: 'closure_status', type: 'varchar', length: 255, nullable: true })
+  closureStatus: string;
 
   @Column({ type: 'text', nullable: true })
   notes: string;

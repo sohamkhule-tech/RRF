@@ -103,8 +103,8 @@ export const rrfApi = {
   /**
    * Close RRF (HR action)
    */
-  close: async (id, notes = '') => {
-    return api.post(`/rrf/${id}/close`, { notes });
+  close: async (id, payload) => {
+    return api.post(`/rrf/${id}/close`, typeof payload === 'string' ? { notes: payload } : payload);
   },
 
   /**
@@ -126,7 +126,8 @@ export const rrfApi = {
    * Get open positions (PMO dashboard)
    */
   getOpenPositions: async () => {
-    return api.get('/rrf/pmo/open-positions');
+    const response = await api.get('/rrf/pmo/open-positions');
+    return response?.data || [];
   },
 
   /**
@@ -140,7 +141,8 @@ export const rrfApi = {
    * Get open for hiring (HR dashboard)
    */
   getOpenForHiring: async () => {
-    return api.get('/rrf/hr/open-for-hiring');
+    const response = await api.get('/rrf/hr/open-for-hiring');
+    return response?.data || [];
   },
 
   /**
@@ -170,7 +172,7 @@ export const formatRrfForDisplay = (rrf) => {
     positions: rrf.headcount,
     headcount: rrf.headcount,
     priority: rrf.priority,
-    status: rrf.status,
+    status: rrf.status === 'rejected' ? 'declined' : rrf.status,
     date: new Date(rrf.createdAt).toLocaleDateString('en-GB'),
     createdAt: rrf.createdAt,
     submittedAt: rrf.submittedAt,
@@ -217,6 +219,9 @@ export const formatRrfForDisplay = (rrf) => {
     declinedBy: rrf.declinedBy || null,
     declinedById: rrf.declinedById || null,
     statusHistory: rrf.statusHistory || [],
+    candidateName: rrf.candidateName || null,
+    joiningDate: rrf.joiningDate || null,
+    closureStatus: rrf.closureStatus || null,
   };
 };
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { EyeOutlined, LeftOutlined } from '@ant-design/icons'
@@ -15,14 +15,14 @@ export default function ApproverDeclinedPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedDepartment, setSelectedDepartment] = useState('all')
   
-  // Fetch declined RRFs from backend
-  const { requests, loading, error, refresh } = useApproverRequests('rejected')
+  // Fetch all declined/rejected RRFs (backend treats both as declined status)
+  // Use high limit to bypass pagination and get all records
+  const { requests: allRequests, loading, error, refresh } = useApproverRequests(null, { limit: 1000 })
   
-  useEffect(() => {
-    refresh()
-  }, [])
-  
-  const declinedRequests = requests || []
+  // Filter for declined AND rejected status (both represent declined RRFs)
+  const declinedRequests = (allRequests || []).filter(req => 
+    req.status === 'declined' || req.status === 'rejected'
+  )
   
   // Departments from RRF form
   const departments = ['HR', 'Talent Acquisition', 'Accounts', 'Sales & Marketing', 'PMO', 'SGINTL', 'VR', 'Support']
@@ -103,7 +103,7 @@ export default function ApproverDeclinedPage() {
 
   return (
     <ProtectedRoute requiredPermission={PERMISSIONS.APPROVALS.READ}>
-      <div className="p-8 space-y-8">
+      <div className="p-4 md:p-8 space-y-8">
       {/* Back Button */}
       <button 
         onClick={() => router.back()}
@@ -114,22 +114,22 @@ export default function ApproverDeclinedPage() {
       </button>
 
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <p className="text-lg text-gray-800 font-bold">RRF requests you have declined with reason</p>
         </div>
-        <div className="flex items-center gap-3 px-5 py-3 bg-white border-2 border-red-200 rounded-xl shadow-md">
+        <div className="flex items-center gap-3 px-3 py-2 md:px-5 md:py-3 bg-white border-2 border-red-200 rounded-xl shadow-md">
           <div className="text-2xl">❌</div>
           <div>
             <p className="text-sm text-gray-700 font-bold">Total Declined</p>
-            <p className="text-2xl font-bold text-red-600">{declinedRequests.length}</p>
+            <p className="text-xl md:text-2xl font-bold text-red-600">{declinedRequests.length}</p>
           </div>
         </div>
       </div>
 
       {/* Search and Filter Bar */}
       <div className="mb-6 space-y-4">
-        <div className="flex gap-4">
+        <div className="flex flex-col md:flex-row gap-3 md:gap-4">
           {/* Search Bar */}
           <div className="flex-1 relative group">
             <input
@@ -156,7 +156,7 @@ export default function ApproverDeclinedPage() {
           </div>
           
           {/* Department Filter */}
-          <div className="w-72">
+          <div className="w-full md:w-72">
             <select
               value={selectedDepartment}
               onChange={(e) => setSelectedDepartment(e.target.value)}
@@ -183,7 +183,7 @@ export default function ApproverDeclinedPage() {
       {/* Declined Requests Table */}
       <div className="bg-white overflow-hidden" style={{ borderRadius: '16px', boxShadow: '0 10px 25px rgba(0,0,0,0.08)', padding: '20px' }}>
         {/* Table Header */}
-        <div className="px-2 py-4 mb-4 flex items-center justify-between border-b-2 border-gray-100">
+        <div className="px-2 py-4 mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b-2 border-gray-100">
           <div>
             <h3 className="text-lg font-bold text-gray-900">Declined RRF Requests</h3>
             <p className="text-sm text-gray-500 mt-1">RRF requests you have reviewed and declined</p>
@@ -191,7 +191,7 @@ export default function ApproverDeclinedPage() {
         </div>
 
         {/* Table */}
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
@@ -245,6 +245,40 @@ export default function ApproverDeclinedPage() {
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden px-2 pb-4 space-y-3">
+          {filteredRequests.length > 0 ? (
+            filteredRequests.map((request) => (
+              <div key={request.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-bold text-indigo-600 mb-1">{request.rrfNumber || request.subId || `RRF-${request.id}`}</div>
+                    <div className="text-sm font-bold text-gray-900 truncate">{request.positionTitle}</div>
+                    <div className="text-xs text-gray-500 truncate">{request.subFunction || '-'} • {request.projectName || '-'}</div>
+                  </div>
+                  <span className="inline-flex items-center justify-center w-7 h-7 bg-indigo-100 text-indigo-700 rounded-full font-bold text-xs ml-2 flex-shrink-0">
+                    {request.positions || 1}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {getPriorityBadge(request.priority)}
+                </div>
+                <div className="flex justify-end pt-2 border-t border-gray-100">
+                  <Link href={`/approver/view-rrf/${request.id}`}>
+                    <button className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 font-medium text-xs flex items-center gap-1 rounded-md">
+                      <EyeOutlined /> View
+                    </button>
+                  </Link>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="py-8 text-center text-gray-500">
+              <p className="text-sm font-medium">No requests found</p>
+            </div>
+          )}
         </div>
 
         {/* Empty State */}

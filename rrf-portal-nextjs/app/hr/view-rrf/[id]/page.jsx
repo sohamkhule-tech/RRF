@@ -1,510 +1,569 @@
 'use client'
 
+import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { PrinterOutlined, DownloadOutlined, CheckCircleOutlined } from '@ant-design/icons'
-import MaskedDateInput from '@/components/MaskedDateInput'
+import {
+  PrinterOutlined,
+  DownloadOutlined,
+  BuildOutlined,
+  UserOutlined,
+  ToolOutlined,
+  FileTextOutlined,
+  ArrowLeftOutlined,
+  ExclamationCircleOutlined,
+  PauseCircleOutlined,
+  EditOutlined,
+  CheckCircleOutlined,
+} from '@ant-design/icons'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 import toast from 'react-hot-toast'
+import { useRRFDetail } from '@/hooks/useRRFDetail'
+import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { ErrorMessage } from '@/components/ErrorMessage'
 import InfoField from '@/components/InfoField'
-import 'antd/dist/reset.css'
+import StatusWithDetails from '@/components/StatusWithDetails'
+import { rrfApi } from '@/lib/api/rrfApi'
 
 export default function HRViewRRFPage() {
   const params = useParams()
   const router = useRouter()
   const rrfId = params.id
+
+  const { rrf, loading, error, refresh } = useRRFDetail(rrfId)
+  const isPending = false;
+  const isDeclined = false;
+  const isOnHold = false;
+  const isCloseable = rrf?.status === 'in-progress' || rrf?.status === 'open-for-hiring';
+  
+  const [activeSection, setActiveSection] = useState('requisition')
+  
+  // Modal state
   const [showCloseModal, setShowCloseModal] = useState(false)
   const [closeStatus, setCloseStatus] = useState('')
   const [candidateName, setCandidateName] = useState('')
   const [joiningDate, setJoiningDate] = useState('')
 
-  // Mock data - in production this would come from API/database
-  const getRRFData = () => {
-    // RRF-017 is closed
-    if (rrfId === 'RRF-017') {
-      return {
-        id: rrfId,
-        submittedDate: '15/03/2026',
-        status: 'Closed',
-        closureStatus: 'Resource Hired (External Candidate)',
-        candidateName: 'Priya Sharma',
-        dateOfJoining: 'Mar 22, 2026',
-        managerName: 'Lisa Brown',
-        department: 'Design',
-        requisitionType: 'Non-Billable',
-        customerName: 'Internal Project',
-        projectName: 'Design System',
-        jobTitle: 'UI/UX Designer',
-        expectedBillingStartDate: null,
-        positionType: 'Permanent',
-        numberOfPositions: 1,
-        priorityLevel: 'Low',
-        jobLocation: ['Pune'],
-        remoteOption: 'Hybrid',
-        minimumExperience: '2-5 years',
-        primaryTechnologies: 'Figma, Adobe XD, Sketch',
-        mustHaveSkills: 'UI/UX Design, Figma, Prototyping',
-        niceToHaveSkills: 'Animation, Illustration',
-        jobDescription: 'Design and maintain our internal design system.',
-        additionalNotes: null
-      }
-    }
-    
-    // Default data for other RRFs
-    return {
-      id: rrfId,
-      submittedDate: '10/03/2026',
-      status: 'Approved - Open for Hiring',
-      managerName: 'John Doe',
-      department: 'Engineering',
-      requisitionType: 'Billable',
-      customerName: 'ABC Bank',
-      projectName: 'Banking Project',
-      jobTitle: 'Senior React Developer',
-      expectedBillingStartDate: '2026-04-01',
-      positionType: 'Permanent',
-      numberOfPositions: 2,
-      priorityLevel: 'High',
-      jobLocation: ['Pune', 'Bengaluru'],
-      remoteOption: 'Hybrid',
-      minimumExperience: '5-7 years',
-      primaryTechnologies: 'React, TypeScript, Next.js, Redux',
-      mustHaveSkills: 'React.js (5+ years), TypeScript, Redux/Context API, RESTful APIs, Git, Agile methodology',
-      niceToHaveSkills: 'Next.js, GraphQL, Docker, AWS, Unit Testing (Jest/React Testing Library)',
-      jobDescription: 'We are looking for an experienced React Developer to join our banking project team. The candidate will be responsible for developing and maintaining complex web applications, collaborating with cross-functional teams, and ensuring high-quality code delivery.',
-      additionalNotes: 'Candidate should be comfortable working in a fast-paced environment and have excellent communication skills.'
-    }
-  }
-
-  const [rrfData] = useState(getRRFData())
-
-  const handlePrint = () => {
-    window.print()
-  }
-
-  const handleExport = async () => {
-    try {
-      const element = document.querySelector('.rrf-document')
-      if (!element) {
-        toast.error('Document not found')
-        return
-      }
-
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff'
-      })
-
-      const imgData = canvas.toDataURL('image/png')
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      })
-
-      const imgWidth = 210
-      const imgHeight = (canvas.height * imgWidth) / canvas.width
-      let heightLeft = imgHeight
-      let position = 0
-
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
-      heightLeft -= 297
-
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight
-        pdf.addPage()
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
-        heightLeft -= 297
-      }
-
-      pdf.save(`RRF-${rrfData.id}.pdf`)
-    } catch (error) {
-      console.error('Error generating PDF:', error)
-      toast.error('Error generating PDF. Please try again.')
-    }
-  }
-
-  const handleCloseRRF = () => {
+  const handleCloseRRF = async () => {
     if (!closeStatus) {
       toast.error('Please select a close status')
       return
     }
 
-    // Validation based on selected status
     if (closeStatus === 'Resource Hired (External Candidate)' || closeStatus === 'Sourced Internally') {
       if (!candidateName.trim()) {
         toast.error('Please enter candidate name')
         return
       }
       if (!joiningDate) {
-        const dateLabel = closeStatus === 'Resource Hired (External Candidate)' ? 'date of joining' : 'date of fulfillment'
-        toast.error(`Please select ${dateLabel}`)
+        toast.error('Please select date')
         return
       }
     }
 
-    // Prepare message based on status
-    let message = `RRF ${rrfId} has been closed successfully!`
-    
-    toast.success(message, {
-      duration: 4000,
-      style: {
-        fontWeight: '600',
-      },
+    try {
+      await rrfApi.close(rrfId, { candidateName, joiningDate, closureStatus: closeStatus, notes: 'Closed via HR portal' });
+      toast.success(`RRF ${rrfId} has been closed successfully!`, { duration: 4000, style: { fontWeight: '600' } })
+      setShowCloseModal(false)
+      setCandidateName('')
+      setJoiningDate('')
+      setCloseStatus('')
+      refresh()
+      setTimeout(() => router.push('/hr/closed'), 500)
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to close RRF')
+    }
+  }
+  
+  const sections = [
+    ...(isPending
+      ? [{ id: 'approval', label: 'Approval Decision', icon: <UserOutlined className="text-lg" /> }]
+      : []),
+    { id: 'requisition', label: 'Requisition Info',       icon: <BuildOutlined    className="text-lg" /> },
+    { id: 'position',    label: 'Position Details',        icon: <UserOutlined     className="text-lg" /> },
+    { id: 'technical',   label: 'Technical Requirements',  icon: <ToolOutlined     className="text-lg" /> },
+    { id: 'description', label: 'Job Description',         icon: <FileTextOutlined className="text-lg" /> },
+  ]
+
+  // Map raw API data — no || 'N/A' fallbacks; InfoField handles empty values
+  const rrfData = rrf ? {
+    id: rrf.id,
+    displayId: rrf.rrfNumber || rrf.subId,
+    submittedDate: rrf.submittedAt
+      ? new Date(rrf.submittedAt).toLocaleDateString('en-GB')
+      : new Date(rrf.createdAt).toLocaleDateString('en-GB'),
+    status: rrf.status === 'pending'   ? 'Pending Approval'
+          : rrf.status === 'approved'  ? 'Approved'
+          : rrf.status === 'rejected'  ? 'Declined'
+          : rrf.status === 'declined'  ? 'Declined'
+          : rrf.status === 'on-hold'   ? 'On Hold'
+          : rrf.status === 'draft'     ? 'Draft'
+          : rrf.status,
+    managerName:    rrf.createdBy?.fullName || 'Unknown',
+    entity:         rrf.entity,
+    organisation:   rrf.organisation,
+    function:       rrf.function,
+    subFunction:    rrf.subFunction,
+    department:     rrf.department,
+    requisitionType: rrf.requisitionType,
+    customerName:   rrf.customerName,
+    projectName:    rrf.projectName,
+    jobTitle:       rrf.positionTitle,
+    billingStartDate: rrf.expectedStartDate
+      ? new Date(rrf.expectedStartDate).toLocaleDateString('en-GB')
+      : null,
+    positionType:       rrf.positionType,
+    employmentType:     rrf.employmentType,
+    workMode:           rrf.workMode,
+    numberOfPositions:  rrf.headcount,
+    priorityLevel:      rrf.priority,
+    jobLocation:        rrf.location ? [rrf.location] : null,
+    minimumExperience:  rrf.experienceMin && rrf.experienceMax
+      ? `${rrf.experienceMin}-${rrf.experienceMax} years`
+      : null,
+    requiredSkills:  rrf.requiredSkills,
+    preferredSkills: rrf.preferredSkills,
+    jobDescription:  rrf.jobDescription,
+    additionalNotes: rrf.urgencyReason,
+    // ── Decision fields ─────────────────────────────────────────────
+    // declineReason: set by /decline endpoint; fallback to notes (on-hold) or statusHistory
+    declineReason:  rrf.declineReason
+                      || rrf.notes
+                      || rrf.statusHistory?.slice().reverse()
+                           .find(e => e.status === 'declined' || e.status === 'rejected' || e.status === 'on-hold')
+                           ?.reason
+                      || null,
+    // declinedBy: set by /decline; fallback to last status-history actor name
+    declinedBy:     rrf.declinedBy?.fullName
+                      || null,
+    // declinedAt: set by /decline; fallback to rejectedAt (older records) or statusHistory entry
+    declinedAt:     (() => {
+                      const ts = rrf.declinedAt || rrf.rejectedAt
+                        || rrf.statusHistory?.slice().reverse()
+                             .find(e => e.status === 'declined' || e.status === 'rejected' || e.status === 'on-hold')
+                             ?.changedAt
+                      return ts
+                        ? new Date(ts).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
+                        : null
+                    })(),
+    approvers:      rrf.approvers || [],
+    statusHistory:  rrf.statusHistory || [],
+  } : null
+
+  if (loading) {
+    return <div className="min-h-screen bg-slate-50 p-8"><LoadingSpinner message="Loading RRF details..." /></div>
+  }
+  if (error || !rrfData) {
+    return <div className="min-h-screen bg-slate-50 p-8"><ErrorMessage message={error || 'RRF not found'} onRetry={refresh} /></div>
+  }
+
+  const handlePrint = () => window.print()
+
+  const handleExport = async () => {
+    const mainContainer = document.querySelector('.min-h-screen')
+    const content = document.querySelector('.rrf-content-area')
+    if (!content || !mainContainer) return
+    const originalOverflow = content.style.overflow
+    mainContainer.classList.add('exporting-pdf')
+    content.style.overflow = 'visible'
+    content.style.height = 'auto'
+    await new Promise(resolve => setTimeout(resolve, 300))
+    const canvas = await html2canvas(content, {
+      scale: 2, logging: false, useCORS: true,
+      backgroundColor: '#ffffff',
+      height: content.scrollHeight, windowHeight: content.scrollHeight
     })
-    setShowCloseModal(false)
-    setCandidateName('')
-    setJoiningDate('')
-    setCloseStatus('')
-    router.push('/hr/closed')
+    mainContainer.classList.remove('exporting-pdf')
+    content.style.overflow = originalOverflow
+    content.style.height = ''
+    const imgData = canvas.toDataURL('image/png')
+    const pdf = new jsPDF('p', 'mm', 'a4')
+    const pdfWidth = pdf.internal.pageSize.getWidth()
+    const pdfHeight = (canvas.height * pdfWidth) / canvas.width
+    let position = 0
+    const pageHeight = pdf.internal.pageSize.getHeight()
+    if (pdfHeight > pageHeight) {
+      while (position < pdfHeight) {
+        pdf.addImage(imgData, 'PNG', 0, -position, pdfWidth, pdfHeight)
+        position += pageHeight
+        if (position < pdfHeight) pdf.addPage()
+      }
+    } else {
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
+    }
+    pdf.save(`${rrfData.displayId}.pdf`)
+    toast.success('PDF exported successfully!')
   }
 
   return (
-    <div style={{ background: '#F5F7FB', minHeight: '100vh' }}>
-      {/* Header Actions Bar */}
-      <div className="sticky top-0 z-10 bg-white border-b border-gray-200 shadow-sm no-print">
-        <div className="max-w-7xl mx-auto px-8 py-5">
-          <div className="flex items-center justify-between">
-            <button 
-              onClick={() => router.back()}
-              className="px-5 py-2.5 bg-gray-100 text-gray-700 hover:bg-gray-200 font-medium transition-all duration-300 flex items-center gap-2 shadow-sm"
-              style={{ borderRadius: '10px' }}
-            >
-              ← Back
-            </button>
-            <div className="flex gap-3">
-              <button 
-                onClick={handlePrint}
-                className="px-5 py-2.5 bg-white border-2 border-gray-300 text-gray-700 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-300 flex items-center gap-2 shadow-sm"
-                style={{ borderRadius: '10px' }}
-              >
-                <PrinterOutlined />
-                Print
-              </button>
-              <button 
-                onClick={handleExport}
-                className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 font-medium transition-all duration-300 flex items-center gap-2 shadow-md hover:shadow-lg"
-                style={{ borderRadius: '10px' }}
-              >
-                <DownloadOutlined />
-                Export PDF
-              </button>
+    <div className="min-h-screen bg-slate-50">
+      <style jsx global>{`
+        @media screen {
+          .screen-hidden { display: none !important; }
+          .print-header  { display: none !important; }
+          .exporting-pdf .screen-hidden { display: block !important; }
+          .exporting-pdf .print-header  { display: block !important; }
+          .exporting-pdf .no-print      { display: none  !important; }
+        }
+        @media print {
+          * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .no-print      { display: none  !important; }
+          .screen-hidden { display: block !important; }
+          .print-section { display: block !important; page-break-inside: avoid; margin-bottom: 30px; }
+          .print-header  { display: block !important; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #cbd5e1; }
+          body { background: white !important; }
+          .rrf-content-area { overflow: visible !important; height: auto !important; }
+          .flex.h-screen    { height: auto !important; }
+          .overflow-y-auto  { overflow: visible !important; }
+        }
+      `}</style>
+
+      <div className="flex flex-col md:flex-row h-screen">
+        {/* LEFT PANEL */}
+        <div className="w-full md:w-80 bg-white border-b md:border-b-0 md:border-r border-slate-200 flex flex-col md:overflow-y-auto no-print">
+          <div className="p-4 md:p-6 bg-gradient-to-br from-slate-700 to-slate-800 text-white">
+            <div className="space-y-3">
+              <h1 className="text-lg md:text-2xl font-bold tracking-tight leading-tight">{rrfData.jobTitle}</h1>
+              <div className="mt-2">
+                <StatusWithDetails 
+                  status={rrfData.status} 
+                  reason={rrfData.declineReason} 
+                  actionBy={rrfData.declinedBy} 
+                  actionDate={rrfData.declinedAt} 
+                />
+              </div>
+              <div className="text-xs text-slate-300 font-medium space-y-1">
+                <div>RRF-{rrfData.id}</div>
+                <div>Requested on: {rrfData.submittedDate}</div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
-      
-      {/* Document Container */}
-      <div className="px-8 py-8">
-        {/* RRF Document */}
-        <div className="rrf-document bg-white" style={{ borderRadius: '16px', boxShadow: '0 10px 25px rgba(0,0,0,0.08)', padding: '40px', maxWidth: '1000px', margin: '0 auto' }}>
-        {/* Document Header */}
-        <div className="mb-8 pb-6 -mx-10 -mt-10 px-10 pt-10" style={{ 
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          borderRadius: '16px 16px 0 0'
-        }}>
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-white mb-2">Resource Requisition Form</h1>
-              <p className="text-white/90 text-sm">RRF ID: <span className="font-bold">{rrfData.id}</span></p>
+          <div className="flex-1 p-3 md:p-6">
+            <div className="flex md:flex-col gap-2 md:gap-0 md:space-y-1 overflow-x-auto md:overflow-x-visible pb-2 md:pb-0">
+              {sections.map((section, index) => (
+                <div key={section.id}>
+                  <button
+                    onClick={() => setActiveSection(section.id)}
+                    className={`flex-shrink-0 md:flex-shrink md:w-full flex items-center gap-2 md:gap-4 p-3 md:p-4 rounded-lg transition-all duration-200 ${
+                      activeSection === section.id
+                        ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg'
+                        : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                  >
+                    <div className={`w-8 h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center ${
+                      activeSection === section.id ? 'bg-white/20' : 'bg-slate-100'
+                    }`}>
+                      {section.icon}
+                    </div>
+                    <span className="text-xs font-bold uppercase tracking-wider whitespace-nowrap">{section.label}</span>
+                  </button>
+                  {index < sections.length - 1 && (
+                    <div className="hidden md:block w-px h-4 bg-slate-300 ml-9 my-0.5" />
+                  )}
+                </div>
+              ))}
             </div>
-            <div className="text-right">
-              <p className="text-white/80 text-sm mb-1">Submitted Date</p>
-              <p className="text-white font-bold">{rrfData.submittedDate}</p>
-            </div>
-          </div>
-          <div className={`mt-4 inline-block px-4 py-2 font-semibold text-sm rounded-full ${
-            rrfData.status === 'Closed' 
-              ? 'bg-green-100 text-green-800' 
-              : 'bg-yellow-100 text-yellow-800'
-          }`}>
-            {rrfData.status}
           </div>
         </div>
 
-        {/* Closure Status Banner - Only show if status is Closed */}
-        {rrfData.status === 'Closed' && (
-          <div className="mb-8 p-6 rounded-xl border-2 border-green-200" style={{ background: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)' }}>
-            <div className="flex items-start gap-4">
-              <div className="flex-shrink-0">
-                <CheckCircleOutlined className="text-4xl text-green-600" />
+        {/* RIGHT PANEL */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="bg-white border-b border-slate-200 px-4 md:px-8 py-3 md:py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 no-print">
+            <div className="flex items-center gap-4">
+              <button onClick={() => router.back()} className="flex items-center gap-2 px-4 py-2 text-slate-700 hover:bg-slate-100 rounded-lg transition-all duration-200 border border-slate-300">
+                <ArrowLeftOutlined className="text-lg" />
+                <span className="font-medium">Back</span>
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 md:gap-3">
+              {isCloseable && (
+                <button 
+                  onClick={() => setShowCloseModal(true)}
+                  className="px-4 py-2 bg-green-600 text-white hover:bg-green-700 font-bold rounded-lg transition-all flex items-center gap-2 shadow-md"
+                >
+                  <CheckCircleOutlined /> <span className="hidden sm:inline">Close RRF</span>
+                </button>
+              )}
+              <button onClick={handlePrint} className="px-4 py-2 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium rounded-lg transition-all flex items-center gap-2">
+                <PrinterOutlined /> <span className="hidden sm:inline">Print</span>
+              </button>
+              <button onClick={handleExport} className="px-4 py-2 bg-slate-700 text-white hover:bg-slate-800 font-medium rounded-lg transition-all flex items-center gap-2">
+                <DownloadOutlined /> <span className="hidden sm:inline">Export PDF</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto bg-white rrf-content-area">
+            <div className="p-4 md:p-8">
+              <div className="print-header">
+                <h1 className="text-3xl font-bold text-slate-900 mb-2">{rrfData.jobTitle}</h1>
+                <div className="flex items-center gap-4 text-sm text-slate-600">
+                  <span>RRF-{rrfData.id}</span><span>•</span>
+                  <span>Submitted: {rrfData.submittedDate}</span><span>•</span>
+                  <StatusWithDetails 
+                    status={rrfData.status} 
+                    reason={rrfData.declineReason} 
+                    actionBy={rrfData.declinedBy} 
+                    actionDate={rrfData.declinedAt} 
+                  />
+                </div>
               </div>
-              <div className="flex-1">
-                <h3 className="text-xl font-bold text-green-800 mb-3">✓ This RRF is Closed - Position Filled</h3>
-                <div className="bg-white rounded-lg p-5 border border-green-200 shadow-sm">
-                  <p className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wide">Closure Details:</p>
-                  <div className="space-y-3">
-                    {/* Closure Status */}
-                    <div className="flex items-start">
-                      <span className="inline-block w-2 h-2 bg-green-500 rounded-full mt-1.5 mr-3 flex-shrink-0"></span>
-                      <div>
-                        <span className="text-sm font-semibold text-gray-600">Closure Status: </span>
-                        <span className="text-base text-gray-900 font-medium">{rrfData.closureStatus}</span>
+
+              {/* ── APPROVAL DECISION SECTION ─── */}
+              {isPending && (
+                <div className={`space-y-6 print-section ${activeSection === 'approval' ? '' : 'screen-hidden'}`}>
+                  <h3 className="text-xl md:text-2xl font-bold border-b-2 border-slate-200 pb-3 mb-6 text-slate-800">
+                    Approval Status
+                  </h3>
+                  
+                  {/* Per-approver comments */}
+                  {rrfData.approvers.filter(a => a.comments).length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3">Approver Comments</h4>
+                      <div className="space-y-3">
+                        {rrfData.approvers
+                          .filter(a => a.comments)
+                          .map((approver, idx) => (
+                            <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                              <div className="flex items-start justify-between gap-3 mb-2">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
+                                    <UserOutlined className="text-indigo-600 text-xs" />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-bold text-slate-800">
+                                      {approver.user?.fullName || 'Approver'}
+                                    </p>
+                                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                                      approver.approvalStatus === 'approved' ? 'bg-emerald-100 text-emerald-700' :
+                                      approver.approvalStatus === 'rejected' ? 'bg-red-100 text-red-700' :
+                                      'bg-slate-100 text-slate-600'
+                                    }`}>
+                                      {approver.approvalStatus?.toUpperCase()}
+                                    </span>
+                                  </div>
+                                </div>
+                                {(approver.approvedAt || approver.rejectedAt) && (
+                                  <p className="text-xs text-slate-400 flex-shrink-0">
+                                    {new Date(approver.approvedAt || approver.rejectedAt).toLocaleDateString('en-GB')}
+                                  </p>
+                                )}
+                              </div>
+                              <p className="text-sm text-slate-700 leading-relaxed ml-10">
+                                {approver.comments}
+                              </p>
+                            </div>
+                          ))}
                       </div>
                     </div>
-                    
-                    {/* Candidate Name - Only for External or Internal */}
-                    {(rrfData.closureStatus === 'Resource Hired (External Candidate)' || 
-                      rrfData.closureStatus === 'Sourced Internally') && rrfData.candidateName && (
-                      <div className="flex items-start">
-                        <span className="inline-block w-2 h-2 bg-green-500 rounded-full mt-1.5 mr-3 flex-shrink-0"></span>
-                        <div>
-                          <span className="text-sm font-semibold text-gray-600">Candidate Name: </span>
-                          <span className="text-base text-gray-900 font-medium">{rrfData.candidateName}</span>
+                  )}
+
+                  {/* Status history timeline */}
+                  {rrfData.statusHistory?.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3">Status History</h4>
+                      <div className="relative ml-3">
+                        <div className="absolute left-3 top-0 bottom-0 w-px bg-slate-200" />
+                        <div className="space-y-4">
+                          {rrfData.statusHistory.map((entry, idx) => (
+                            <div key={idx} className="relative flex items-start gap-4 pl-8">
+                              <div className="absolute left-0 w-6 h-6 rounded-full bg-white border-2 border-slate-300 flex items-center justify-center" style={{ top: '2px' }}>
+                                <div className="w-2 h-2 rounded-full bg-indigo-500" />
+                              </div>
+                              <div className="flex-1 bg-white border border-slate-100 rounded-lg p-3 shadow-sm">
+                                <div className="flex items-center justify-between flex-wrap gap-2">
+                                  <span className={`text-xs font-bold uppercase px-2.5 py-1 rounded-full ${
+                                    entry.status === 'declined' || entry.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                                    entry.status === 'approved'      ? 'bg-emerald-100 text-emerald-700' :
+                                    entry.status === 'on-hold'       ? 'bg-amber-100 text-amber-700' :
+                                    entry.status === 'pending'       ? 'bg-blue-100 text-blue-700' :
+                                    'bg-slate-100 text-slate-600'
+                                  }`}>
+                                    {entry.status?.replace(/-/g, ' ')}
+                                  </span>
+                                  {entry.changedAt && (
+                                    <span className="text-xs text-slate-400">
+                                      {new Date(entry.changedAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}
+                                    </span>
+                                  )}
+                                </div>
+                                {entry.reason && (
+                                  <p className="mt-1.5 text-sm text-slate-600">{entry.reason}</p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    )}
-                    
-                    {/* Date of Joining/Fulfillment - Only for External or Internal */}
-                    {(rrfData.closureStatus === 'Resource Hired (External Candidate)' || 
-                      rrfData.closureStatus === 'Sourced Internally') && rrfData.dateOfJoining && (
-                      <div className="flex items-start">
-                        <span className="inline-block w-2 h-2 bg-green-500 rounded-full mt-1.5 mr-3 flex-shrink-0"></span>
-                        <div>
-                          <span className="text-sm font-semibold text-gray-600">
-                            {rrfData.closureStatus === 'Resource Hired (External Candidate)' 
-                              ? 'Date of Joining: ' 
-                              : 'Date Fulfilled: '}
-                          </span>
-                          <span className="text-base text-gray-900 font-medium">{rrfData.dateOfJoining}</span>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* For Requirement Lapsed */}
-                    {rrfData.closureStatus === 'Requirement Lapsed' && (
-                      <div className="flex items-start">
-                        <span className="inline-block w-2 h-2 bg-green-500 rounded-full mt-1.5 mr-3 flex-shrink-0"></span>
-                        <div>
-                          <span className="text-sm font-semibold text-gray-600">Reason: </span>
-                          <span className="text-base text-gray-900 font-medium">Requirement is no longer needed</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Requisition Info */}
+              <div className={`space-y-8 print-section ${activeSection === 'requisition' ? '' : 'screen-hidden'}`}>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Requisition Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <InfoField label="Requisition Manager" value={rrfData.managerName} />
+                  <InfoField label="Entity"              value={rrfData.entity} />
+                  <InfoField label="Organisation"        value={rrfData.organisation} />
+                  <InfoField label="Function"            value={rrfData.function} />
+                  <InfoField label="Sub-function"        value={rrfData.subFunction} />
+                  <InfoField label="Department"          value={rrfData.department} />
+                  <InfoField label="Requisition Type"    value={rrfData.requisitionType} />
+                  <InfoField label="Customer Name"       value={rrfData.customerName} />
+                  <InfoField label="Project Name"        value={rrfData.projectName} />
+                  <InfoField label="Billing Start Date"  value={rrfData.billingStartDate} />
+                </div>
+              </div>
+
+              {/* Position Details */}
+              <div className={`space-y-8 print-section ${activeSection === 'position' ? '' : 'screen-hidden'}`}>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Position Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <InfoField label="Position Type"       value={rrfData.positionType} />
+                  <InfoField label="Employment Type"       value={rrfData.employmentType} />
+                  <InfoField label="Work Mode"       value={rrfData.workMode} />
+                  <InfoField label="Number of Positions" value={rrfData.numberOfPositions} />
+                  {/* Priority has special badge styling — keep inline */}
+                  {rrfData.priorityLevel && (
+                    <div className="bg-[#E3F2FD] rounded-lg p-4 shadow-sm">
+                      <p className="text-[10px] font-bold uppercase text-slate-500 tracking-wider mb-1">Priority Level</p>
+                      <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-bold ${
+                        rrfData.priorityLevel === 'High'     ? 'bg-orange-100 text-orange-800 border border-orange-200' :
+                        rrfData.priorityLevel === 'Critical' ? 'bg-red-100 text-red-800 border border-red-200' :
+                        rrfData.priorityLevel === 'Medium'   ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+                        'bg-gray-100 text-gray-800 border border-gray-200'
+                      }`}>
+                        {rrfData.priorityLevel}
+                      </span>
+                    </div>
+                  )}
+                  <InfoField label="Job Location"        value={rrfData.jobLocation} />
+                  <InfoField label="Experience Required"  value={rrfData.minimumExperience} />
+                </div>
+              </div>
+
+              {/* Technical Requirements */}
+              <div className={`space-y-8 print-section ${activeSection === 'technical' ? '' : 'screen-hidden'}`}>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Technical Requirements</h3>
+                <div className="space-y-4">
+                  <InfoField label="Required Skills"     value={rrfData.requiredSkills}  rich />
+                  <InfoField label="Preferred Skills"    value={rrfData.preferredSkills} rich />
+                </div>
+              </div>
+
+              {/* Job Description */}
+              <div className={`space-y-8 print-section ${activeSection === 'description' ? '' : 'screen-hidden'}`}>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Job Description</h3>
+                <div className="space-y-4">
+                  <InfoField label="Job Description" value={rrfData.jobDescription} rich />
+                  <InfoField label="Additional Notes" value={rrfData.additionalNotes} rich />
                 </div>
               </div>
             </div>
           </div>
-        )}
-
-        {/* Section: Requisition Details */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="h-1 w-12" style={{ background: 'linear-gradient(90deg, #667eea, #764ba2)' }}></div>
-            <h2 className="text-xl font-bold" style={{ color: '#667eea' }}>Requisition Details</h2>
-          </div>
-          <div className="grid grid-cols-2 gap-6">
-            <InfoField variant="plain" label="Requisition Manager Name"    value={rrfData.managerName} />
-            <InfoField variant="plain" label="Entity"                      value={rrfData.entity} />
-            <InfoField variant="plain" label="Organisation"                value={rrfData.organisation} />
-            <InfoField variant="plain" label="Function"                    value={rrfData.function} />
-            <InfoField variant="plain" label="Sub-function"                value={rrfData.subFunction} />
-            <InfoField variant="plain" label="Department"                  value={rrfData.department} />
-            <InfoField variant="plain" label="Requisition Type"            value={rrfData.requisitionType} />
-            <InfoField variant="plain" label="Customer Name"               value={rrfData.customerName} />
-            <InfoField variant="plain" label="Project Name"                value={rrfData.projectName} />
-            <InfoField variant="plain" label="Role / Job Title"            value={rrfData.jobTitle} />
-            <InfoField variant="plain" label="Expected Billing Start Date" value={rrfData.expectedBillingStartDate} />
-          </div>
         </div>
-
-        {/* Section: Position Details */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="h-1 w-12" style={{ background: 'linear-gradient(90deg, #667eea, #764ba2)' }}></div>
-            <h2 className="text-xl font-bold" style={{ color: '#667eea' }}>Position Details</h2>
-          </div>
-          <div className="grid grid-cols-2 gap-6">
-            <InfoField variant="plain" label="Position Type"       value={rrfData.positionType} />
-            <InfoField variant="plain" label="Number of Positions" value={rrfData.numberOfPositions} />
-            {rrfData.priorityLevel && (
-              <div>
-                <p className="text-sm font-semibold text-gray-500 mb-1">Priority Level</p>
-                <span className="inline-block px-4 py-1.5 text-sm font-semibold" style={{ backgroundColor: '#fed7aa', color: '#9a3412', borderRadius: '999px' }}>
-                  {rrfData.priorityLevel}
-                </span>
-              </div>
-            )}
-            <InfoField variant="plain" label="Job Location"         value={Array.isArray(rrfData.jobLocation) ? rrfData.jobLocation.join(', ') : rrfData.jobLocation} />
-            <InfoField variant="plain" label="Remote Option"        value={rrfData.remoteOption} />
-            <InfoField variant="plain" label="Minimum Experience"   value={rrfData.minimumExperience} />
-          </div>
-        </div>
-
-        {/* Section: Technical Requirements */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="h-1 w-12" style={{ background: 'linear-gradient(90deg, #667eea, #764ba2)' }}></div>
-            <h2 className="text-xl font-bold" style={{ color: '#667eea' }}>Technical Requirements</h2>
-          </div>
-          <div className="space-y-6">
-            <InfoField variant="plain" label="Primary Technologies" value={rrfData.primaryTechnologies} />
-            <InfoField variant="plain" label="Must Have Skills"     value={rrfData.mustHaveSkills}      rich />
-            <InfoField variant="plain" label="Nice To Have Skills"  value={rrfData.niceToHaveSkills}    rich />
-            <InfoField variant="plain" label="Detailed Job Description" value={rrfData.jobDescription}  rich />
-            <InfoField variant="plain" label="Additional Notes"     value={rrfData.additionalNotes} />
-          </div>
-        </div>
-
-        {/* Close RRF Action - Only show if status is not Closed */}
-        {!rrfData.status.includes('Closed') && (
-          <div className="mt-10 pt-8 border-t-2 border-gray-100 flex justify-end no-print">
-            <button
-              onClick={() => setShowCloseModal(true)}
-              className="px-8 py-3.5 text-white font-bold hover:scale-105 transition-all duration-300 flex items-center gap-2 shadow-lg"
-              style={{ background: 'linear-gradient(135deg, #ef4444, #dc2626)', borderRadius: '12px' }}
-            >
-              <CheckCircleOutlined />
-              Close RRF
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Close RRF Modal */}
       {showCloseModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 no-print" onClick={() => setShowCloseModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-2xl font-bold text-gray-900 mb-6">Close RRF - {rrfId}</h3>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div 
+            className="bg-white max-w-lg w-full shadow-2xl overflow-hidden" 
+            style={{ borderRadius: '24px' }}
+          >
+            {/* Header */}
+            <div className="bg-indigo-50 px-4 md:px-8 py-4 md:py-6 border-b border-indigo-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                  <CheckCircleOutlined className="text-xl text-indigo-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg md:text-xl font-bold text-slate-800">Close RRF</h3>
+                  <p className="text-sm text-slate-500 font-medium mt-1">ID: {rrfData.displayId}</p>
+                </div>
+              </div>
+            </div>
             
-            <div className="space-y-5">
-              {/* Close Status */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Closure Status <span className="text-red-500">*</span>
+            {/* Body */}
+            <div className="p-4 md:p-8 pb-6">
+              <div className="mb-6">
+                <label className="block text-sm font-bold text-slate-700 mb-2">
+                  Closure Status *
                 </label>
                 <select
                   value={closeStatus}
-                  onChange={(e) => {
-                    setCloseStatus(e.target.value)
-                    // Reset fields when status changes
-                    setCandidateName('')
-                    setJoiningDate('')
-                  }}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none transition-all"
-                  style={{ fontSize: '14px' }}
+                  onChange={(e) => setCloseStatus(e.target.value)}
+                  className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all duration-200"
                 >
-                  <option value="">Select Closure Status</option>
+                  <option value="">Select status</option>
                   <option value="Resource Hired (External Candidate)">Resource Hired (External Candidate)</option>
                   <option value="Sourced Internally">Sourced Internally</option>
-                  <option value="Requirement Lapsed">Requirement Lapsed</option>
+                  <option value="Closed/Cancelled by Business">Closed/Cancelled by Business</option>
+                  <option value="Replacement Dropped">Replacement Dropped</option>
                 </select>
               </div>
-
-              {/* Dynamic Fields based on selected status */}
-              {closeStatus === 'Resource Hired (External Candidate)' && (
-                <>
-                  {/* Candidate Name */}
+              
+              {(closeStatus === 'Resource Hired (External Candidate)' || closeStatus === 'Sourced Internally') && (
+                <div className="space-y-6 animate-fadeIn">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Candidate Name <span className="text-red-500">*</span>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">
+                      Candidate Name *
                     </label>
                     <input
                       type="text"
                       value={candidateName}
                       onChange={(e) => setCandidateName(e.target.value)}
-                      placeholder="Enter candidate name"
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none transition-all"
-                      style={{ fontSize: '14px' }}
+                      placeholder="Enter full name"
+                      className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all duration-200"
                     />
                   </div>
-
-                  {/* Date of Joining */}
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Date of Joining <span className="text-red-500">*</span>
-                    </label>
-                    <MaskedDateInput
-                      value={joiningDate}
-                      onChange={(dateString) => setJoiningDate(dateString)}
-                      placeholder="DD/MM/YYYY"
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none transition-all"
-                      style={{ height: '48px', fontSize: '14px', borderRadius: '8px' }}
-                    />
-                  </div>
-                </>
-              )}
-
-              {closeStatus === 'Sourced Internally' && (
-                <>
-                  {/* Candidate Name */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Candidate Name <span className="text-red-500">*</span>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">
+                      {closeStatus === 'Resource Hired (External Candidate)' ? 'Date of Joining' : 'Date of Fulfillment'} *
                     </label>
                     <input
-                      type="text"
-                      value={candidateName}
-                      onChange={(e) => setCandidateName(e.target.value)}
-                      placeholder="Enter internal candidate name"
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none transition-all"
-                      style={{ fontSize: '14px' }}
-                    />
-                  </div>
-
-                  {/* Date of Fulfillment */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Date of Fulfillment <span className="text-red-500">*</span>
-                    </label>
-                    <MaskedDateInput
+                      type="date"
                       value={joiningDate}
-                      onChange={(dateString) => setJoiningDate(dateString)}
-                      placeholder="DD/MM/YYYY"
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none transition-all"
-                      style={{ height: '48px', fontSize: '14px', borderRadius: '8px' }}
+                      onChange={(e) => setJoiningDate(e.target.value)}
+                      className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all duration-200"
                     />
-                  </div>
-                </>
-              )}
-
-              {closeStatus === 'Requirement Lapsed' && (
-                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
-                  <div className="flex">
-                    <div className="flex-shrink-0">
-                      <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <div className="ml-3">
-                      <p className="text-sm text-yellow-700 font-medium">
-                        This requirement is no longer needed and will be closed without any candidate details.
-                      </p>
-                    </div>
                   </div>
                 </div>
               )}
             </div>
-
-            {/* Modal Actions */}
-            <div className="flex gap-4 mt-8">
+            
+            {/* Footer */}
+            <div className="px-4 md:px-8 py-5 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
               <button
                 onClick={() => {
-                  setShowCloseModal(false)
-                  setCandidateName('')
-                  setJoiningDate('')
-                  setCloseStatus('')
+                  setShowCloseModal(false);
+                  setCloseStatus('');
+                  setCandidateName('');
+                  setJoiningDate('');
                 }}
-                className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-all"
+                className="px-6 py-2.5 text-slate-600 font-semibold hover:bg-slate-200 bg-slate-100 rounded-xl transition-colors duration-200"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCloseRRF}
-                className="flex-1 px-6 py-3 text-white font-semibold rounded-lg transition-all hover:scale-105"
-                style={{ background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}
+                disabled={
+                  !closeStatus || 
+                  ((closeStatus === 'Resource Hired (External Candidate)' || closeStatus === 'Sourced Internally') && 
+                  (!candidateName || !joiningDate))
+                }
+                className="px-6 py-2.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                Close RRF
+                <CheckCircleOutlined />
+                Confirm Close
               </button>
             </div>
           </div>
         </div>
       )}
-      </div>
     </div>
   )
 }

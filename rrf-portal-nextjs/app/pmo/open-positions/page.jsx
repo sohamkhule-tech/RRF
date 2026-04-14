@@ -1,280 +1,278 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { EyeOutlined, RocketOutlined, TeamOutlined} from '@ant-design/icons';
-import toast from 'react-hot-toast';
-import * as rrfApi from '@/lib/api/rrfApi';
+import { ReloadOutlined, SearchOutlined, LeftOutlined } from '@ant-design/icons';
+import { rrfApi } from '@/lib/api/rrfApi';
+import ActionButton from '@/components/ActionButton';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import ClientLayout from '@/components/ClientLayout';
-
-// ============================================
-// WORKFLOW SYSTEM - PMO OPEN POSITIONS PAGE
-// Created: April 1, 2026
-// Purpose: List approved RRFs and PMO actions
-// ============================================
 
 function OpenPositionsPage() {
   const [rrfs, setRrfs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedDepartment, setSelectedDepartment] = useState('all');
   const router = useRouter();
 
-  useEffect(() => {
-    fetchOpenPositions();
-  }, []);
-
-  const fetchOpenPositions = async () => {
+  const fetchOpenPositions = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await rrfApi.getOpenPositions();
-      setRrfs(data);
-    } catch (error) {
-      setError(error.message || 'Failed to load open positions');
+      const response = await rrfApi.getOpenPositions();
+      const list = response?.data || response || [];
+      setRrfs(Array.isArray(list) ? list : []);
+    } catch (err) {
+      setError(err.message || 'Failed to load open positions');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleOpenForHiring = async (rrfId) => {
-    if (!window.confirm('Open this position for recruitment?')) return;
-    try {
-      await rrfApi.openForHiring(rrfId);
-      toast.success('Position opened for hiring! HR team can now start recruitment.');
-      fetchOpenPositions();
-    } catch (error) {
-      toast.error(error.message || 'Failed to open for hiring');
-    }
-  };
-
-  const handleFillByBench = async (rrfId) => {
-    const notes = window.prompt('Enter notes about filling from bench (optional):');
-    try {
-      await rrfApi.fillByBench(rrfId, notes || '');
-      toast.success('Position filled from bench successfully!');
-      fetchOpenPositions();
-    } catch (error) {
-      toast.error(error.message || 'Failed to mark as filled by bench');
-    }
-  };
+  useEffect(() => {
+    fetchOpenPositions();
+  }, [fetchOpenPositions]);
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
+    if (!dateString) return '—';
     return new Date(dateString).toLocaleDateString('en-GB');
   };
 
   const getPriorityBadge = (priority) => {
-    const config = {
-      'Low': 'bg-gray-100 text-gray-800',
-      'Medium': 'bg-blue-100 text-blue-800',
-      'High': 'bg-orange-100 text-orange-800',
-      'Critical': 'bg-red-100 text-red-800'
+    const cfg = {
+      'Low':      { bg: '#f3f4f6', color: '#374151' },
+      'Medium':   { bg: '#dbeafe', color: '#1e40af' },
+      'High':     { bg: '#fed7aa', color: '#9a3412' },
+      'Critical': { bg: '#fee2e2', color: '#991b1b' },
     };
-    return config[priority] || config['Medium'];
+    const c = cfg[priority] || cfg['Medium'];
+    return (
+      <span className="text-xs font-medium"
+        style={{ backgroundColor: c.bg, color: c.color, borderRadius: '999px', padding: '6px 12px' }}>
+        {priority || 'Medium'}
+      </span>
+    );
   };
 
-  // Filter RRFs based on search
+  // Dynamic department list from live data
+  const departments = [...new Set(rrfs.map(r => r.department).filter(Boolean))];
+
   const filteredRrfs = rrfs.filter(rrf => {
+    const matchDept = selectedDepartment === 'all' || rrf.department === selectedDepartment;
+    if (!matchDept) return false;
     if (!searchTerm) return true;
-    const search = searchTerm.toLowerCase();
+    const s = searchTerm.toLowerCase();
     return (
-      (rrf.rrfNumber || '').toLowerCase().includes(search) ||
-      (rrf.positionTitle || '').toLowerCase().includes(search) ||
-      (rrf.department || '').toLowerCase().includes(search) ||
-      (rrf.projectName || '').toLowerCase().includes(search)
+      (rrf.rrfNumber || '').toLowerCase().includes(s) ||
+      (rrf.positionTitle || '').toLowerCase().includes(s) ||
+      (rrf.createdBy?.fullName || '').toLowerCase().includes(s) ||
+      (rrf.projectName || '').toLowerCase().includes(s) ||
+      (rrf.department || '').toLowerCase().includes(s)
     );
   });
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading open positions...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-8">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">{error}</p>
-          <button
-            onClick={fetchOpenPositions}
-            className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="p-4 md:p-8">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Open Positions</h1>
-        <p className="text-gray-600 mt-1">Approved RRFs ready for action</p>
-      </div>
+    <div className="p-4 md:p-8 space-y-6">
 
-      {/* Stats Card */}
-      <div className="mb-6 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg p-6 text-white">
-        <div className="flex items-center justify-between">
+      {/* Back */}
+      <button
+        onClick={() => router.back()}
+        className="flex items-center gap-2 px-4 py-2 text-gray-700 font-semibold rounded-lg hover:bg-gray-100 border border-gray-200 hover:border-gray-300 transition-all"
+      >
+        <LeftOutlined />
+        Back
+      </button>
+
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <p className="text-lg font-bold text-gray-800">
+          Approved RRFs — Review and open for hiring
+        </p>
+        <div className="flex items-center gap-3 px-3 py-2 md:px-5 md:py-3 bg-white border-2 border-orange-200 rounded-xl shadow-md">
+          <div className="text-2xl">⏳</div>
           <div>
-            <p className="text-sm opacity-90">Total Open Positions</p>
-            <p className="text-4xl font-bold mt-1">{rrfs.length}</p>
+            <p className="text-sm font-bold text-gray-700">Total Open</p>
+            <p className="text-xl md:text-3xl font-bold text-orange-600">{loading ? '—' : rrfs.length}</p>
           </div>
-          <RocketOutlined className="text-6xl opacity-20" />
         </div>
       </div>
 
-      {/* Search Bar */}
-      {rrfs.length > 0 && (
-        <div className="mb-6">
+      {/* Search + Filter + Reload */}
+      <div className="flex flex-col md:flex-row gap-3">
+        <div className="flex-1 relative">
+          <SearchOutlined
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+            style={{ fontSize: '16px' }}
+          />
           <input
             type="text"
-            placeholder="Search by RRF#, Role, Department, or Project..."
+            placeholder="Search by RRF ID, Role, Requester, Project or Department..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            className="w-full pl-11 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:outline-none text-sm bg-white"
           />
         </div>
-      )}
 
-      {/* Empty State */}
-      {rrfs.length === 0 ? (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-          <div className="text-gray-400 text-6xl mb-4">📋</div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">No Open Positions</h3>
-          <p className="text-gray-600">No approved RRFs available for action</p>
+        <select
+          value={selectedDepartment}
+          onChange={(e) => setSelectedDepartment(e.target.value)}
+          className="w-full md:w-56 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:outline-none bg-white text-sm font-medium text-gray-700 cursor-pointer"
+        >
+          <option value="all">📁 All Departments</option>
+          {departments.map(d => <option key={d} value={d}>{d}</option>)}
+        </select>
+
+        <button
+          onClick={fetchOpenPositions}
+          disabled={loading}
+          className="px-4 py-3 border-2 border-gray-200 rounded-xl text-gray-700 hover:border-indigo-500 hover:text-indigo-600 transition-all disabled:opacity-50 flex items-center gap-2 text-sm font-medium"
+        >
+          <ReloadOutlined className={loading ? 'animate-spin' : ''} />
+          Reload
+        </button>
+      </div>
+
+      {/* Table Card */}
+      <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+        <div className="px-6 py-5 border-b border-gray-100">
+          <h3 className="text-lg font-bold text-gray-900">Open Positions</h3>
+          <p className="text-sm text-gray-500 mt-0.5">Approved RRFs awaiting PMO action</p>
         </div>
-      ) : (
-        /* RRF Cards - Desktop */
-        <>
-          <div className="hidden md:block space-y-4">
-            {filteredRrfs.map((rrf) => (
-              <div key={rrf.id} className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-                <div className="p-6">
-                  {/* Header */}
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-lg font-semibold text-gray-900">
-                          {rrf.rrfNumber} - {rrf.positionTitle}
-                        </h3>
-                        <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
-                          {rrf.status}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-                        <span>Department: <span className="font-medium">{rrf.department}</span></span>
-                        <span>Positions: <span className="font-medium">{rrf.numberOfPositions}</span></span>
-                        <span>Priority: 
-                          <span className={`ml-1 px-2 py-1 rounded text-xs font-medium ${getPriorityBadge(rrf.priority)}`}>
-                            {rrf.priority}
-                          </span>
-                        </span>
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Additional Info */}
-                  {rrf.projectName && (
-                    <div className="mb-4 text-sm text-gray-600">
-                      <span className="font-medium">Project:</span> {rrf.projectName}
-                    </div>
-                  )}
+        {error && (
+          <div className="mx-6 my-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center justify-between">
+            <span>{error}</span>
+            <button onClick={fetchOpenPositions} className="underline font-medium ml-4">Retry</button>
+          </div>
+        )}
 
-                  {/* Action Buttons */}
-                  <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-100">
-                    <button
-                      onClick={() => router.push(`/pmo/view-rrf/${rrf.id}`)}
-                      className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium flex items-center gap-2"
-                    >
-                      <EyeOutlined /> View Details
-                    </button>
-                    <button
-                      onClick={() => handleOpenForHiring(rrf.id)}
-                      className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-colors text-sm font-medium flex items-center gap-2"
-                    >
-                      <RocketOutlined /> Open for Recruitment
-                    </button>
-                    <button
-                      onClick={() => handleFillByBench(rrf.id)}
-                      className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors text-sm font-medium flex items-center gap-2"
-                    >
-                      <TeamOutlined /> Fill from Bench
-                    </button>
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full min-w-0">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">RRF ID</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Requester</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Role</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Project</th>
+                <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">Positions</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Priority</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Approved On</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                    <div className="flex flex-col items-center gap-3">
+                      <ReloadOutlined className="animate-spin text-indigo-500" style={{ fontSize: '28px' }} />
+                      <p className="text-sm font-medium">Loading open positions...</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredRrfs.length > 0 ? (
+                filteredRrfs.map((rrf) => (
+                  <tr key={rrf.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-5 whitespace-nowrap">
+                      <span className="text-sm font-bold text-indigo-600">
+                        {rrf.rrfNumber || `RRF-${rrf.id}`}
+                      </span>
+                    </td>
+                    <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-700">
+                      {rrf.createdBy?.fullName || '—'}
+                    </td>
+                    <td className="px-6 py-5 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {rrf.positionTitle || '—'}
+                    </td>
+                    <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-600">
+                      {rrf.projectName || '—'}
+                    </td>
+                    <td className="px-6 py-5 whitespace-nowrap text-center">
+                      <span className="inline-flex items-center justify-center w-8 h-8 bg-indigo-100 text-indigo-700 rounded-full font-bold text-xs">
+                        {rrf.headcount || 1}
+                      </span>
+                    </td>
+                    <td className="px-6 py-5 whitespace-nowrap">
+                      {getPriorityBadge(rrf.priority)}
+                    </td>
+                    <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-500">
+                      {formatDate(rrf.approvedAt || rrf.createdAt)}
+                    </td>
+                    <td className="px-6 py-5 whitespace-nowrap">
+                      <ActionButton
+                        role="PMO"
+                        status={rrf.status}
+                        href={`/pmo/view-rrf/${rrf.id}`}
+                      />
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="text-4xl opacity-40">📋</div>
+                      <p className="text-lg font-medium">No open positions found</p>
+                      <p className="text-sm">
+                        {searchTerm || selectedDepartment !== 'all'
+                          ? 'Try adjusting your filters'
+                          : 'No approved RRFs available for action yet'}
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden px-2 pb-4 space-y-3">
+          {loading ? (
+            <div className="py-8 text-center text-gray-500">
+              <ReloadOutlined className="animate-spin text-indigo-500" style={{ fontSize: '28px' }} />
+              <p className="text-sm font-medium mt-3">Loading open positions...</p>
+            </div>
+          ) : filteredRrfs.length > 0 ? (
+            filteredRrfs.map((rrf) => (
+              <div key={rrf.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-bold text-indigo-600 mb-1">{rrf.rrfNumber || `RRF-${rrf.id}`}</div>
+                    <div className="text-sm font-bold text-gray-900 truncate">{rrf.positionTitle || '—'}</div>
+                    <div className="text-xs text-gray-500 truncate">{rrf.createdBy?.fullName || '—'} · {rrf.projectName || '—'}</div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-
-          {/* RRF Cards - Mobile */}
-          <div className="md:hidden space-y-4">
-            {filteredRrfs.map((rrf) => (
-              <div key={rrf.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <div className="font-bold text-indigo-600">{rrf.rrfNumber}</div>
-                    <div className="text-sm font-medium text-gray-900 mt-1">{rrf.positionTitle}</div>
-                  </div>
-                  <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">
-                    {rrf.numberOfPositions}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {getPriorityBadge(rrf.priority)}
+                  <span className="inline-flex items-center px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full font-bold text-xs">
+                    {rrf.headcount || 1} pos
                   </span>
                 </div>
-                <div className="space-y-1 text-xs text-gray-600 mb-3">
-                  <div>{rrf.department}</div>
-                  {rrf.projectName && <div>Project: {rrf.projectName}</div>}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => router.push(`/pmo/view-rrf/${rrf.id}`)}
-                    className="flex-1 px-3 py-2 bg-blue-500 text-white rounded text-xs font-medium"
-                  >
-                    View
-                  </button>
-                  <button
-                    onClick={() => handleOpenForHiring(rrf.id)}
-                    className="flex-1 px-3 py-2 bg-indigo-500 text-white rounded text-xs font-medium"
-                  >
-                    Open
-                  </button>
-                  <button
-                    onClick={() => handleFillByBench(rrf.id)}
-                    className="flex-1 px-3 py-2 bg-purple-500 text-white rounded text-xs font-medium"
-                  >
-                    Bench
-                  </button>
+                <div className="text-xs text-gray-500 mb-3">Approved: {formatDate(rrf.approvedAt || rrf.createdAt)}</div>
+                <div className="flex justify-end pt-2 border-t border-gray-100">
+                  <ActionButton role="PMO" status={rrf.status} href={`/pmo/view-rrf/${rrf.id}`} />
                 </div>
               </div>
-            ))}
-          </div>
-        </>
-      )}
-
-      {/* Results Count */}
-      {filteredRrfs.length > 0 && (
-        <div className="mt-6 text-center text-sm text-gray-600">
-          Showing {filteredRrfs.length} of {rrfs.length} position{rrfs.length === 1 ? '' : 's'}
+            ))
+          ) : (
+            <div className="py-8 text-center text-gray-500">
+              <p className="text-sm font-medium">No open positions found</p>
+            </div>
+          )}
         </div>
-      )}
+
+        {!loading && filteredRrfs.length > 0 && (
+          <div className="px-6 py-4 border-t border-gray-100">
+            <p className="text-sm text-gray-500">
+              Showing {filteredRrfs.length} of {rrfs.length} position{rrfs.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-export default function ProtectedOpenPositionsPage() {
-  return (
-    <ProtectedRoute>
-      <ClientLayout>
-        <OpenPositionsPage />
-      </ClientLayout>
-    </ProtectedRoute>
-  );
-}
+export default OpenPositionsPage;

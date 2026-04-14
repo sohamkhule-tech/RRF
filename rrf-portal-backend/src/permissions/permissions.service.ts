@@ -34,4 +34,35 @@ export class PermissionsService {
     const permissions = await this.getUserPermissions(userId);
     return permissions.includes(requiredPermission);
   }
+
+  /**
+   * Get all active permissions with module information
+   * Used by admin UI for permission selection
+   * Optimized with relations to avoid N+1 queries
+   */
+  async findAllWithModules() {
+    const permissions = await this.permissionsRepository.find({
+      where: { isActive: true },
+      relations: ['module'],
+      order: {
+        module: { displayOrder: 'ASC' },
+        permissionName: 'ASC',
+      },
+    });
+
+    // Filter out permissions whose modules are inactive
+    return permissions
+      .filter((p) => p.module && p.module.isActive)
+      .map((p) => ({
+        id: p.id,
+        permissionName: p.permissionName,
+        permissionCode: p.permissionCode,
+        description: p.description,
+        module: {
+          id: p.module.id,
+          moduleCode: p.module.moduleCode,
+          moduleName: p.module.moduleName,
+        },
+      }));
+  }
 }

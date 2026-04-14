@@ -1,9 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { EyeOutlined, LeftOutlined } from '@ant-design/icons'
+import { rrfApi, formatRrfForDisplay } from '@/lib/api/rrfApi'
+import { useSmartFetch } from '@/lib/useSmartFetch'
+import { CACHE_TTL } from '@/lib/apiCache'
+import { LoadingSpinner } from '@/components/LoadingSpinner'
+import toast from 'react-hot-toast'
 
 export default function PMOSentToApproversPage() {
   const router = useRouter()
@@ -12,17 +17,36 @@ export default function PMOSentToApproversPage() {
   
   // Departments from RRF form
   const departments = ['HR', 'Talent Acquisition', 'Accounts', 'Sales & Marketing', 'PMO', 'SGINTL', 'VR', 'Support']
-  
-  const sentRequests = [
-    { rrfId: 'RRF-2026-001', submissionId: '10', role: 'HR Specialist', manager: 'Amit Sharma', project: 'Recruitment Operations', department: 'HR', positions: 2, priority: 'High', sentDate: '15/03/2026', status: 'Open for Hiring' },
-    { rrfId: 'RRF-2026-002', submissionId: '12', role: 'Talent Coordinator', manager: 'Priya Nair', project: 'Hiring Dashboard', department: 'Talent Acquisition', positions: 1, priority: 'Medium', sentDate: '16/03/2026', status: 'Open for Hiring' },
-    { rrfId: 'RRF-2026-003', submissionId: '15', role: 'Finance Analyst', manager: 'Karan Mehta', project: 'Budget Planning', department: 'Accounts', positions: 1, priority: 'Medium', sentDate: '17/03/2026', status: 'Closed' },
-    { rrfId: 'RRF-2026-004', submissionId: '18', role: 'Marketing Manager', manager: 'Neha Sharma', project: 'Campaign Strategy', department: 'Sales & Marketing', positions: 2, priority: 'High', sentDate: '18/03/2026', status: 'Open for Hiring' },
-    { rrfId: 'RRF-2026-005', submissionId: '20', role: 'Project Lead', manager: 'Rohan Gupta', project: 'PMO Operations', department: 'PMO', positions: 1, priority: 'High', sentDate: '19/03/2026', status: 'Open for Hiring' },
-    { rrfId: 'RRF-2026-006', submissionId: '22', role: 'Senior Java Developer', manager: 'Vikram Singh', project: 'Banking Portal', department: 'SGINTL', positions: 3, priority: 'Critical', sentDate: '20/03/2026', status: 'Open for Hiring' },
-    { rrfId: 'RRF-2026-007', submissionId: '24', role: 'QA Lead', manager: 'Anjali Verma', project: 'Test Automation', department: 'VR', positions: 2, priority: 'Medium', sentDate: '21/03/2026', status: 'Closed' },
-    { rrfId: 'RRF-2026-008', submissionId: '26', role: 'DevOps Engineer', manager: 'Rahul Kumar', project: 'Cloud Migration', department: 'Support', positions: 2, priority: 'High', sentDate: '22/03/2026', status: 'Open for Hiring' }
-  ]
+
+  // Shared all-rrfs cache (also used by hr/page, pmo/closed, hr/closed)
+  const { data: allRrfs, loading } = useSmartFetch('all-rrfs', () => rrfApi.getAll({ limit: 1000 }), {
+    ttl: CACHE_TTL.LIST,
+    transform: (response) => response?.data?.data || response?.data || [],
+  })
+
+  // Derive sent-to-HR requests from cached data (client-side filter)
+  const sentRequests = useMemo(() => {
+    if (!allRrfs) return []
+    const relevantStatuses = ['in-progress', 'open-for-hiring']
+    return allRrfs
+      .filter(rrf => rrf.status && relevantStatuses.includes(rrf.status.toLowerCase()))
+      .map(rrf => {
+        const formatted = formatRrfForDisplay(rrf) || {}
+        return {
+          rrfId: formatted.displayId || `RRF-${rrf.id}`,
+          submissionId: formatted.id || rrf.id,
+          role: formatted.role || '—',
+          manager: formatted.manager || '—',
+          project: formatted.project || '—',
+          subFunction: formatted.subFunction || '—',
+          positions: formatted.positions || 1,
+          priority: formatted.priority || 'Medium',
+          sentDate: new Date(rrf.sentToHrAt || rrf.updatedAt || rrf.createdAt || Date.now()).toLocaleDateString('en-GB'),
+          status: 'In Progress',
+          originalStatus: rrf.status
+        }
+      })
+  }, [allRrfs])
 
   const getPriorityBadge = (priority) => {
     const priorityConfig = {
@@ -40,27 +64,19 @@ export default function PMOSentToApproversPage() {
   }
 
   const getStatusBadge = (status) => {
-    if (status === 'Closed') {
-      return (
-        <span className="text-xs font-medium" style={{ backgroundColor: '#e5e7eb', color: '#374151', borderRadius: '999px', padding: '6px 12px' }}>
-          ✓ Closed
-        </span>
-      )
-    }
     return (
       <span className="text-xs font-medium" style={{ backgroundColor: '#dcfce7', color: '#166534', borderRadius: '999px', padding: '6px 12px' }}>
-        🟢 Open for Hiring
+        🟢 In Progress
       </span>
     )
   }
 
-  const openCount = sentRequests.filter(r => r.status === 'Open for Hiring').length
-  const closedCount = sentRequests.filter(r => r.status === 'Closed').length
+  const openCount = sentRequests.length
 
   // Filter requests based on search term and department
   const filteredRequests = sentRequests.filter(request => {
     // Department filter
-    if (selectedDepartment !== 'all' && request.department !== selectedDepartment) {
+    if (selectedDepartment !== 'all' && request.subFunction !== selectedDepartment) {
       return false
     }
     
@@ -72,13 +88,13 @@ export default function PMOSentToApproversPage() {
       request.role.toLowerCase().includes(searchLower) ||
       request.manager.toLowerCase().includes(searchLower) ||
       request.project.toLowerCase().includes(searchLower) ||
-      request.department.toLowerCase().includes(searchLower) ||
+      request.subFunction.toLowerCase().includes(searchLower) ||
       request.status.toLowerCase().includes(searchLower)
     )
   })
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-4 md:p-8 space-y-8">
       {/* Back Button */}
       <button
         onClick={() => router.back()}
@@ -89,23 +105,20 @@ export default function PMOSentToApproversPage() {
       </button>
 
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      {loading ? (
+        <LoadingSpinner message="Loading requests..." />
+      ) : (
+        <>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <p className="text-lg text-gray-800 font-bold">Track RRFs with numbers added and sent to HR for recruitment</p>
         </div>
         <div className="flex gap-4">
-          <div className="flex items-center gap-3 px-4 py-2.5 bg-white border-2 border-green-200 rounded-xl shadow-md">
+          <div className="flex items-center gap-3 px-3 py-2 md:px-4 md:py-2.5 bg-white border-2 border-green-200 rounded-xl shadow-md">
             <div className="text-xl">🟢</div>
             <div>
-              <p className="text-sm text-gray-700 font-bold">Open for Hiring</p>
-              <p className="text-2xl font-bold text-green-600">{openCount}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 px-4 py-2.5 bg-white border-2 border-gray-200 rounded-xl shadow-md">
-            <div className="text-xl">🔒</div>
-            <div>
-              <p className="text-sm text-gray-700 font-bold">Closed</p>
-              <p className="text-2xl font-bold text-gray-600">{closedCount}</p>
+              <p className="text-sm text-gray-700 font-bold">In Progress</p>
+              <p className="text-lg md:text-2xl font-bold text-green-600">{openCount}</p>
             </div>
           </div>
         </div>
@@ -113,12 +126,12 @@ export default function PMOSentToApproversPage() {
       
       {/* Search and Filter Bar */}
       <div className="mb-6 space-y-4">
-        <div className="flex gap-4">
+        <div className="flex flex-col md:flex-row gap-4">
           {/* Search Bar */}
           <div className="flex-1 relative group">
             <input
               type="text"
-              placeholder="Search by RRF ID, Role, Manager, Project, Department, or Status..."
+              placeholder="Search by RRF ID, Role, Manager, Project, Sub Function, or Status..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full px-5 py-3.5 pl-12 pr-10 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 focus:outline-none transition-all duration-300 bg-white hover:border-gray-300 hover:shadow-md text-sm placeholder-gray-400"
@@ -139,15 +152,15 @@ export default function PMOSentToApproversPage() {
             )}
           </div>
           
-          {/* Department Filter */}
-          <div className="w-72">
+          {/* Sub Function Filter */}
+          <div className="w-full md:w-72">
             <select
               value={selectedDepartment}
               onChange={(e) => setSelectedDepartment(e.target.value)}
               className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 focus:outline-none transition-all duration-300 bg-white hover:border-gray-300 hover:shadow-md cursor-pointer text-sm font-medium text-gray-700"
               style={{ fontSize: '14px', appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none', backgroundImage: 'url("data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e")', backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem' }}
             >
-              <option value="all">📁 All Departments</option>
+              <option value="all">📁 All Sub Functions</option>
               {departments.map(dept => (
                 <option key={dept} value={dept}>{dept}</option>
               ))}
@@ -171,14 +184,14 @@ export default function PMOSentToApproversPage() {
           <p className="text-sm text-gray-500 mt-1">RRFs that have been opened for recruitment by HR team</p>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">RRF ID</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Requester</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Role & Project</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Department</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Sub Function</th>
                 <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">Positions</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Priority</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Sent Date</th>
@@ -187,37 +200,91 @@ export default function PMOSentToApproversPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredRequests.map((request) => (
-                <tr key={request.rrfId} className="hover:bg-gray-50 transition-colors duration-200">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm font-semibold text-indigo-600">{request.rrfId}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{request.manager}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{request.role}</div>
-                    <div className="text-sm text-gray-500">{request.project}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{request.department}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-center">
-                    <span className="text-sm font-semibold text-gray-900">{request.positions}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">{getPriorityBadge(request.priority)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{request.sentDate}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(request.status)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <Link href={`/pmo/view-rrf/${request.submissionId}?from=sent`}>
-                      <button className="px-3 py-2 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-300 flex items-center gap-1" style={{ borderRadius: '8px' }}>
-                        <EyeOutlined />
-                        View
-                      </button>
-                    </Link>
+              {filteredRequests.length > 0 ? (
+                filteredRequests.map((request) => (
+                  <tr key={request.rrfId} className="hover:bg-gray-50 transition-colors duration-200">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm font-semibold text-indigo-600">{request.rrfId}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{request.manager}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">{request.role}</div>
+                      <div className="text-sm text-gray-500">{request.project}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{request.subFunction}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      <span className="text-sm font-semibold text-gray-900">{request.positions}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">{getPriorityBadge(request.priority)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{request.sentDate}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(request.status)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <Link href={`/pmo/view-rrf/${request.submissionId}?from=sent`}>
+                        <button className="px-3 py-2 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-300 flex items-center gap-1" style={{ borderRadius: '8px' }}>
+                          <EyeOutlined />
+                          View
+                        </button>
+                      </Link>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={9} className="px-6 py-12 text-center text-gray-500">
+                    <div className="flex flex-col items-center justify-center space-y-3">
+                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-2">
+                        <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                        </svg>
+                      </div>
+                      <p className="text-lg font-medium text-gray-900">No RRFs Found</p>
+                      <p className="text-sm text-gray-500 max-w-sm text-center">
+                        There are currently no RRFs in the "Sent to HR" or "Closed" stages. Once PMO opens a request for hiring, it will appear here.
+                      </p>
+                    </div>
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden px-2 pb-4 space-y-3">
+          {filteredRequests.length > 0 ? (
+            filteredRequests.map((request) => (
+              <div key={request.rrfId} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-bold text-indigo-600 mb-1">{request.rrfId}</div>
+                    <div className="text-sm font-bold text-gray-900 truncate">{request.role}</div>
+                    <div className="text-xs text-gray-500 truncate">{request.manager} · {request.project}</div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {getPriorityBadge(request.priority)}
+                  {getStatusBadge(request.status)}
+                </div>
+                <div className="text-xs text-gray-500 mb-3">Sent: {request.sentDate} · {request.subFunction}</div>
+                <div className="flex justify-end pt-2 border-t border-gray-100">
+                  <Link href={`/pmo/view-rrf/${request.submissionId}?from=sent`}>
+                    <button className="px-3 py-2 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-300 flex items-center gap-1 text-sm" style={{ borderRadius: '8px' }}>
+                      <EyeOutlined />
+                      View
+                    </button>
+                  </Link>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="py-8 text-center text-gray-500">
+              <p className="text-sm font-medium">No requests found</p>
+            </div>
+          )}
+        </div>
       </div>
+        </>
+      )}
     </div>
   )
 }

@@ -1,64 +1,77 @@
 'use client'
 
-import { useState } from 'react'
-import Link from 'next/link'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { ClockCircleOutlined, LeftOutlined } from '@ant-design/icons'
+import { LeftOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
+import ActionButton from '@/components/ActionButton'
+import { rrfApi } from '@/lib/api/rrfApi'
 
 export default function PMOPendingPage() {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedDepartment, setSelectedDepartment] = useState('all')
-  
-  // Departments from RRF form
-  const departments = ['HR', 'Talent Acquisition', 'Accounts', 'Sales & Marketing', 'PMO', 'SGINTL', 'VR', 'Support']
-  
-  const pendingRequests = [
-    { id: '1', role: 'HR Coordinator', manager: 'John Doe', project: 'Recruitment Process', positions: 1, priority: 'High', date: '20/03/2026', department: 'HR' },
-    { id: '2', role: 'Recruitment Specialist', manager: 'Sarah Lee', project: 'Talent Pipeline', positions: 2, priority: 'High', date: '21/03/2026', department: 'Talent Acquisition' },
-    { id: '3', role: 'Accounts Manager', manager: 'Mike Johnson', project: 'Financial Planning', positions: 1, priority: 'Medium', date: '22/03/2026', department: 'Accounts' },
-    { id: '4', role: 'Marketing Executive', manager: 'Alex Brown', project: 'Campaign Management', positions: 2, priority: 'High', date: '18/03/2026', department: 'Sales & Marketing' },
-    { id: '5', role: 'Project Manager', manager: 'Emma Wilson', project: 'Operations Support', positions: 1, priority: 'Medium', date: '19/03/2026', department: 'PMO' },
-    { id: '6', role: 'Java Developer', manager: 'David Chen', project: 'Banking Portal', positions: 3, priority: 'Critical', date: '23/03/2026', department: 'SGINTL' },
-    { id: '7', role: 'QA Engineer', manager: 'Lisa Wang', project: 'Testing Framework', positions: 2, priority: 'Medium', date: '24/03/2026', department: 'VR' },
-    { id: '8', role: 'DevOps Engineer', manager: 'Tom Baker', project: 'Cloud Migration', positions: 2, priority: 'Critical', date: '25/03/2026', department: 'Support' }
-  ]
+  const [rrfs, setRrfs] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await rrfApi.getOpenPositions()
+      // Backend returns { success: true, data: [...] }
+      const list = response?.data || response || []
+      setRrfs(Array.isArray(list) ? list : [])
+    } catch (err) {
+      setError(err.message || 'Failed to load open positions')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
+  const formatDate = (dateString) => {
+    if (!dateString) return '—'
+    return new Date(dateString).toLocaleDateString('en-GB')
+  }
 
   const getPriorityBadge = (priority) => {
     const priorityConfig = {
-      'Low': { bg: '#f3f4f6', color: '#374151' },
-      'Medium': { bg: '#dbeafe', color: '#1e40af' },
-      'High': { bg: '#fed7aa', color: '#9a3412' },
-      'Critical': { bg: '#fee2e2', color: '#991b1b' }
+      'Low':      { bg: '#f3f4f6', color: '#374151' },
+      'Medium':   { bg: '#dbeafe', color: '#1e40af' },
+      'High':     { bg: '#fed7aa', color: '#9a3412' },
+      'Critical': { bg: '#fee2e2', color: '#991b1b' },
     }
-    const config = priorityConfig[priority]
+    const config = priorityConfig[priority] || priorityConfig['Medium']
     return (
       <span className="text-xs font-medium" style={{ backgroundColor: config.bg, color: config.color, borderRadius: '999px', padding: '6px 12px' }}>
-        {priority}
+        {priority || 'Medium'}
       </span>
     )
   }
 
-  // Filter requests based on search term and department
-  const filteredRequests = pendingRequests.filter(request => {
-    // Department filter
-    if (selectedDepartment !== 'all' && request.department !== selectedDepartment) {
-      return false
-    }
-    
-    // Search filter
+  // Derive unique departments from live data for the filter dropdown
+  const departments = [...new Set(rrfs.map(r => r.department).filter(Boolean))]
+
+  const filteredRrfs = rrfs.filter(rrf => {
+    const matchDept = selectedDepartment === 'all' || rrf.department === selectedDepartment
+    if (!matchDept) return false
     if (!searchTerm) return true
-    const searchLower = searchTerm.toLowerCase()
+    const s = searchTerm.toLowerCase()
     return (
-      request.role.toLowerCase().includes(searchLower) ||
-      request.manager.toLowerCase().includes(searchLower) ||
-      request.project.toLowerCase().includes(searchLower) ||
-      request.department.toLowerCase().includes(searchLower)
+      (rrf.rrfNumber || '').toLowerCase().includes(s) ||
+      (rrf.positionTitle || '').toLowerCase().includes(s) ||
+      (rrf.createdBy?.fullName || '').toLowerCase().includes(s) ||
+      (rrf.projectName || '').toLowerCase().includes(s) ||
+      (rrf.department || '').toLowerCase().includes(s)
     )
   })
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-4 md:p-8 space-y-8">
       {/* Back Button */}
       <button
         onClick={() => router.back()}
@@ -69,54 +82,50 @@ export default function PMOPendingPage() {
       </button>
 
       {/* Page Header */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex-1">
-          <p className="text-lg text-gray-800 font-bold">Approved RRFs from Approvers - Review and open for hiring</p>
+          <p className="text-lg text-gray-800 font-bold">
+            Approved RRFs from Approvers — Review and open for hiring
+          </p>
         </div>
-        <div className="flex items-center gap-3 px-5 py-3 bg-white border-2 border-orange-200 rounded-xl shadow-md">
+        <div className="flex items-center gap-3 px-3 py-2 md:px-5 md:py-3 bg-white border-2 border-orange-200 rounded-xl shadow-md">
           <div className="text-2xl">⏳</div>
           <div>
             <p className="text-sm text-gray-700 font-bold">Total Pending</p>
-            <p className="text-3xl font-bold text-orange-600">{pendingRequests.length}</p>
+            <p className="text-xl md:text-3xl font-bold text-orange-600">{loading ? '—' : rrfs.length}</p>
           </div>
         </div>
       </div>
 
       {/* Search and Filter Bar */}
-      <div className="mb-6 space-y-4">
-        <div className="flex gap-4">
-          {/* Search Bar */}
+      <div className="space-y-4">
+        <div className="flex flex-col md:flex-row gap-4">
+          {/* Search */}
           <div className="flex-1 relative group">
+            <SearchOutlined className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-hover:text-indigo-500 transition-colors" style={{ fontSize: '18px' }} />
             <input
               type="text"
-              placeholder="Search by Role, Manager, Project, or Department..."
+              placeholder="Search by Role, Requester, Project, or Department..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-5 py-3.5 pl-12 pr-10 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 focus:outline-none transition-all duration-300 bg-white hover:border-gray-300 hover:shadow-md text-sm placeholder-gray-400"
-              style={{ fontSize: '14px' }}
+              className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 focus:outline-none transition-all duration-300 bg-white hover:border-gray-300 text-sm"
             />
-            <svg className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 transition-colors group-hover:text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
             {searchTerm && (
               <button
                 onClick={() => setSearchTerm('')}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full p-1 transition-all duration-200"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full p-1 transition-all"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                ✕
               </button>
             )}
           </div>
-          
+
           {/* Department Filter */}
-          <div className="w-72">
+          <div className="w-full md:w-64">
             <select
               value={selectedDepartment}
               onChange={(e) => setSelectedDepartment(e.target.value)}
-              className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 focus:outline-none transition-all duration-300 bg-white hover:border-gray-300 hover:shadow-md cursor-pointer text-sm font-medium text-gray-700"
-              style={{ fontSize: '14px', appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none', backgroundImage: 'url("data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e")', backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem' }}
+              className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:outline-none bg-white text-sm font-medium text-gray-700 cursor-pointer"
             >
               <option value="all">📁 All Departments</option>
               {departments.map(dept => (
@@ -124,68 +133,163 @@ export default function PMOPendingPage() {
               ))}
             </select>
           </div>
+
+          {/* Reload */}
+          <button
+            onClick={fetchData}
+            disabled={loading}
+            className="px-4 py-3 border-2 border-gray-200 rounded-xl text-gray-700 hover:border-indigo-500 hover:text-indigo-600 transition-all disabled:opacity-50 flex items-center gap-2"
+          >
+            <ReloadOutlined className={loading ? 'animate-spin' : ''} />
+            Reload
+          </button>
         </div>
-        
+
         {(searchTerm || selectedDepartment !== 'all') && (
           <p className="text-sm text-gray-600">
-            Found {filteredRequests.length} result{filteredRequests.length !== 1 ? 's' : ''}
+            Found {filteredRrfs.length} result{filteredRrfs.length !== 1 ? 's' : ''}
             {searchTerm && ` for "${searchTerm}"`}
             {selectedDepartment !== 'all' && ` in ${selectedDepartment}`}
           </p>
         )}
       </div>
 
-      {/* Pending Requests Table */}
+      {/* Table */}
       <div className="bg-white overflow-hidden" style={{ borderRadius: '16px', boxShadow: '0 10px 25px rgba(0,0,0,0.08)', padding: '20px' }}>
         <div className="px-2 py-4 mb-4">
           <h3 className="text-lg font-bold text-gray-900">Opened Positions</h3>
-          <p className="text-sm text-gray-500 mt-1">Add RRF# and click "Open for Requisition" to send to HR Team</p>
+          <p className="text-sm text-gray-500 mt-1">Approved RRFs awaiting PMO action — open for recruitment or fill from bench</p>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Error state */}
+        {error && (
+          <div className="mx-2 mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+            {error} —{' '}
+            <button onClick={fetchData} className="underline font-medium">Retry</button>
+          </div>
+        )}
+
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Submission ID</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">RRF ID</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Requester</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Role</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Project</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Department</th>
                 <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">Positions</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Priority</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Submitted On</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Approved On</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredRequests.map((request) => (
-                <tr key={request.id} className="hover:bg-gray-50 transition-colors duration-200">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm font-semibold text-indigo-600">SUB-{request.id}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{request.manager}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm font-medium text-gray-900">{request.role}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{request.project}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{request.department}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-center">
-                    <span className="text-sm font-semibold text-gray-900">{request.positions}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">{getPriorityBadge(request.priority)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{request.date}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <Link href={`/pmo/view-rrf/${request.id}`}>
-                      <button className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-medium hover:from-indigo-700 hover:to-purple-700 transition-all duration-300" style={{ borderRadius: '8px' }}>
-                        View RRF
-                      </button>
-                    </Link>
+              {loading ? (
+                <tr>
+                  <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
+                    <div className="flex flex-col items-center gap-2">
+                      <ReloadOutlined className="animate-spin text-indigo-500" style={{ fontSize: '28px' }} />
+                      <p className="text-sm font-medium">Loading open positions...</p>
+                    </div>
                   </td>
                 </tr>
-              ))}
+              ) : filteredRrfs.length > 0 ? (
+                filteredRrfs.map((rrf) => (
+                  <tr key={rrf.id} className="hover:bg-gray-50 transition-colors duration-200">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm font-semibold text-indigo-600">{rrf.rrfNumber || `RRF-${rrf.id}`}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                      {rrf.createdBy?.fullName || '—'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm font-medium text-gray-900">{rrf.positionTitle || '—'}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{rrf.projectName || '—'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{rrf.department || '—'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      <span className="inline-flex items-center justify-center w-8 h-8 bg-indigo-100 text-indigo-700 rounded-full font-bold text-xs">
+                        {rrf.headcount || 1}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">{getPriorityBadge(rrf.priority)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {formatDate(rrf.approvedAt || rrf.createdAt)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <ActionButton
+                        role="PMO"
+                        status={rrf.status}
+                        href={`/pmo/view-rrf/${rrf.id}`}
+                      />
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={9} className="px-6 py-12 text-center text-gray-500">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="text-4xl opacity-40">📋</div>
+                      <p className="text-lg font-medium">No open positions found</p>
+                      <p className="text-sm">
+                        {searchTerm || selectedDepartment !== 'all'
+                          ? 'Try adjusting your filters'
+                          : 'No approved RRFs available for action yet'}
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden px-2 pb-4 space-y-3">
+          {loading ? (
+            <div className="py-8 text-center text-gray-500">
+              <ReloadOutlined className="animate-spin text-indigo-500" style={{ fontSize: '28px' }} />
+              <p className="text-sm font-medium mt-3">Loading...</p>
+            </div>
+          ) : filteredRrfs.length > 0 ? (
+            filteredRrfs.map((rrf) => (
+              <div key={rrf.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-bold text-indigo-600 mb-1">{rrf.rrfNumber || `RRF-${rrf.id}`}</div>
+                    <div className="text-sm font-bold text-gray-900 truncate">{rrf.positionTitle || '—'}</div>
+                    <div className="text-xs text-gray-500 truncate">{rrf.createdBy?.fullName || '—'} · {rrf.projectName || '—'}</div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {getPriorityBadge(rrf.priority)}
+                  <span className="inline-flex items-center px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full font-bold text-xs">
+                    {rrf.headcount || 1} pos
+                  </span>
+                  <span className="text-xs text-gray-500">{rrf.department || '—'}</span>
+                </div>
+                <div className="text-xs text-gray-500 mb-3">Approved: {formatDate(rrf.approvedAt || rrf.createdAt)}</div>
+                <div className="flex justify-end pt-2 border-t border-gray-100">
+                  <ActionButton role="PMO" status={rrf.status} href={`/pmo/view-rrf/${rrf.id}`} />
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="py-8 text-center text-gray-500">
+              <p className="text-sm font-medium">No open positions found</p>
+            </div>
+          )}
+        </div>
+
+        {/* Result count */}
+        {!loading && filteredRrfs.length > 0 && (
+          <div className="px-2 pt-4 mt-2 border-t border-gray-100">
+            <p className="text-sm text-gray-500">
+              Showing {filteredRrfs.length} of {rrfs.length} position{rrfs.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -1,67 +1,53 @@
 'use client'
 
-import Link from 'next/link'
-import { ClockCircleOutlined, CheckCircleOutlined, EyeOutlined, CloseCircleOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons'
+import { ClockCircleOutlined, CheckCircleOutlined, CloseCircleOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons'
+import ActionButton from '@/components/ActionButton'
 import StatCard from '@/components/StatCard'
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { PERMISSIONS } from '@/utils/permissions'
 import { rrfApi } from '@/lib/api/rrfApi'
+import { useSmartFetch } from '@/lib/useSmartFetch'
+import { useVisibilityRefresh } from '@/lib/useVisibilityRefresh'
+import { CACHE_TTL } from '@/lib/apiCache'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { ErrorMessage } from '@/components/ErrorMessage'
 
 export default function ApproverDashboard() {
   const [searchTerm, setSearchTerm] = useState('')
-  const [requests, setRequests] = useState([])
-  const [statistics, setStatistics] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
 
-  const fetchData = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const pendingData = await rrfApi.getPendingApprovals()
-      setRequests(pendingData || [])
+  // Fetch pending approvals — cached + deduplicated
+  const {
+    data: requests,
+    loading: reqLoading,
+    error: reqError,
+    refresh: refreshRequests,
+  } = useSmartFetch('approver-pending-dash', () => rrfApi.getPendingApprovals(), {
+    ttl: CACHE_TTL.LIST,
+    transform: (data) => data || [],
+  })
 
-      const statsResponse = await rrfApi.getStatistics(true)
-      setStatistics(statsResponse.success ? statsResponse.data : null)
-    } catch (err) {
-      setError(err.message)
-      setRequests([])
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  // Fetch statistics — cached 60 s
+  const {
+    data: statistics,
+    loading: statsLoading,
+    error: statsError,
+    refresh: refreshStats,
+  } = useSmartFetch('statistics-true', () => rrfApi.getStatistics(true), {
+    ttl: CACHE_TTL.STATS,
+    transform: (res) => (res?.success ? res.data : null),
+  })
 
-  // Auto-refresh — pauses when tab is hidden to avoid wasting network
-  useEffect(() => {
-    fetchData()
+  const loading = (reqLoading && !requests?.length) || (statsLoading && !statistics)
+  const error = reqError?.message || statsError?.message || null
 
-    const startInterval = () => {
-      return setInterval(() => {
-        if (!document.hidden) {
-          fetchData()
-        }
-      }, 30000)
-    }
+  const fetchData = useCallback(() => {
+    refreshRequests()
+    refreshStats()
+  }, [refreshRequests, refreshStats])
 
-    let interval = startInterval()
-
-    const handleVisibility = () => {
-      if (!document.hidden) {
-        fetchData()
-        clearInterval(interval)
-        interval = startInterval()
-      }
-    }
-
-    document.addEventListener('visibilitychange', handleVisibility)
-    return () => {
-      clearInterval(interval)
-      document.removeEventListener('visibilitychange', handleVisibility)
-    }
-  }, [fetchData])
+  // Single polling + visibility handler (60 s interval, replaces 30 s + double-fire)
+  useVisibilityRefresh(fetchData, { intervalMs: 60_000 })
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A'
@@ -145,14 +131,14 @@ export default function ApproverDashboard() {
   const byStatus = statistics?.byStatus || {}
   const pendingCount  = (byStatus['submitted'] || 0) + (byStatus['pending'] || 0)
   const approvedCount = byStatus['approved'] || 0
-  const declinedCount = byStatus['declined'] || byStatus['rejected'] || 0
-  const onHoldCount   = byStatus['on-hold'] || byStatus['onHold'] || 0
+  const declinedCount = (byStatus['declined'] || 0) + (byStatus['rejected'] || 0)
+  const onHoldCount   = (byStatus['on-hold'] || 0) + (byStatus['onHold'] || 0)
 
   return (
     <ProtectedRoute requiredPermission={PERMISSIONS.APPROVALS.READ}>
-      <div className="p-8 space-y-8">
+      <div className="p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5">
           <StatCard title="Pending Approvals" value={String(pendingCount)} icon={<ClockCircleOutlined />} color="orange" href="/approver/pending" />
           <StatCard title="Approved"           value={String(approvedCount)} icon={<CheckCircleOutlined />} color="green" href="/approver/approved" />
           <StatCard title="Declined"           value={String(declinedCount)} icon={<CloseCircleOutlined />} color="red" href="/approver/declined" />
@@ -166,8 +152,8 @@ export default function ApproverDashboard() {
           </div>
 
           {/* Search Box */}
-          <div className="px-6 py-4 border-b border-gray-100">
-            <div className="flex items-center gap-3 max-w-md">
+          <div className="px-4 md:px-6 py-4 border-b border-gray-100">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:max-w-md">
               <div className="relative flex-1">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <SearchOutlined className="text-gray-400" style={{ fontSize: '18px' }} />
@@ -192,7 +178,8 @@ export default function ApproverDashboard() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Desktop Table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50/80 border-b-2 border-gray-200">
                 <tr>
@@ -222,12 +209,11 @@ export default function ApproverDashboard() {
                       <td className="px-6 py-5 whitespace-nowrap text-sm">{getPriorityBadge(request.priority)}</td>
                       <td className="px-6 py-5 whitespace-nowrap text-sm">{getStatusBadge(request.status)}</td>
                       <td className="px-6 py-5 whitespace-nowrap text-sm">
-                        <Link href={`/approver/view-rrf/${request.id}`}>
-                          <button className="px-4 py-2 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-200 hover:scale-105 flex items-center gap-2 rounded-lg border border-gray-200 hover:border-indigo-300">
-                            <EyeOutlined />
-                            Review
-                          </button>
-                        </Link>
+                        <ActionButton
+                          role="APPROVER"
+                          status={request.status}
+                          href={`/approver/view-rrf/${request.id}`}
+                        />
                       </td>
                     </tr>
                   ))
@@ -245,6 +231,36 @@ export default function ApproverDashboard() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden px-4 pb-4 space-y-3">
+            {filteredRequests.length > 0 ? (
+              filteredRequests.map((request) => (
+                <div key={request.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-bold text-indigo-600 mb-1">{request.displayId}</div>
+                      <div className="text-sm font-bold text-gray-900 truncate">{request.positionTitle}</div>
+                      <div className="text-xs text-gray-500 truncate">{request.createdBy?.fullName || 'Unknown'} • {request.projectName || 'N/A'}</div>
+                    </div>
+                    <span className="inline-flex items-center justify-center w-8 h-8 bg-indigo-100 text-indigo-700 rounded-full font-bold text-xs ml-2 flex-shrink-0">{request.headcount}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {getPriorityBadge(request.priority)}
+                    {getStatusBadge(request.status)}
+                  </div>
+                  <div className="flex justify-end pt-2 border-t border-gray-100">
+                    <ActionButton role="APPROVER" status={request.status} href={`/approver/view-rrf/${request.id}`} />
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="py-8 text-center text-gray-500">
+                <SearchOutlined style={{ fontSize: '32px', color: '#9ca3af' }} />
+                <p className="text-sm font-medium mt-2">{searchTerm ? `No requests found matching "${searchTerm}"` : 'No pending approvals'}</p>
+              </div>
+            )}
           </div>
         </div>
       </div>

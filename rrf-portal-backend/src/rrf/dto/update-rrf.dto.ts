@@ -105,6 +105,16 @@ export class UpdateRrfDto {
   @Type(() => Number)
   budgetMax?: number;
 
+  @IsString()
+  @IsOptional()
+  @MaxLength(50)
+  positionType?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(50)
+  workMode?: string;
+
   @IsEnum(EmploymentType)
   @IsOptional()
   employmentType?: EmploymentType;

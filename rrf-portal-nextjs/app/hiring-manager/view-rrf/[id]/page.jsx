@@ -13,6 +13,7 @@ import {
   ArrowLeftOutlined,
   ExclamationCircleOutlined,
   PauseCircleOutlined,
+  EditOutlined,
 } from '@ant-design/icons'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
@@ -21,6 +22,7 @@ import { useRRFDetail } from '@/hooks/useRRFDetail'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { ErrorMessage } from '@/components/ErrorMessage'
 import InfoField from '@/components/InfoField'
+import StatusWithDetails from '@/components/StatusWithDetails'
 
 export default function HMViewRRFPage() {
   const params = useParams()
@@ -28,19 +30,21 @@ export default function HMViewRRFPage() {
   const rrfId = params.id
 
   const { rrf, loading, error, refresh } = useRRFDetail(rrfId)
+  const isPending = rrf?.status === 'pending'
   const isDeclined = rrf?.status === 'declined' || rrf?.status === 'rejected'
   const isOnHold   = rrf?.status === 'on-hold'
+  
   const [activeSection, setActiveSection] = useState(
-    (rrf?.status === 'declined' || rrf?.status === 'rejected' || rrf?.status === 'on-hold')
-      ? 'approval'
-      : 'requisition'
+    isPending ? 'approval' : 'requisition'
   )
-
+  
+  // Determine editability based on mapped status
+  const editableStatuses = ['draft', 'pending approval', 'declined', 'on hold'];
+  const isEditable = rrf?.status && ['draft', 'pending', 'submitted', 'declined', 'rejected', 'on-hold'].includes(String(rrf.status).toLowerCase());
+  
   const sections = [
-    ...(isDeclined || isOnHold
-      ? [{ id: 'approval', label: 'Approval Decision', icon: isDeclined
-            ? <ExclamationCircleOutlined className="text-lg" />
-            : <PauseCircleOutlined className="text-lg" /> }]
+    ...(isPending
+      ? [{ id: 'approval', label: 'Approval Decision', icon: <UserOutlined className="text-lg" /> }]
       : []),
     { id: 'requisition', label: 'Requisition Info',       icon: <BuildOutlined    className="text-lg" /> },
     { id: 'position',    label: 'Position Details',        icon: <UserOutlined     className="text-lg" /> },
@@ -75,7 +79,9 @@ export default function HMViewRRFPage() {
     billingStartDate: rrf.expectedStartDate
       ? new Date(rrf.expectedStartDate).toLocaleDateString('en-GB')
       : null,
-    positionType:       rrf.employmentType,
+    positionType:       rrf.positionType,
+    employmentType:     rrf.employmentType,
+    workMode:           rrf.workMode,
     numberOfPositions:  rrf.headcount,
     priorityLevel:      rrf.priority,
     jobLocation:        rrf.location ? [rrf.location] : null,
@@ -179,14 +185,19 @@ export default function HMViewRRFPage() {
         }
       `}</style>
 
-      <div className="flex h-screen">
+      <div className="flex flex-col md:flex-row h-screen">
         {/* LEFT PANEL */}
-        <div className="w-80 bg-white border-r border-slate-200 flex flex-col overflow-y-auto no-print">
-          <div className="p-6 bg-gradient-to-br from-slate-700 to-slate-800 text-white">
+        <div className="w-full md:w-80 bg-white border-b md:border-b-0 md:border-r border-slate-200 flex flex-col md:overflow-y-auto no-print">
+          <div className="p-4 md:p-6 bg-gradient-to-br from-slate-700 to-slate-800 text-white">
             <div className="space-y-3">
-              <h1 className="text-2xl font-bold tracking-tight leading-tight">{rrfData.jobTitle}</h1>
-              <div className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-900 shadow-lg">
-                {rrfData.status}
+              <h1 className="text-lg md:text-2xl font-bold tracking-tight leading-tight">{rrfData.jobTitle}</h1>
+              <div className="mt-2">
+                <StatusWithDetails 
+                  status={rrfData.status} 
+                  reason={rrfData.declineReason} 
+                  actionBy={rrfData.declinedBy} 
+                  actionDate={rrfData.declinedAt} 
+                />
               </div>
               <div className="text-xs text-slate-300 font-medium space-y-1">
                 <div>RRF-{rrfData.id}</div>
@@ -194,27 +205,27 @@ export default function HMViewRRFPage() {
               </div>
             </div>
           </div>
-          <div className="flex-1 p-6">
-            <div className="space-y-1">
+          <div className="flex-1 p-3 md:p-6">
+            <div className="flex md:flex-col gap-2 md:gap-0 md:space-y-1 overflow-x-auto md:overflow-x-visible pb-2 md:pb-0">
               {sections.map((section, index) => (
                 <div key={section.id}>
                   <button
                     onClick={() => setActiveSection(section.id)}
-                    className={`w-full flex items-center gap-4 p-4 rounded-lg transition-all duration-200 ${
+                    className={`flex-shrink-0 md:flex-shrink md:w-full flex items-center gap-2 md:gap-4 p-3 md:p-4 rounded-lg transition-all duration-200 ${
                       activeSection === section.id
                         ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg'
                         : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
                     }`}
                   >
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                    <div className={`w-8 h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center ${
                       activeSection === section.id ? 'bg-white/20' : 'bg-slate-100'
                     }`}>
                       {section.icon}
                     </div>
-                    <span className="text-xs font-bold uppercase tracking-wider">{section.label}</span>
+                    <span className="text-xs font-bold uppercase tracking-wider whitespace-nowrap">{section.label}</span>
                   </button>
                   {index < sections.length - 1 && (
-                    <div className="w-px h-4 bg-slate-300 ml-9 my-0.5" />
+                    <div className="hidden md:block w-px h-4 bg-slate-300 ml-9 my-0.5" />
                   )}
                 </div>
               ))}
@@ -224,7 +235,7 @@ export default function HMViewRRFPage() {
 
         {/* RIGHT PANEL */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between no-print">
+          <div className="bg-white border-b border-slate-200 px-4 md:px-8 py-3 md:py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 no-print">
             <div className="flex items-center gap-4">
               <Link href="/hiring-manager/dashboard">
                 <button className="flex items-center gap-2 px-4 py-2 text-slate-700 hover:bg-slate-100 rounded-lg transition-all duration-200 border border-slate-300">
@@ -234,114 +245,47 @@ export default function HMViewRRFPage() {
               </Link>
               <h2 className="text-xl font-bold text-slate-800">RRF Details</h2>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 md:gap-3">
+              {isEditable && (
+                <button 
+                  onClick={() => router.push(`/hiring-manager/create-rrf?draftId=${rrfData.id}`)}
+                  className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 font-bold rounded-lg transition-all flex items-center gap-2 shadow-md"
+                >
+                  <EditOutlined /> <span className="hidden sm:inline">Edit Request</span>
+                </button>
+              )}
               <button onClick={handlePrint} className="px-4 py-2 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium rounded-lg transition-all flex items-center gap-2">
-                <PrinterOutlined /> Print
+                <PrinterOutlined /> <span className="hidden sm:inline">Print</span>
               </button>
               <button onClick={handleExport} className="px-4 py-2 bg-slate-700 text-white hover:bg-slate-800 font-medium rounded-lg transition-all flex items-center gap-2">
-                <DownloadOutlined /> Export PDF
+                <DownloadOutlined /> <span className="hidden sm:inline">Export PDF</span>
               </button>
             </div>
           </div>
 
           <div className="flex-1 overflow-y-auto bg-white rrf-content-area">
-            <div className="p-8">
+            <div className="p-4 md:p-8">
               <div className="print-header">
                 <h1 className="text-3xl font-bold text-slate-900 mb-2">{rrfData.jobTitle}</h1>
                 <div className="flex items-center gap-4 text-sm text-slate-600">
                   <span>RRF-{rrfData.id}</span><span>•</span>
                   <span>Submitted: {rrfData.submittedDate}</span><span>•</span>
-                  <span className="font-semibold text-amber-600">{rrfData.status}</span>
+                  <StatusWithDetails 
+                    status={rrfData.status} 
+                    reason={rrfData.declineReason} 
+                    actionBy={rrfData.declinedBy} 
+                    actionDate={rrfData.declinedAt} 
+                  />
                 </div>
               </div>
 
-              {/* ── DECISION NOTICE BANNER ─── shown for declined / on-hold */}
-              {(isDeclined || isOnHold) && (
-                <div className={`mb-6 rounded-2xl border-2 p-5 ${
-                  isDeclined
-                    ? 'bg-red-50 border-red-200'
-                    : 'bg-amber-50 border-amber-200'
-                }`}>
-                  <div className="flex items-start gap-4">
-                    <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
-                      isDeclined ? 'bg-red-100' : 'bg-amber-100'
-                    }`}>
-                      {isDeclined
-                        ? <ExclamationCircleOutlined className="text-red-600 text-xl" />
-                        : <PauseCircleOutlined className="text-amber-600 text-xl" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className={`text-sm font-bold uppercase tracking-wider mb-1 ${
-                        isDeclined ? 'text-red-700' : 'text-amber-700'
-                      }`}>
-                        {isDeclined ? '⚠️ Request Declined' : '⏸ Request On Hold'}
-                      </div>
-                      {rrfData.declineReason ? (
-                        <p className={`text-sm leading-relaxed ${
-                          isDeclined ? 'text-red-800' : 'text-amber-800'
-                        }`}>
-                          {rrfData.declineReason}
-                        </p>
-                      ) : (
-                        <p className="text-sm text-slate-500 italic">No reason provided by the approver.</p>
-                      )}
-                      <div className="flex flex-wrap items-center gap-4 mt-3">
-                        {rrfData.declinedBy && (
-                          <span className="inline-flex items-center gap-1.5 text-xs text-slate-600">
-                            <UserOutlined />
-                            <span className="font-semibold">{rrfData.declinedBy}</span>
-                          </span>
-                        )}
-                        {rrfData.declinedAt && (
-                          <span className="text-xs text-slate-500">📅 {rrfData.declinedAt}</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* ── APPROVAL DECISION SECTION ─── */}
-              {(isDeclined || isOnHold) && (
+              {isPending && (
                 <div className={`space-y-6 print-section ${activeSection === 'approval' ? '' : 'screen-hidden'}`}>
-                  <h3 className={`text-2xl font-bold border-b-2 pb-3 mb-6 ${
-                    isDeclined ? 'text-red-800 border-red-200' : 'text-amber-800 border-amber-200'
-                  }`}>
-                    {isDeclined ? 'Decline Decision' : 'On-Hold Decision'}
+                  <h3 className="text-xl md:text-2xl font-bold border-b-2 border-slate-200 pb-3 mb-6 text-slate-800">
+                    Approval Status
                   </h3>
-
-                  {/* Primary reason card */}
-                  <div className={`rounded-xl p-6 border ${
-                    isDeclined ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'
-                  }`}>
-                    <p className={`text-xs font-bold uppercase tracking-wider mb-3 ${
-                      isDeclined ? 'text-red-600' : 'text-amber-600'
-                    }`}>
-                      {isDeclined ? 'Reason for Declining' : 'Reason for Hold'}
-                    </p>
-                    <p className={`text-base leading-relaxed font-medium ${
-                      isDeclined ? 'text-red-900' : 'text-amber-900'
-                    }`}>
-                      {rrfData.declineReason || <span className="italic text-slate-400">No reason provided.</span>}
-                    </p>
-                    {(rrfData.declinedBy || rrfData.declinedAt) && (
-                      <div className="mt-4 pt-4 border-t border-slate-200 flex flex-wrap gap-6">
-                        {rrfData.declinedBy && (
-                          <div>
-                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Actioned By</p>
-                            <p className="text-sm font-bold text-slate-800">{rrfData.declinedBy}</p>
-                          </div>
-                        )}
-                        {rrfData.declinedAt && (
-                          <div>
-                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Date & Time</p>
-                            <p className="text-sm font-bold text-slate-800">{rrfData.declinedAt}</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
+                  
                   {/* Per-approver comments */}
                   {rrfData.approvers.filter(a => a.comments).length > 0 && (
                     <div>
@@ -428,7 +372,7 @@ export default function HMViewRRFPage() {
 
               {/* Requisition Info */}
               <div className={`space-y-8 print-section ${activeSection === 'requisition' ? '' : 'screen-hidden'}`}>
-                <h3 className="text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Requisition Information</h3>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Requisition Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   <InfoField label="Requisition Manager" value={rrfData.managerName} />
                   <InfoField label="Entity"              value={rrfData.entity} />
@@ -445,9 +389,11 @@ export default function HMViewRRFPage() {
 
               {/* Position Details */}
               <div className={`space-y-8 print-section ${activeSection === 'position' ? '' : 'screen-hidden'}`}>
-                <h3 className="text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Position Details</h3>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Position Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   <InfoField label="Position Type"       value={rrfData.positionType} />
+                  <InfoField label="Employment Type"       value={rrfData.employmentType} />
+                  <InfoField label="Work Mode"       value={rrfData.workMode} />
                   <InfoField label="Number of Positions" value={rrfData.numberOfPositions} />
                   {/* Priority has special badge styling — keep inline */}
                   {rrfData.priorityLevel && (
@@ -470,7 +416,7 @@ export default function HMViewRRFPage() {
 
               {/* Technical Requirements */}
               <div className={`space-y-8 print-section ${activeSection === 'technical' ? '' : 'screen-hidden'}`}>
-                <h3 className="text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Technical Requirements</h3>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Technical Requirements</h3>
                 <div className="space-y-4">
                   <InfoField label="Required Skills"     value={rrfData.requiredSkills}  rich />
                   <InfoField label="Preferred Skills"    value={rrfData.preferredSkills} rich />
@@ -479,7 +425,7 @@ export default function HMViewRRFPage() {
 
               {/* Job Description */}
               <div className={`space-y-8 print-section ${activeSection === 'description' ? '' : 'screen-hidden'}`}>
-                <h3 className="text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Job Description</h3>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Job Description</h3>
                 <div className="space-y-4">
                   <InfoField label="Job Description" value={rrfData.jobDescription} rich />
                   <InfoField label="Additional Notes" value={rrfData.additionalNotes} rich />

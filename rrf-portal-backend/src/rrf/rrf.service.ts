@@ -29,7 +29,7 @@ export class RrfService {
     private userRepository: Repository<User>,
     @InjectDataSource()
     private dataSource: DataSource,
-  ) {}
+  ) { }
 
   // ============================================================
   // ID GENERATION — uses PostgreSQL sequences to avoid race
@@ -150,6 +150,9 @@ export class RrfService {
   // ============================================================
 
   async create(createRrfDto: CreateRrfDto, userId: number): Promise<Rrf> {
+    // SECURITY/DEBUG LOG: Verify incoming payload after ValidationPipe
+    console.log('[DEBUG RRF Service] Incoming payload:', JSON.stringify(createRrfDto, null, 2));
+
     if (createRrfDto.budgetMin && createRrfDto.budgetMax) {
       if (createRrfDto.budgetMin > createRrfDto.budgetMax) {
         throw new BadRequestException(
@@ -197,7 +200,8 @@ export class RrfService {
       .take(limit);
 
     if (status) {
-      qb.andWhere('rrf.status = :status', { status });
+      const statusList = status.split(',');
+      qb.andWhere('rrf.status IN (:...statusList)', { statusList });
     }
     if (createdById) {
       qb.andWhere('rrf.createdById = :createdById', { createdById });
@@ -252,17 +256,21 @@ export class RrfService {
   async update(id: number, updateRrfDto: UpdateRrfDto, userId: number): Promise<Rrf> {
     const rrf = await this.findOne(id);
 
-    // Creators can edit their own DRAFT / REJECTED RRFs.
-    // Approvers can edit PENDING RRFs (they are not the original creator).
-    if (rrf.status === RrfStatus.DRAFT || rrf.status === RrfStatus.REJECTED) {
-      if (rrf.createdById !== Number(userId)) {
-        throw new ForbiddenException('You can only update your own draft or rejected RRFs');
-      }
-    } else if (rrf.status === RrfStatus.PENDING) {
-      // Approvers editing pending RRFs — no creator-ownership check needed.
-      // The PermissionGuard already ensures the caller has APPROVALS.APPROVE or RRF.UPDATE.
-    } else {
-      throw new BadRequestException(`Cannot update RRF with status: ${rrf.status}`);
+    const allowedEditStatuses = [
+      RrfStatus.DRAFT,
+      RrfStatus.PENDING,
+      RrfStatus.SUBMITTED,
+      RrfStatus.DECLINED,
+      RrfStatus.REJECTED,
+      RrfStatus.ON_HOLD,
+    ];
+
+    if (!allowedEditStatuses.includes(rrf.status as RrfStatus)) {
+      throw new BadRequestException(`Cannot update RRF with status: ${rrf.status}. Editing is not allowed for approved or closed requests.`);
+    }
+
+    if (rrf.createdById !== Number(userId)) {
+      throw new ForbiddenException('You can only update your own RRF requests');
     }
 
     if (
@@ -343,6 +351,27 @@ export class RrfService {
       throw new BadRequestException(`Cannot submit RRF with status: ${rrf.status}`);
     }
 
+    // Fetch user to check role
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['role'],
+    });
+
+    // PMO Workflow: Skip Approver, Route directly to HR, Generate RRF ID
+    if (user?.role?.roleCode === 'PMO') {
+      rrf.status = RrfStatus.IN_PROGRESS;
+      rrf.submittedAt = new Date();
+      rrf.sentToHrAt = new Date();
+
+      if (!rrf.rrfNumber) {
+        rrf.rrfNumber = await this.generateRrfNumber();
+      }
+
+      this.appendStatusHistory(rrf, this.buildStatusHistoryEntry(RrfStatus.IN_PROGRESS, userId, 'PMO Direct Submission'));
+      return await this.rrfRepository.save(rrf);
+    }
+
+    // HM Workflow: Assign Approvers
     const approvers = await this.getApprovers();
 
     if (approvers.length === 0) {
@@ -526,7 +555,7 @@ export class RrfService {
         rejected: get(RrfStatus.REJECTED),
         declined: get(RrfStatus.DECLINED),
         onHold: get(RrfStatus.ON_HOLD),
-        openForHiring: get(RrfStatus.OPEN_FOR_HIRING),
+        openForHiring: get(RrfStatus.IN_PROGRESS, RrfStatus.OPEN_FOR_HIRING),
         closedByBench: get(RrfStatus.CLOSED_BY_BENCH),
         closed: get(RrfStatus.CLOSED),
       },
@@ -608,12 +637,18 @@ export class RrfService {
 
     if (rrf.status !== RrfStatus.APPROVED) {
       throw new BadRequestException(
-        `Can only open approved RRFs for hiring. Current status: ${rrf.status}`,
+        `Only approved requests can be sent to HR. Current status: ${rrf.status}`,
       );
     }
 
-    rrf.status = RrfStatus.OPEN_FOR_HIRING;
-    this.appendStatusHistory(rrf, this.buildStatusHistoryEntry(RrfStatus.OPEN_FOR_HIRING, userId));
+    rrf.status = RrfStatus.IN_PROGRESS;
+    rrf.sentToHrAt = new Date();
+    this.appendStatusHistory(rrf, {
+      status: RrfStatus.IN_PROGRESS,
+      action: 'SENT_TO_HR',
+      changedById: userId,
+      changedAt: new Date().toISOString()
+    });
 
     return await this.rrfRepository.save(rrf);
   }
@@ -636,10 +671,10 @@ export class RrfService {
     return await this.rrfRepository.save(rrf);
   }
 
-  async closeRrf(id: number, userId: number, notes?: string): Promise<Rrf> {
+  async closeRrf(id: number, userId: number, candidateName?: string, joiningDate?: string, closureStatus?: string, notes?: string): Promise<Rrf> {
     const rrf = await this.findOne(id);
 
-    if (rrf.status !== RrfStatus.OPEN_FOR_HIRING) {
+    if (rrf.status !== RrfStatus.IN_PROGRESS && rrf.status !== RrfStatus.OPEN_FOR_HIRING) {
       throw new BadRequestException(
         `Can only close RRFs that are open for hiring. Current status: ${rrf.status}`,
       );
@@ -648,6 +683,9 @@ export class RrfService {
     rrf.status = RrfStatus.CLOSED;
     rrf.closedAt = new Date();
     rrf.closedById = userId;
+    rrf.candidateName = candidateName;
+    rrf.joiningDate = joiningDate ? new Date(joiningDate) : null;
+    rrf.closureStatus = closureStatus;
     rrf.notes = notes;
     this.appendStatusHistory(rrf, this.buildStatusHistoryEntry(RrfStatus.CLOSED, userId, notes));
 
@@ -692,9 +730,12 @@ export class RrfService {
 
   async getOpenForHiring(): Promise<Rrf[]> {
     return await this.rrfRepository.find({
-      where: { status: RrfStatus.OPEN_FOR_HIRING },
+      where: [
+        { status: RrfStatus.IN_PROGRESS },
+        { status: RrfStatus.OPEN_FOR_HIRING }
+      ],
       relations: ['createdBy', 'approvedBy'],
-      order: { createdAt: 'DESC' },
+      order: { sentToHrAt: 'DESC' },
     });
   }
 
@@ -706,6 +747,7 @@ export class RrfService {
       .where('rrf.status IN (:...statuses)', {
         statuses: [
           RrfStatus.APPROVED,
+          RrfStatus.IN_PROGRESS,
           RrfStatus.OPEN_FOR_HIRING,
           RrfStatus.CLOSED_BY_BENCH,
           RrfStatus.CLOSED,
@@ -720,7 +762,7 @@ export class RrfService {
     }
 
     const openedPositions = counts[RrfStatus.APPROVED] || 0;
-    const sentToHR = counts[RrfStatus.OPEN_FOR_HIRING] || 0;
+    const sentToHR = (counts[RrfStatus.IN_PROGRESS] || 0) + (counts[RrfStatus.OPEN_FOR_HIRING] || 0);
     const closedByBench = counts[RrfStatus.CLOSED_BY_BENCH] || 0;
     const closed = counts[RrfStatus.CLOSED] || 0;
     const totalClosed = closedByBench + closed;

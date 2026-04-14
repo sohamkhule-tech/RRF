@@ -18,14 +18,19 @@ import { RequirePermission } from '../decorators/require-permission.decorator';
 import { CurrentUser } from '../decorators/current-user.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { RrfService } from './rrf.service';
+import { RrfFormConfigService } from './rrf-form-config.service';
 import { CreateRrfDto } from './dto/create-rrf.dto';
 import { UpdateRrfDto } from './dto/update-rrf.dto';
 import { RrfQueryDto } from './dto/rrf-query.dto';
+import { UpdateRrfFormConfigDto } from './dto/update-rrf-form-config.dto';
 
 @Controller('rrf')
 @UseGuards(JwtAuthGuard, PermissionGuard)
 export class RrfController {
-  constructor(private readonly rrfService: RrfService) {}
+  constructor(
+    private readonly rrfService: RrfService,
+    private readonly formConfigService: RrfFormConfigService,
+  ) { }
 
   /**
    * Create new RRF
@@ -51,8 +56,11 @@ export class RrfController {
    */
   @Get()
   @RequirePermission('RRF.READ')
-  async findAll(@Query() queryDto: RrfQueryDto) {
-    const result = await this.rrfService.findAll(queryDto);
+  async findAll(
+    @Query() queryDto: RrfQueryDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const result = await this.rrfService.findAll(queryDto, user);
     return {
       success: true,
       ...result,
@@ -152,6 +160,38 @@ export class RrfController {
   // ========================================================================
   // END WORKFLOW DASHBOARD ROUTES
   // ========================================================================
+
+  /**
+   * Get all form configurations (for dynamic dropdowns)
+   * GET /rrf/form-config
+   */
+  @Get('form-config')
+  @RequirePermission('RRF.READ')
+  async getFormConfigs() {
+    const configs = await this.formConfigService.findAll();
+    return {
+      success: true,
+      data: configs,
+    };
+  }
+
+  /**
+   * Update form configuration (PMO only)
+   * PUT /rrf/form-config/:fieldName
+   */
+  @Put('form-config/:fieldName')
+  @RequirePermission('RRF.DELETE')
+  async updateFormConfig(
+    @Param('fieldName') fieldName: string,
+    @Body() updateDto: UpdateRrfFormConfigDto,
+  ) {
+    const config = await this.formConfigService.updateConfig(fieldName, updateDto);
+    return {
+      success: true,
+      message: 'Form configuration updated successfully',
+      data: config,
+    };
+  }
 
   /**
    * Get single RRF by ID
@@ -298,7 +338,7 @@ export class RrfController {
    * POST /rrf/:id/on-hold
    */
   @Post(':id/on-hold')
-  @RequirePermission('APPROVALS.APPROVE')
+  @RequirePermission('APPROVALS.ON_HOLD')
   @HttpCode(HttpStatus.OK)
   async putOnHold(
     @Param('id', ParseIntPipe) id: number,
@@ -318,7 +358,7 @@ export class RrfController {
    * POST /rrf/:id/open-for-hiring
    */
   @Post(':id/open-for-hiring')
-  @RequirePermission('RRF.UPDATE')
+  @RequirePermission('RRF.OPEN_FOR_HIRING')
   @HttpCode(HttpStatus.OK)
   async openForHiring(
     @Param('id', ParseIntPipe) id: number,
@@ -337,7 +377,7 @@ export class RrfController {
    * POST /rrf/:id/fill-by-bench
    */
   @Post(':id/fill-by-bench')
-  @RequirePermission('RRF.UPDATE')
+  @RequirePermission('RRF.FILL_FROM_BENCH')
   @HttpCode(HttpStatus.OK)
   async fillByBench(
     @Param('id', ParseIntPipe) id: number,
@@ -357,14 +397,17 @@ export class RrfController {
    * POST /rrf/:id/close
    */
   @Post(':id/close')
-  @RequirePermission('RRF.UPDATE')
+  @RequirePermission('RRF.CLOSE')
   @HttpCode(HttpStatus.OK)
   async closeRrf(
     @Param('id', ParseIntPipe) id: number,
+    @Body('candidateName') candidateName: string,
+    @Body('joiningDate') joiningDate: string,
+    @Body('closureStatus') closureStatus: string,
     @Body('notes') notes: string,
     @CurrentUser() user: AuthUser,
   ) {
-    const rrf = await this.rrfService.closeRrf(id, user.id, notes);
+    const rrf = await this.rrfService.closeRrf(id, user.id, candidateName, joiningDate, closureStatus, notes);
     return {
       success: true,
       message: 'RRF closed successfully',
