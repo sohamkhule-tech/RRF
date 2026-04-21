@@ -1,0 +1,79 @@
+name: Deploy Frontend to EC2
+
+on:
+  push:
+    branches:
+      - devops
+    paths:
+      - 'rrf-portal-nextjs/**'
+      - '.github/workflows/frontend-deploy-dev.yml'
+
+jobs:
+  deploy-frontend:
+
+    runs-on: ubuntu-latest
+
+    concurrency:
+      group: deploy-frontend-ec2
+      cancel-in-progress: true
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build Frontend
+        working-directory: rrf-portal-nextjs
+        env:
+          NEXT_PUBLIC_API_URL: "http://3.108.60.209:4000/api"
+        run: |
+          npm ci --legacy-peer-deps
+          npm run build
+
+      - name: Start SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+
+      - name: Add Host
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Ensure Directory
+        run: |
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} \
+          "mkdir -p ${{ secrets.EC2_APP_DIR }}/rrf-portal-nextjs"
+
+      - name: Sync Frontend to Server
+        run: |
+          rsync -az --delete \
+          rrf-portal-nextjs/ \
+          ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:${{ secrets.EC2_APP_DIR }}/rrf-portal-nextjs/
+
+      - name: Deploy with PM2
+        run: |
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+
+            cd ${{ secrets.EC2_APP_DIR }}/rrf-portal-nextjs
+
+            export PATH=$PATH:/usr/bin:/usr/local/bin
+
+            npm ci --omit=dev --legacy-peer-deps
+
+            npm run build
+
+            pm2 delete frontend || true
+
+            pm2 start npm \
+              --name frontend \
+              -- start
+
+            pm2 save
+
+          EOF
