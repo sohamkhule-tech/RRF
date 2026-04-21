@@ -60,7 +60,7 @@ export class RrfController {
     @Query() queryDto: RrfQueryDto,
     @CurrentUser() user: AuthUser,
   ) {
-    const result = await this.rrfService.findAll(queryDto, user);
+    const result = await this.rrfService.findAll(queryDto);
     return {
       success: true,
       ...result,
@@ -381,15 +381,34 @@ export class RrfController {
   @HttpCode(HttpStatus.OK)
   async fillByBench(
     @Param('id', ParseIntPipe) id: number,
-    @Body('notes') notes: string,
+    @Body('candidateName') candidateName: string,
+    @Body('joiningDate') joiningDate: string,
     @CurrentUser() user: AuthUser,
   ) {
-    const rrf = await this.rrfService.fillByBench(id, user.id, notes);
-    return {
-      success: true,
-      message: 'Position filled by bench successfully',
-      data: rrf,
-    };
+    console.log(`[Controller] fillByBench called - RRF ID: ${id}, User: ${user.id}`);  // 🔍 Debug log
+    
+    try {
+      // ✅ Add timeout protection to prevent infinite hanging
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout after 30 seconds')), 30000);
+      });
+      
+      const servicePromise = this.rrfService.fillByBench(id, user.id, candidateName, joiningDate);
+      
+      // Race between service call and timeout
+      const rrf = await Promise.race([servicePromise, timeoutPromise]) as any;
+      
+      console.log(`[Controller] fillByBench completed - RRF ID: ${id}`);  // 🔍 Debug log
+      
+      return {
+        success: true,
+        message: 'Position filled by bench and closed successfully',
+        data: rrf,
+      };
+    } catch (error) {
+      console.error(`[Controller] fillByBench error - RRF ID: ${id}:`, error.message);  // 🔍 Debug log
+      throw error;  // NestJS will handle the error response
+    }
   }
 
   /**

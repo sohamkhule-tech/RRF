@@ -13,13 +13,10 @@ import { ErrorMessage } from '@/components/ErrorMessage'
 export default function ApproverPendingPage() {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedDepartment, setSelectedDepartment] = useState('all')
+  // ✅ REMOVED: selectedDepartment filter
   const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  
-  // Departments from RRF form
-  const departments = ['HR', 'Talent Acquisition', 'Accounts', 'Sales & Marketing', 'PMO', 'SGINTL', 'VR', 'Support']
   
   // Fetch pending approvals using new workflow API
   const fetchPendingApprovals = async () => {
@@ -46,12 +43,6 @@ export default function ApproverPendingPage() {
     fetchPendingApprovals()
   }
   
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A'
-    const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-  }
-
   const getStatusBadge = (status) => {
     const statusConfig = {
       'pending': { bg: '#fef9c3', color: '#854d0e', text: 'Pending Approval' },
@@ -80,12 +71,9 @@ export default function ApproverPendingPage() {
     )
   }
 
-  // Filter requests based on search term and department
+  // Filter requests based on search term only
   const filteredRequests = pendingRequests.filter(request => {
-    // Department filter
-    if (selectedDepartment !== 'all' && request.department !== selectedDepartment) {
-      return false
-    }
+    // ✅ REMOVED: Department filter dropdown
     
     // Search filter
     if (!searchTerm) return true
@@ -176,27 +164,13 @@ export default function ApproverPendingPage() {
             )}
           </div>
           
-          {/* Department Filter */}
-          <div className="w-full md:w-72">
-            <select
-              value={selectedDepartment}
-              onChange={(e) => setSelectedDepartment(e.target.value)}
-              className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 focus:outline-none transition-all duration-300 bg-white hover:border-gray-300 hover:shadow-md cursor-pointer text-sm font-medium text-gray-700"
-              style={{ fontSize: '14px', appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none', backgroundImage: 'url("data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e")', backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem' }}
-            >
-              <option value="all">📁 All Departments</option>
-              {departments.map(dept => (
-                <option key={dept} value={dept}>{dept}</option>
-              ))}
-            </select>
-          </div>
+          {/* ✅ REMOVED: Department Filter dropdown */}
         </div>
         
-        {(searchTerm || selectedDepartment !== 'all') && (
+        {searchTerm && (
           <p className="text-sm text-gray-600">
             Found {filteredRequests.length} result{filteredRequests.length !== 1 ? 's' : ''}
             {searchTerm && ` for "${searchTerm}"`}
-            {selectedDepartment !== 'all' && ` in ${selectedDepartment}`}
           </p>
         )}
       </div>
@@ -216,10 +190,10 @@ export default function ApproverPendingPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">RRF ID</th>
+                <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">ID</th>
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Manager/Dept</th>
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Role & Project</th>
-                <th className="px-3 py-3 text-center text-xs font-bold text-gray-700 uppercase">Pos</th>
+                <th className="px-3 py-3 text-center text-xs font-bold text-gray-700 uppercase">Positions</th>
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Priority</th>
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Submitted</th>
                 <th className="px-3 py-3 text-center text-xs font-bold text-gray-700 uppercase">Action</th>
@@ -243,7 +217,7 @@ export default function ApproverPendingPage() {
                     </span>
                   </td>
                   <td className="px-3 py-3 text-xs">{getPriorityBadge(request.priority)}</td>
-                  <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-600">{formatDate(request.submittedAt || request.createdAt)}</td>
+                  <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-600">{(request.submittedAt || request.createdAt) ? new Date(request.submittedAt || request.createdAt).toLocaleDateString('en-GB') : 'N/A'}</td>
                   <td className="px-3 py-3 text-center">
                     <Link href={`/approver/view-rrf/${request.id}`}>
                       <button className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-200 text-xs flex items-center gap-1 mx-auto" style={{ borderRadius: '6px' }}>

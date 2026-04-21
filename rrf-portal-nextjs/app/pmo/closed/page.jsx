@@ -44,7 +44,8 @@ export default function PMOClosedPage() {
           closedDate: rrf.closedAt ? new Date(rrf.closedAt).toLocaleDateString('en-GB') : new Date(rrf.updatedAt || rrf.createdAt || Date.now()).toLocaleDateString('en-GB'),
           status: 'Closed',
           closureStatus: rrf.closureStatus || 'Position Filled',
-          candidateName: rrf.candidateName || rrf.notes || '—'
+          candidateName: rrf.candidateName || rrf.notes || '—',
+          internalRrfNo: formatted.internalRrfNo || null,  // Internal RRF No for bench fills
         }
       })
   }, [allRrfs])
@@ -189,7 +190,7 @@ export default function PMOClosedPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">RRF ID</th>
+                <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">ID</th>
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Role & Project</th>
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Sub Function</th>
                 <th className="px-3 py-3 text-center text-xs font-bold text-gray-700 uppercase">Pos</th>
@@ -205,6 +206,11 @@ export default function PMOClosedPage() {
                   <tr key={request.rrfId} className="hover:bg-gray-50 transition-colors duration-200">
                     <td className="px-3 py-3 whitespace-nowrap">
                       <span className="text-xs font-bold text-indigo-600">{request.rrfId}</span>
+                      {request.internalRrfNo && (
+                        <div className="text-xs font-semibold text-purple-600 mt-1">
+                          Internal: {request.internalRrfNo}
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-3">
                       <div className="font-medium text-xs text-gray-900">{request.role}</div>

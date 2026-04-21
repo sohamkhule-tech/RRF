@@ -67,6 +67,8 @@ export class RrfFormConfigService {
         fieldName,
         label: updateDto.label || fieldName,
         options: updateDto.options || [],
+        type: updateDto.type || 'dropdown',
+        isRequired: updateDto.isRequired !== undefined ? updateDto.isRequired : false,
         isActive: updateDto.isActive !== undefined ? updateDto.isActive : true,
       });
     } else {
@@ -76,6 +78,12 @@ export class RrfFormConfigService {
       }
       if (updateDto.options !== undefined) {
         config.options = updateDto.options;
+      }
+      if (updateDto.type !== undefined) {
+        config.type = updateDto.type;
+      }
+      if (updateDto.isRequired !== undefined) {
+        config.isRequired = updateDto.isRequired;
       }
       if (updateDto.isActive !== undefined) {
         config.isActive = updateDto.isActive;

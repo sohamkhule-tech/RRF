@@ -201,7 +201,8 @@ export default function PermissionBasedSidebar({ isCollapsed = false, isMobile =
       <nav className="px-3 py-6 space-y-2 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 180px)' }}>
         {menuItems.length > 0 ? (
           menuItems.map((item) => {
-            const isActive = pathname === item.key || pathname.startsWith(item.key + '/')
+            const dashboardRoute = getAllMenuItems()[0]?.key
+            const isActive = pathname === item.key || (item.key !== dashboardRoute && pathname.startsWith(item.key + '/'))
             return (
               <Link
                 key={item.key}

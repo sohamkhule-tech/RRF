@@ -1,0 +1,92 @@
+version: '3.8'
+
+# ====================================================================
+# DEVELOPMENT MODE - Hot Reload Enabled
+# ====================================================================
+# Usage: docker-compose -f docker-compose.dev.yml up
+# 
+# This config enables volume mounting for hot reload during development.
+# For production/testing, use the main docker-compose.yml instead.
+# ====================================================================
+
+services:
+  # PostgreSQL Database
+  # ⚠️ IMPORTANT: Uses the SAME volume as production (postgres_data)
+  # This preserves your existing database data when switching modes
+  postgres:
+    image: postgres:15-alpine
+    container_name: rrf-postgres-dev
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=rrf_portal
+    volumes:
+      - postgres_data:/var/lib/postgresql/data  # ✅ Same volume as production
+    networks:
+      - rrf-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Backend API
+  backend:
+    build:
+      context: ./rrf-portal-backend
+      dockerfile: Dockerfile
+    container_name: rrf-backend-dev
+    command: npm run start:dev  # ✅ Run in development mode with hot reload
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./rrf-portal-backend:/app
+      - /app/node_modules  # ✅ Preserve container's node_modules
+    environment:
+      - NODE_ENV=development
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=postgres
+      - DB_DATABASE=rrf_portal
+      - JWT_SECRET=RRF_PORTAL_SECRET_KEY_2026
+      - JWT_EXPIRES_IN=24h
+      - ALLOWED_ORIGINS=http://localhost:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - rrf-network
+
+  # Frontend Next.js (DEV MODE - Hot Reload)
+  frontend:
+    build:
+      context: ./rrf-portal-nextjs
+      dockerfile: Dockerfile.dev
+    container_name: rrf-frontend-dev
+    ports:
+      - "3000:3000"
+    volumes:
+      # Volume mounting enabled for hot reload
+      - ./rrf-portal-nextjs:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:4000
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
+    depends_on:
+      - backend
+    networks:
+      - rrf-network
+
+networks:
+  rrf-network:
+    driver: bridge
+
+volumes:
+  # ✅ SHARED VOLUME: Both dev and production use the same database
+  # This ensures NO data loss when switching between modes
+  postgres_data:

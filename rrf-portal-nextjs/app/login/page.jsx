@@ -149,7 +149,7 @@ export default function LoginPage() {
               <p><strong>Hiring Manager:</strong> hm001 / hm123</p>
               <p><strong>PMO:</strong> pmo001 / pmo123</p>
               <p><strong>Approver:</strong> app001 / app123</p>
-              <p><strong>HR Team:</strong> hr001 / hr123</p>
+              <p><strong>Talent Acquisition:</strong> hr001 / hr123</p>
             </div>
           </div>
         </div>

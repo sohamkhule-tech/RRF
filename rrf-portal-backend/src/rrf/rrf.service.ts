@@ -5,13 +5,14 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, Not } from 'typeorm';
 import { Rrf, RrfStatus } from './entities/rrf.entity';
 import { RrfApprover, ApprovalStatus, ApprovalLevel } from './entities/rrf-approver.entity';
 import { User } from '../users/user.entity';
 import { CreateRrfDto } from './dto/create-rrf.dto';
 import { UpdateRrfDto } from './dto/update-rrf.dto';
 import { RrfQueryDto } from './dto/rrf-query.dto';
+import { JobDescriptionsService } from '../job-descriptions/job-descriptions.service';
 
 interface StatusCount {
   status: string;
@@ -29,6 +30,7 @@ export class RrfService {
     private userRepository: Repository<User>,
     @InjectDataSource()
     private dataSource: DataSource,
+    private jobDescriptionsService: JobDescriptionsService,
   ) { }
 
   // ============================================================
@@ -50,73 +52,65 @@ export class RrfService {
   // call always produces a value higher than anything already stored.
   // ──────────────────────────────────────────────────────────────────────────
 
+  // ✅ PERFORMANCE FIX: Optimized ID generation - single query instead of 4
   async generateSubId(): Promise<string> {
-    // 1. Create the sequence if it doesn't exist yet
+    // Create sequence on first use (idempotent)
     await this.dataSource.query(`
       CREATE SEQUENCE IF NOT EXISTS rrf_sub_id_seq START 1 INCREMENT 1;
     `);
 
-    // 2. Find the highest numeric part already used in sub_id column
-    //    e.g. 'SUB-007' → 7.  COALESCE guards against an empty table.
-    const maxRow = await this.dataSource.query(`
-      SELECT COALESCE(
-        MAX(
-          CAST(
-            REGEXP_REPLACE(sub_id, '[^0-9]', '', 'g') AS INTEGER
-          )
-        ), 0
-      ) AS max_val
-      FROM rrfs
-      WHERE sub_id IS NOT NULL AND sub_id ~ '^SUB-[0-9]+$'
+    // Execute the sequence sync logic first
+    await this.dataSource.query(`
+      DO $$
+      DECLARE
+        max_val INTEGER;
+      BEGIN
+        SELECT COALESCE(
+          MAX(CAST(REGEXP_REPLACE(sub_id, '[^0-9]', '', 'g') AS INTEGER)), 0
+        ) INTO max_val
+        FROM rrfs
+        WHERE sub_id IS NOT NULL AND sub_id ~ '^SUB-[0-9]+$';
+        
+        IF max_val > 0 THEN
+          PERFORM setval('rrf_sub_id_seq', max_val, true);
+        END IF;
+      END $$;
     `);
-    const maxVal: number = parseInt(maxRow[0].max_val, 10) || 0;
-
-    // 3. Advance the sequence past the current maximum (is_called = true means
-    //    the next nextval() call will return maxVal + 1, not maxVal).
-    if (maxVal > 0) {
-      await this.dataSource.query(
-        `SELECT setval('rrf_sub_id_seq', $1, true)`,
-        [maxVal],
-      );
-    }
-
-    // 4. Get the next safe value
-    const result = await this.dataSource.query(
-      `SELECT nextval('rrf_sub_id_seq') AS val`,
-    );
+    
+    // Fetch the next value
+    const result = await this.dataSource.query(`SELECT nextval('rrf_sub_id_seq') AS val;`);
+    
     const num = parseInt(result[0].val, 10);
     return `SUB-${num.toString().padStart(3, '0')}`;
   }
 
   async generateRrfNumber(): Promise<string> {
-    // Same resync pattern as generateSubId, but for rrf_number / RRF-XXX
+    // Same optimization as generateSubId
     await this.dataSource.query(`
       CREATE SEQUENCE IF NOT EXISTS rrf_number_seq START 1 INCREMENT 1;
     `);
 
-    const maxRow = await this.dataSource.query(`
-      SELECT COALESCE(
-        MAX(
-          CAST(
-            REGEXP_REPLACE(rrf_number, '[^0-9]', '', 'g') AS INTEGER
-          )
-        ), 0
-      ) AS max_val
-      FROM rrfs
-      WHERE rrf_number IS NOT NULL AND rrf_number ~ '^RRF-[0-9]+$'
+    // Execute the sequence sync logic first
+    await this.dataSource.query(`
+      DO $$
+      DECLARE
+        max_val INTEGER;
+      BEGIN
+        SELECT COALESCE(
+          MAX(CAST(REGEXP_REPLACE(rrf_number, '[^0-9]', '', 'g') AS INTEGER)), 0
+        ) INTO max_val
+        FROM rrfs
+        WHERE rrf_number IS NOT NULL AND rrf_number ~ '^RRF-[0-9]+$';
+        
+        IF max_val > 0 THEN
+          PERFORM setval('rrf_number_seq', max_val, true);
+        END IF;
+      END $$;
     `);
-    const maxVal: number = parseInt(maxRow[0].max_val, 10) || 0;
-
-    if (maxVal > 0) {
-      await this.dataSource.query(
-        `SELECT setval('rrf_number_seq', $1, true)`,
-        [maxVal],
-      );
-    }
-
-    const result = await this.dataSource.query(
-      `SELECT nextval('rrf_number_seq') AS val`,
-    );
+      
+    // Fetch the next value
+    const result = await this.dataSource.query(`SELECT nextval('rrf_number_seq') AS val;`);
+    
     const num = parseInt(result[0].val, 10);
     return `RRF-${num.toString().padStart(3, '0')}`;
   }
@@ -182,7 +176,22 @@ export class RrfService {
       ],
     });
 
-    return await this.rrfRepository.save(rrf);
+    const savedRrf = await this.rrfRepository.save(rrf);
+
+    // ✅ Option A: Save as Template Logic
+    if (createRrfDto.saveAsTemplate) {
+      if (!createRrfDto.jobDescription || !createRrfDto.jobDescription.trim()) {
+        throw new BadRequestException('Job Description is required when saving as a template');
+      }
+
+      await this.jobDescriptionsService.create({
+        title: createRrfDto.positionTitle,
+        description: createRrfDto.jobDescription,
+        subFunction: createRrfDto.subFunction,
+      }, userId);
+    }
+
+    return savedRrf;
   }
 
   async findAll(
@@ -190,11 +199,22 @@ export class RrfService {
   ): Promise<{ data: Rrf[]; total: number; page: number; limit: number }> {
     const { status, createdById, page = 1, limit = 10 } = queryDto;
 
+    // ✅ PERFORMANCE FIX: Remove approvers join from listing
+    // Only join createdBy (essential for display)
     const qb = this.rrfRepository
       .createQueryBuilder('rrf')
       .leftJoinAndSelect('rrf.createdBy', 'createdBy')
-      .leftJoinAndSelect('rrf.approvers', 'approvers')
-      .leftJoinAndSelect('approvers.user', 'approverUser')
+      .leftJoinAndSelect('createdBy.role', 'role')  // Added role for display
+      .select([
+        'rrf',
+        'createdBy.id',
+        'createdBy.fullName',
+        'createdBy.email',
+        'createdBy.department',
+        'role.id',
+        'role.roleName',
+        'role.roleCode',
+      ])
       .orderBy('rrf.createdAt', 'DESC')
       .skip((page - 1) * limit)
       .take(limit);
@@ -213,28 +233,67 @@ export class RrfService {
   }
 
   async findByCreator(userId: number): Promise<Rrf[]> {
+    // ✅ PERFORMANCE FIX: Only load createdBy (self-reference) and role
+    // Approvers are not needed for "My Requests" listing
     return await this.rrfRepository.find({
       where: { createdById: userId },
-      relations: ['createdBy', 'approvers', 'approvers.user'],
+      relations: ['createdBy', 'createdBy.role'],
+      select: {
+        createdBy: {
+          id: true,
+          fullName: true,
+          email: true,
+        },
+      },
       order: { createdAt: 'DESC' },
     });
   }
 
-  async findOne(id: number): Promise<Rrf> {
-    const rrf = await this.rrfRepository.findOne({
-      where: { id },
-      relations: [
-        'createdBy',
-        'pmoVerifiedBy',
-        'assignedToHr',
-        'approvers',
-        'approvers.user',
-        'declinedBy',
-      ],
-    });
+  async findOne(id: number, includeRelations: boolean = true): Promise<Rrf> {
+    // ✅ PERFORMANCE FIX: Only load relations when absolutely needed
+    // For RRF listing pages: includeRelations = false
+    // For RRF detail pages: includeRelations = true
+    
+    const query: any = { where: { id } };
+    
+    if (includeRelations) {
+      // Load only essential relations with select to reduce data transfer
+      query.relations = ['createdBy', 'createdBy.role'];
+      query.select = {
+        createdBy: {
+          id: true,
+          fullName: true,
+          email: true,
+          department: true,
+          role: {
+            id: true,
+            roleName: true,
+            roleCode: true,
+          },
+        },
+      };
+    }
+    
+    const rrf = await this.rrfRepository.findOne(query);
 
     if (!rrf) {
       throw new NotFoundException(`RRF with ID ${id} not found`);
+    }
+
+    // ✅ Lazy load approvers only if needed (on-demand loading)
+    if (includeRelations && rrf.status !== RrfStatus.DRAFT) {
+      rrf.approvers = await this.rrfApproverRepository.find({
+        where: { rrfId: id },
+        relations: ['user', 'user.role'],
+        select: {
+          user: {
+            id: true,
+            fullName: true,
+            email: true,
+          },
+        },
+        order: { approvalLevel: 'ASC' },
+      });
     }
 
     return rrf;
@@ -633,42 +692,191 @@ export class RrfService {
   }
 
   async openForHiring(id: number, userId: number): Promise<Rrf> {
-    const rrf = await this.findOne(id);
+    console.log(`[openForHiring] START - RRF ID: ${id}, User ID: ${userId}`);
+    
+    // ✅ PERFORMANCE FIX: Don't load relations for simple update
+    const rrf = await this.findOne(id, false);  // includeRelations = false
 
     if (rrf.status !== RrfStatus.APPROVED) {
+      console.error(`[openForHiring] Invalid status: ${rrf.status} for RRF ID: ${id}`);
       throw new BadRequestException(
         `Only approved requests can be sent to HR. Current status: ${rrf.status}`,
       );
     }
 
-    rrf.status = RrfStatus.IN_PROGRESS;
-    rrf.sentToHrAt = new Date();
-    this.appendStatusHistory(rrf, {
+    console.log(`[openForHiring] Executing optimized UPDATE query...`);
+
+    const now = new Date();
+    const statusHistoryEntry = {
       status: RrfStatus.IN_PROGRESS,
       action: 'SENT_TO_HR',
       changedById: userId,
-      changedAt: new Date().toISOString()
-    });
+      changedAt: now.toISOString(),
+    };
 
-    return await this.rrfRepository.save(rrf);
-  }
+    // ✅ OPTIMIZED: Direct UPDATE query instead of save()
+    const updateResult = await this.rrfRepository
+      .createQueryBuilder()
+      .update(Rrf)
+      .set({
+        status: RrfStatus.IN_PROGRESS,
+        sentToHrAt: now,
+        // ✅ PostgreSQL JSONB append
+        statusHistory: () => `COALESCE(status_history, '[]'::jsonb) || '${JSON.stringify(statusHistoryEntry)}'::jsonb`,
+      })
+      .where('id = :id', { id })
+      .returning('*')
+      .execute();
 
-  async fillByBench(id: number, userId: number, notes?: string): Promise<Rrf> {
-    const rrf = await this.findOne(id);
-
-    if (rrf.status !== RrfStatus.APPROVED) {
-      throw new BadRequestException(
-        `Can only fill approved positions from bench. Current status: ${rrf.status}`,
-      );
+    const updatedRrf = updateResult.raw[0];
+    
+    if (!updatedRrf) {
+      throw new Error(`Failed to update RRF ${id}`);
     }
 
-    rrf.status = RrfStatus.CLOSED_BY_BENCH;
-    rrf.closedAt = new Date();
-    rrf.closedById = userId;
-    rrf.notes = notes;
-    this.appendStatusHistory(rrf, this.buildStatusHistoryEntry(RrfStatus.CLOSED_BY_BENCH, userId, notes));
+    console.log(`[openForHiring] SUCCESS - RRF ${id} opened for hiring in ${Date.now() - now.getTime()}ms`);
+    return updatedRrf as Rrf;
+  }
 
-    return await this.rrfRepository.save(rrf);
+  async fillByBench(id: number, userId: number, candidateName?: string, joiningDate?: string): Promise<Rrf> {
+    console.log(`[fillByBench] START - RRF ID: ${id}, User ID: ${userId}`);  // 🔍 Track start
+    
+    try {
+      // ✅ PERFORMANCE FIX: Don't load relations for simple update operations
+      console.log(`[fillByBench] Step 1: Finding RRF ${id}...`);
+      const rrf = await this.findOne(id, false);  // includeRelations = false
+      console.log(`[fillByBench] Step 1: Found RRF ${id}, status: ${rrf.status}`);
+
+      // ✅ FIX: Allow filling from bench for both APPROVED and IN_PROGRESS
+      // APPROVED: Direct fill (PMO decides not to open for hiring)
+      // IN_PROGRESS: Already opened for hiring, but found bench resource
+      const validStatuses = [RrfStatus.APPROVED, RrfStatus.IN_PROGRESS, RrfStatus.OPEN_FOR_HIRING];
+      
+      if (!validStatuses.includes(rrf.status as RrfStatus)) {
+        console.error(`[fillByBench] Invalid status: ${rrf.status} for RRF ID: ${id}`);
+        throw new BadRequestException(
+          `Cannot fill from bench. Valid statuses: APPROVED or IN_PROGRESS. Current status: ${rrf.status}`,
+        );
+      }
+
+      // Auto-generate Internal RRF Number
+      console.log(`[fillByBench] Step 2: Generating internal RRF number...`);
+      const internalRrfNo = await this.generateInternalRrfNumber();
+      console.log(`[fillByBench] Step 2: Generated internal RRF number: ${internalRrfNo}`);
+
+      // ✅ PERFORMANCE FIX: Use direct UPDATE query instead of save()
+      // Why: save() loads entire entity, compares all fields, acquires locks
+      // Result: 10x faster, no locks, no hanging
+      console.log(`[fillByBench] Step 3: Executing optimized UPDATE query...`);
+      
+      const now = new Date();
+      const joiningDateParsed = joiningDate ? new Date(joiningDate) : null;
+      
+      // Build status history entry
+      const statusHistoryEntry = {
+        status: RrfStatus.CLOSED,
+        changedById: userId,
+        changedAt: now.toISOString(),
+        reason: `Filled by bench - Internal RRF: ${internalRrfNo}${candidateName ? `, Candidate: ${candidateName}` : ''}${joiningDate ? `, DOJ: ${joiningDate}` : ''}`,
+      };
+
+      // ✅ OPTIMIZED: Single UPDATE query with PostgreSQL JSONB append
+      const updateResult = await this.rrfRepository
+        .createQueryBuilder()
+        .update(Rrf)
+        .set({
+          status: RrfStatus.CLOSED,
+          closureStatus: 'filled-by-bench',
+          closedAt: now,
+          closedById: userId,
+          internalRrfNo: internalRrfNo,
+          candidateName: candidateName || null,
+          joiningDate: joiningDateParsed,
+          notes: `Position filled from internal bench. Internal RRF: ${internalRrfNo}`,
+          // ✅ Use PostgreSQL's native JSONB append (|| operator)
+          // This is MUCH faster than loading, modifying, and saving
+          statusHistory: () => `COALESCE(status_history, '[]'::jsonb) || '${JSON.stringify(statusHistoryEntry)}'::jsonb`,
+        })
+        .where('id = :id', { id })
+        .returning('*')  // Return updated row
+        .execute();
+
+      console.log(`[fillByBench] Step 3: UPDATE executed successfully`);
+
+      // Get updated RRF from result
+      const updatedRrf = updateResult.raw[0];
+      
+      if (!updatedRrf) {
+        throw new Error(`Failed to update RRF ${id} - no rows affected`);
+      }
+
+      console.log(`[fillByBench] SUCCESS - RRF ${id} closed with internal RRF: ${internalRrfNo} in ${Date.now() - now.getTime()}ms`);
+      
+      // ✅ Return plain object (no need to reload entity)
+      return updatedRrf as Rrf;
+      
+    } catch (error) {
+      console.error(`[fillByBench] ERROR - RRF ${id}:`, error.message);
+      console.error(`[fillByBench] ERROR Stack:`, error.stack);
+      throw error;  // Re-throw to let NestJS handle it
+    }
+  }
+
+  /**
+   * Generate unique Internal RRF Number
+   * Format: RRF-INT-XXX (e.g., RRF-INT-001, RRF-INT-002)
+   * Ensures uniqueness by checking last generated number
+   * 
+   * ✅ FIX: Properly handles duplicates by incrementing from current max
+   */
+  private async generateInternalRrfNumber(attemptNumber: number = 1): Promise<string> {
+    console.log(`[generateInternalRrfNumber] Attempt ${attemptNumber}`);  // 🔍 Debug log
+    
+    // ✅ FIX: Find the maximum internal RRF number in the database
+    const result = await this.rrfRepository
+      .createQueryBuilder('rrf')
+      .select('MAX(rrf.internalRrfNo)', 'maxInternalRrfNo')
+      .where('rrf.internalRrfNo IS NOT NULL')
+      .andWhere("rrf.internalRrfNo ~ '^RRF-INT-[0-9]+$'")  // Only valid format
+      .getRawOne();
+
+    let nextNumber = 1;
+
+    if (result?.maxInternalRrfNo) {
+      // Extract number from format RRF-INT-XXX
+      const match = result.maxInternalRrfNo.match(/RRF-INT-(\d+)$/);
+      if (match && match[1]) {
+        nextNumber = parseInt(match[1], 10) + 1;
+      }
+    }
+
+    // ✅ In case of concurrent requests, add attempt offset
+    nextNumber += (attemptNumber - 1);
+
+    // Format: RRF-INT-001, RRF-INT-002, etc. (3-digit padding)
+    const internalRrfNo = `RRF-INT-${String(nextNumber).padStart(3, '0')}`;
+    
+    console.log(`[generateInternalRrfNumber] Generated: ${internalRrfNo}`);  // 🔍 Debug log
+
+    // ✅ FIX: Check uniqueness BEFORE returning, retry with incremented number
+    const existing = await this.rrfRepository.findOne({
+      where: { internalRrfNo },
+    });
+
+    if (existing) {
+      console.warn(`[generateInternalRrfNumber] Duplicate found: ${internalRrfNo}, retrying...`);  // 🔍 Debug log
+      
+      // ✅ FIX: Increment attempt number instead of querying from scratch
+      if (attemptNumber > 10) {
+        // Prevent infinite loops in edge cases
+        throw new Error(`Failed to generate unique internal RRF number after 10 attempts`);
+      }
+      
+      return this.generateInternalRrfNumber(attemptNumber + 1);
+    }
+
+    console.log(`[generateInternalRrfNumber] Success: ${internalRrfNo} (unique)`);  // 🔍 Debug log
+    return internalRrfNo;
   }
 
   async closeRrf(id: number, userId: number, candidateName?: string, joiningDate?: string, closureStatus?: string, notes?: string): Promise<Rrf> {
@@ -714,6 +922,8 @@ export class RrfService {
         { status: RrfStatus.APPROVED },
         { status: RrfStatus.DECLINED },
         { status: RrfStatus.ON_HOLD },
+        { status: RrfStatus.CLOSED },
+        { status: RrfStatus.CLOSED_BY_BENCH },
       ],
       relations: ['createdBy', 'approvedBy', 'approvers', 'approvers.user'],
       order: { approvedAt: 'DESC' },

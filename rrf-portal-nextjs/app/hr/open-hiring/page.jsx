@@ -420,7 +420,7 @@ export default function OpenHiringPage() {
             <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">RRF ID</th>
+                <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">ID</th>
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Role & Project</th>
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Dept</th>
                 <th className="px-3 py-3 text-center text-xs font-bold text-gray-700 uppercase">Pos</th>

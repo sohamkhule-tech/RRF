@@ -111,7 +111,7 @@ export default function PMOSentToApproversPage() {
         <>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
-          <p className="text-lg text-gray-800 font-bold">Track RRFs with numbers added and sent to HR for recruitment</p>
+          <p className="text-lg text-gray-800 font-bold">Track RRFs with numbers added and sent to Talent Acquisition for recruitment</p>
         </div>
         <div className="flex gap-4">
           <div className="flex items-center gap-3 px-3 py-2 md:px-4 md:py-2.5 bg-white border-2 border-green-200 rounded-xl shadow-md">
@@ -180,15 +180,15 @@ export default function PMOSentToApproversPage() {
       {/* Sent RRFs Table */}
       <div className="bg-white overflow-hidden" style={{ borderRadius: '16px', boxShadow: '0 10px 25px rgba(0,0,0,0.08)', padding: '20px' }}>
         <div className="px-2 py-4 mb-4">
-          <h3 className="text-lg font-bold text-gray-900">RRFs Sent to HR Team</h3>
-          <p className="text-sm text-gray-500 mt-1">RRFs that have been opened for recruitment by HR team</p>
+          <h3 className="text-lg font-bold text-gray-900">RRFs Sent to Talent Acquisition</h3>
+          <p className="text-sm text-gray-500 mt-1">RRFs that have been opened for recruitment by Talent Acquisition</p>
         </div>
 
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">RRF ID</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">ID</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Requester</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Role & Project</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Sub Function</th>
@@ -239,7 +239,7 @@ export default function PMOSentToApproversPage() {
                       </div>
                       <p className="text-lg font-medium text-gray-900">No RRFs Found</p>
                       <p className="text-sm text-gray-500 max-w-sm text-center">
-                        There are currently no RRFs in the "Sent to HR" or "Closed" stages. Once PMO opens a request for hiring, it will appear here.
+                        There are currently no RRFs in the "Sent to Talent Acquisition" or "Closed" stages. Once PMO opens a request for hiring, it will appear here.
                       </p>
                     </div>
                   </td>

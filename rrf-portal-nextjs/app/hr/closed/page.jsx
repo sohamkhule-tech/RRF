@@ -46,6 +46,7 @@ export default function HRClosedPositionsPage() {
           candidateName: rrf.candidateName || rrf.notes || '—',
           closureStatus: rrf.closureStatus || 'Position Filled',
           status: ['closed', 'closed-by-bench'].includes((rrf.status || '').toLowerCase()) ? 'Closed' : 'In Progress',
+          internalRrfNo: formatted.internalRrfNo || null,  // Internal RRF No for bench fills
         }
       })
   }, [allRrfs])
@@ -202,7 +203,7 @@ export default function HRClosedPositionsPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">RRF ID</th>
+                <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">ID</th>
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Role & Project</th>
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Dept</th>
                 <th className="px-3 py-3 text-center text-xs font-bold text-gray-700 uppercase">Pos</th>
@@ -218,6 +219,11 @@ export default function HRClosedPositionsPage() {
                   <tr key={request.rrfId} className="hover:bg-gray-50 transition-colors duration-200">
                     <td className="px-3 py-3 whitespace-nowrap">
                       <span className="text-xs font-bold text-indigo-600">{request.rrfId}</span>
+                      {request.internalRrfNo && (
+                        <div className="text-xs font-semibold text-purple-600 mt-1">
+                          Internal: {request.internalRrfNo}
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-3">
                       <div className="font-medium text-xs text-gray-900">{request.role}</div>
@@ -269,7 +275,12 @@ export default function HRClosedPositionsPage() {
               <div key={request.rrfId} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1 min-w-0">
-                    <div className="text-xs font-bold text-indigo-600 mb-1">{request.rrfId}</div>
+                    <div className="text-xs font-bold text-indigo-600 mb-1">
+                      {request.rrfId}
+                      {request.internalRrfNo && (
+                        <span className="text-purple-600 ml-2">({request.internalRrfNo})</span>
+                      )}
+                    </div>
                     <div className="text-sm font-bold text-gray-900 truncate">{request.role}</div>
                     <div className="text-xs text-gray-500 truncate">{request.project} · {request.department}</div>
                   </div>

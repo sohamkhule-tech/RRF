@@ -1,6 +1,6 @@
 'use client'
 
-import { ClockCircleOutlined, CheckCircleOutlined, SearchOutlined, SendOutlined, PlusOutlined, CloseCircleOutlined, ReloadOutlined } from '@ant-design/icons'
+import { ClockCircleOutlined, CheckCircleOutlined, SearchOutlined, SendOutlined, PlusOutlined, CloseCircleOutlined, ReloadOutlined, TeamOutlined, StopOutlined } from '@ant-design/icons'
 import ActionButton from '@/components/ActionButton'
 import { useRouter } from 'next/navigation'
 import StatCard from '@/components/StatCard'
@@ -96,9 +96,9 @@ export default function PMODashboard() {
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8">
       {/* Statistics Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-5">
         <StatCard 
-          title="Opened Positions" 
+          title="Request Positions" 
           value={effectiveStats.openedPositions.toString()} 
           subtitle="Awaiting review" 
           icon={<ClockCircleOutlined />} 
@@ -106,7 +106,7 @@ export default function PMODashboard() {
           href="/pmo/open-positions" 
         />
         <StatCard 
-          title="Sent to HR Team" 
+          title="Open for Hiring" 
           value={effectiveStats.sentToHR.toString()} 
           subtitle="Forwarded successfully" 
           icon={<SendOutlined />} 
@@ -120,6 +120,20 @@ export default function PMODashboard() {
           icon={<CloseCircleOutlined />} 
           color="red" 
           href="/pmo/closed"
+        />
+        <StatCard 
+          title="Filled Internally" 
+          value="0" 
+          subtitle="Internal bench" 
+          icon={<TeamOutlined />} 
+          color="purple" 
+        />
+        <StatCard 
+          title="Closed by Business" 
+          value="0" 
+          subtitle="Business decision" 
+          icon={<StopOutlined />} 
+          color="cyan" 
         />
         <StatCard 
           title="Total Processed" 
@@ -176,7 +190,7 @@ export default function PMODashboard() {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">RRF ID</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">ID</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Requester</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Role</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Project</th>

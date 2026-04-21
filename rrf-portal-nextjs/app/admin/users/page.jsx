@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { Table, Modal, Form, Input, Select, Switch, Tag, Button, Space, Tooltip } from 'antd'
+import { Table, Modal, Form, Input, Select, Switch, Tag, Button, Space, Tooltip, Checkbox } from 'antd'
 import {
   PlusOutlined,
   EditOutlined,
@@ -11,11 +11,13 @@ import {
   ExclamationCircleOutlined,
 } from '@ant-design/icons'
 import { usersApi } from '@/lib/api/usersApi'
+import { subfunctionsApi } from '@/lib/api/subfunctionsApi'
 import toast from 'react-hot-toast'
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState([])
   const [roles, setRoles] = useState([])
+  const [subfunctions, setSubfunctions] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchText, setSearchText] = useState('')
 
@@ -32,12 +34,14 @@ export default function AdminUsersPage() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [usersRes, rolesRes] = await Promise.all([
+      const [usersRes, rolesRes, subfunctionsRes] = await Promise.all([
         usersApi.getAll(),
         usersApi.getRoles(),
+        subfunctionsApi.getAll(),
       ])
       setUsers(usersRes?.data || [])
       setRoles(rolesRes?.data || [])
+      setSubfunctions(subfunctionsRes?.data || [])
     } catch (error) {
       toast.error('Failed to load users')
       console.error('Load error:', error)
@@ -87,6 +91,7 @@ export default function AdminUsersPage() {
       phone: user.phone || '',
       roleId: user.role?.id,
       isActive: user.isActive,
+      subfunctionIds: user.subfunctions?.map(sf => sf.id) || [],
     })
     setIsEditOpen(true)
   }
@@ -290,7 +295,7 @@ export default function AdminUsersPage() {
           open={isCreateOpen}
           onCancel={() => setIsCreateOpen(false)}
           footer={null}
-          destroyOnClose
+          destroyOnHidden
           width={520}
           style={{ maxWidth: '90vw' }}
         >
@@ -362,6 +367,56 @@ export default function AdminUsersPage() {
               <Input placeholder="+91 9876543210" />
             </Form.Item>
 
+            {/* Conditional Subfunction Selection for APPROVER Role */}
+            <Form.Item
+              noStyle
+              shouldUpdate={(prevValues, currentValues) => 
+                prevValues.roleId !== currentValues.roleId
+              }
+            >
+              {({ getFieldValue }) => {
+                const roleId = getFieldValue('roleId')
+                const selectedRole = roles.find(r => r.id === roleId)
+                const isApprover = selectedRole?.roleCode === 'APPROVER'
+                
+                if (!isApprover) return null
+                
+                return (
+                  <Form.Item
+                    name="subfunctionIds"
+                    label={
+                      <span>
+                        Subfunctions <span className="text-red-500">*</span>
+                      </span>
+                    }
+                    rules={[
+                      { 
+                        required: true, 
+                        message: 'Select at least one subfunction for APPROVER role',
+                        type: 'array',
+                        min: 1,
+                      }
+                    ]}
+                  >
+                    <Checkbox.Group style={{ width: '100%' }}>
+                      <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        {subfunctions.map(sf => (
+                          <Checkbox key={sf.id} value={sf.id}>
+                            <span className="text-sm">
+                              {sf.name}
+                              <span className="text-xs text-gray-500 ml-1">
+                                ({sf.function})
+                              </span>
+                            </span>
+                          </Checkbox>
+                        ))}
+                      </div>
+                    </Checkbox.Group>
+                  </Form.Item>
+                )
+              }}
+            </Form.Item>
+
             <div className="flex justify-end gap-3 mt-2">
               <Button onClick={() => setIsCreateOpen(false)}>Cancel</Button>
               <Button
@@ -385,7 +440,7 @@ export default function AdminUsersPage() {
             setEditingUser(null)
           }}
           footer={null}
-          destroyOnClose
+          destroyOnHidden
           width={520}
           style={{ maxWidth: '90vw' }}
         >
@@ -424,6 +479,56 @@ export default function AdminUsersPage() {
 
             <Form.Item name="phone" label="Phone">
               <Input />
+            </Form.Item>
+
+            {/* Conditional Subfunction Selection for APPROVER Role */}
+            <Form.Item
+              noStyle
+              shouldUpdate={(prevValues, currentValues) => 
+                prevValues.roleId !== currentValues.roleId
+              }
+            >
+              {({ getFieldValue }) => {
+                const roleId = getFieldValue('roleId')
+                const selectedRole = roles.find(r => r.id === roleId)
+                const isApprover = selectedRole?.roleCode === 'APPROVER'
+                
+                if (!isApprover) return null
+                
+                return (
+                  <Form.Item
+                    name="subfunctionIds"
+                    label={
+                      <span>
+                        Subfunctions <span className="text-red-500">*</span>
+                      </span>
+                    }
+                    rules={[
+                      { 
+                        required: true, 
+                        message: 'Select at least one subfunction for APPROVER role',
+                        type: 'array',
+                        min: 1,
+                      }
+                    ]}
+                  >
+                    <Checkbox.Group style={{ width: '100%' }}>
+                      <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        {subfunctions.map(sf => (
+                          <Checkbox key={sf.id} value={sf.id}>
+                            <span className="text-sm">
+                              {sf.name}
+                              <span className="text-xs text-gray-500 ml-1">
+                                ({sf.function})
+                              </span>
+                            </span>
+                          </Checkbox>
+                        ))}
+                      </div>
+                    </Checkbox.Group>
+                  </Form.Item>
+                )
+              }}
             </Form.Item>
 
             <Form.Item name="isActive" label="Status" valuePropName="checked">

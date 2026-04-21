@@ -39,11 +39,6 @@ function OpenForHiringPage() {
     }
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return '—';
-    return new Date(dateString).toLocaleDateString('en-GB');
-  };
-
   const getPriorityBadge = (priority) => {
     const config = {
       'Low':      { bg: '#f3f4f6', color: '#374151' },
@@ -133,7 +128,7 @@ function OpenForHiringPage() {
           <table className="w-full text-left border-collapse">
             <thead className="bg-gray-50/80 border-b border-gray-200">
               <tr>
-                <th className="pl-8 pr-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">RRF ID</th>
+                <th className="pl-8 pr-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">ID</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Role / Title</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Sub-Function</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Project</th>
@@ -190,7 +185,7 @@ function OpenForHiringPage() {
                       {getPriorityBadge(rrf.priority)}
                     </td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-500 font-medium text-left">
-                      {formatDate(rrf.createdAt)}
+                      {rrf.createdAt ? new Date(rrf.createdAt).toLocaleDateString('en-GB') : 'N/A'}
                     </td>
                     <td className="px-6 py-5 whitespace-nowrap text-left">
                       <button

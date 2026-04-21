@@ -33,16 +33,18 @@ const transform = (data) => {
       configsMap[config.fieldName] = config;
     });
 
-    // Merge with defaults (fallback for missing configs)
-    const mergedConfigs = { ...DEFAULT_CONFIGS };
-    Object.keys(DEFAULT_CONFIGS).forEach(key => {
-      if (configsMap[key]) {
-        mergedConfigs[key] = configsMap[key];
-      }
-    });
+    // Merge: Start with defaults, then add ALL configs from API
+    // This ensures all dynamically fetched fields are included
+    const mergedConfigs = { ...DEFAULT_CONFIGS, ...configsMap };
+
+    // Debug logging
+    console.log('🔍 Form Config API Response:', data);
+    console.log('📊 Transformed Configs:', mergedConfigs);
+    console.log('🔑 Config Keys:', Object.keys(mergedConfigs));
 
     return mergedConfigs;
-  } catch {
+  } catch (error) {
+    console.error('❌ Form Config Transform Error:', error);
     return DEFAULT_CONFIGS;
   }
 };

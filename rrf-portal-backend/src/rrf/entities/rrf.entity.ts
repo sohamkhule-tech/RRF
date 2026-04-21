@@ -136,6 +136,9 @@ export class Rrf {
   @Column({ name: 'preferred_skills', type: 'text', nullable: true })
   preferredSkills: string;
 
+  @Column({ name: 'technologies', type: 'text', nullable: true })
+  technologies: string;
+
   @Column({ name: 'experience_min', type: 'decimal', precision: 3, scale: 1, nullable: true })
   experienceMin: number;
 
@@ -248,12 +251,21 @@ export class Rrf {
   @Column({ name: 'closure_status', type: 'varchar', length: 255, nullable: true })
   closureStatus: string;
 
+  @Column({ name: 'internal_rrf_no', type: 'varchar', length: 50, nullable: true, unique: true })
+  internalRrfNo: string;
+
   @Column({ type: 'text', nullable: true })
   notes: string;
 
   // Status change audit trail (tracks all status transitions)
   // Stored as JSONB array of status change objects
-  @Column({ type: 'jsonb', nullable: true })
+  // ✅ FIX: Added explicit column name mapping for PostgreSQL
+  @Column({ 
+    name: 'status_history',
+    type: 'jsonb', 
+    nullable: true,
+    default: () => "'[]'::jsonb"  // Default to empty array in PostgreSQL
+  })
   statusHistory: any; // Array of { status, changedBy, changedAt, reason? }
 
   // ========== WORKFLOW SYSTEM UPDATE END ==========

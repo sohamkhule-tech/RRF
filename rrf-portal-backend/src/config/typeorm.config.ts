@@ -10,4 +10,16 @@ export const typeOrmConfig: TypeOrmModuleOptions = {
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
   synchronize: process.env.NODE_ENV !== 'production', // Auto-create tables in dev
   logging: process.env.NODE_ENV !== 'production',
+  
+  // ✅ PERFORMANCE OPTIMIZATION: Connection pooling
+  poolSize: 20,                    // Max concurrent connections
+  connectTimeoutMS: 10000,         // 10 seconds timeout
+  maxQueryExecutionTime: 5000,     // Log slow queries (>5s)
+  
+  // ✅ Additional optimizations
+  cache: {
+    type: 'database',
+    tableName: 'typeorm_cache',
+    duration: 30000,  // Cache for 30 seconds
+  },
 };

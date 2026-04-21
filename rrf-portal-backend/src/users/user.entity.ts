@@ -5,10 +5,12 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
+  OneToMany,
   JoinColumn,
   Index,
 } from 'typeorm';
 import { Role } from '../roles/role.entity';
+import { UserSubfunction } from '../user-subfunctions/user-subfunction.entity';
 
 @Entity('users')
 @Index(['email'])
@@ -44,6 +46,9 @@ export class User {
   @ManyToOne(() => Role, { eager: true })
   @JoinColumn({ name: 'role_id' })
   role: Role;
+
+  @OneToMany(() => UserSubfunction, (userSubfunction) => userSubfunction.user)
+  userSubfunctions: UserSubfunction[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

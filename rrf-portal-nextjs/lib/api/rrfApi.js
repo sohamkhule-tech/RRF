@@ -5,6 +5,56 @@
 
 import { api } from './apiConfig';
 
+/**
+ * Sanitize RRF payload to ensure DTO compatibility
+ * Converts arrays to comma-separated strings and removes invalid values
+ */
+const sanitizeRrfPayload = (payload) => {
+  const sanitized = { ...payload };
+  
+  // Convert array fields to comma-separated strings
+  const arrayToStringFields = ['technologies', 'requiredSkills', 'preferredSkills', 'location'];
+  
+  arrayToStringFields.forEach(field => {
+    if (sanitized[field] !== undefined && sanitized[field] !== null) {
+      if (Array.isArray(sanitized[field])) {
+        // ✅ FIX: Safe length check - convert non-empty arrays to comma-separated strings
+        if (sanitized[field].length > 0) {
+          sanitized[field] = sanitized[field].join(', ');
+        } else {
+          // Empty arrays become undefined (omitted from payload)
+          delete sanitized[field];
+        }
+      } else if (typeof sanitized[field] === 'string') {
+        // ✅ FIX: Safe trim check - empty strings or strings with only whitespace
+        if (sanitized[field].trim() === '') {
+          delete sanitized[field];
+        }
+      } else {
+        // Any other type (object, number, etc.) for these fields should be removed
+        console.warn(`[Sanitize] Unexpected type for ${field}:`, typeof sanitized[field], sanitized[field]);
+        delete sanitized[field];
+      }
+    }
+  });
+  
+  // Remove undefined and null values (don't send them to backend)
+  Object.keys(sanitized).forEach(key => {
+    if (sanitized[key] === undefined || sanitized[key] === null) {
+      delete sanitized[key];
+    }
+  });
+  
+  // Log what we're about to send
+  console.log('[Sanitize] Final payload types:', {
+    technologies: sanitized.technologies ? typeof sanitized.technologies : 'undefined',
+    requiredSkills: sanitized.requiredSkills ? typeof sanitized.requiredSkills : 'undefined',
+    preferredSkills: sanitized.preferredSkills ? typeof sanitized.preferredSkills : 'undefined',
+  });
+  
+  return sanitized;
+};
+
 export const rrfApi = {
   /**
    * Get all RRFs with optional filters
@@ -41,14 +91,27 @@ export const rrfApi = {
    * Create new RRF
    */
   create: async (rrfData) => {
-    return api.post('/rrf', rrfData);
+    const sanitized = sanitizeRrfPayload(rrfData);
+    
+    // Final safety check - ensure no arrays slipped through
+    Object.keys(sanitized).forEach(key => {
+      if (Array.isArray(sanitized[key])) {
+        console.error(`[RRF API] ERROR: ${key} is still an array!`, sanitized[key]);
+        sanitized[key] = sanitized[key].join(', ');
+      }
+    });
+    
+    console.log('[RRF API] Sanitized payload:', JSON.stringify(sanitized, null, 2));
+    return api.post('/rrf', sanitized);
   },
 
   /**
    * Update RRF
    */
   update: async (id, rrfData) => {
-    return api.put(`/rrf/${id}`, rrfData);
+    const sanitized = sanitizeRrfPayload(rrfData);
+    console.log('[RRF API] Sanitized update payload:', sanitized);
+    return api.patch(`/rrf/${id}`, sanitized);
   },
 
   /**
@@ -96,8 +159,8 @@ export const rrfApi = {
   /**
    * Fill position by bench resource (PMO action)
    */
-  fillByBench: async (id, notes = '') => {
-    return api.post(`/rrf/${id}/fill-by-bench`, { notes });
+  fillByBench: async (id, candidateName, joiningDate) => {
+    return api.post(`/rrf/${id}/fill-by-bench`, { candidateName, joiningDate });
   },
 
   /**
@@ -173,7 +236,7 @@ export const formatRrfForDisplay = (rrf) => {
     headcount: rrf.headcount,
     priority: rrf.priority,
     status: rrf.status === 'rejected' ? 'declined' : rrf.status,
-    date: new Date(rrf.createdAt).toLocaleDateString('en-GB'),
+    date: rrf.createdAt ? new Date(rrf.createdAt).toLocaleDateString('en-GB') : 'N/A',
     createdAt: rrf.createdAt,
     submittedAt: rrf.submittedAt,
     approvedAt: rrf.approvedAt,
@@ -222,6 +285,7 @@ export const formatRrfForDisplay = (rrf) => {
     candidateName: rrf.candidateName || null,
     joiningDate: rrf.joiningDate || null,
     closureStatus: rrf.closureStatus || null,
+    internalRrfNo: rrf.internalRrfNo || null,  // Auto-generated for bench-filled positions
   };
 };
 

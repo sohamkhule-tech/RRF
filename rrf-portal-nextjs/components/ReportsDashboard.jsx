@@ -6,7 +6,6 @@ import { DownloadOutlined, SearchOutlined, WarningOutlined, BarChartOutlined, Cl
 
 export default function ReportsDashboard({ role }) {
   const router = useRouter()
-  const [searchTerm, setSearchTerm] = useState('')
 
   const insights = {
     estimatedRevenueLoss: 2450,
@@ -25,18 +24,7 @@ export default function ReportsDashboard({ role }) {
     ]
   }, [])
 
-  const filteredRows = useMemo(() => {
-    const q = searchTerm.trim().toLowerCase()
-    if (!q) return rows
-    return rows.filter((r) =>
-      r.submissionId.toLowerCase().includes(q) ||
-      r.role.toLowerCase().includes(q) ||
-      r.project.toLowerCase().includes(q) ||
-      r.priority.toLowerCase().includes(q) ||
-      r.stage.toLowerCase().includes(q) ||
-      r.department.toLowerCase().includes(q)
-    )
-  }, [rows, searchTerm])
+
 
   const ageingBuckets = useMemo(() => {
     const buckets = { '0-3': 0, '4-7': 0, '8-14': 0, '15+': 0 }
@@ -64,7 +52,7 @@ export default function ReportsDashboard({ role }) {
     const headers = ['Submission ID', 'Role', 'Project', 'Department', 'Priority', 'Stage', 'Days Pending']
     const csvContent = [
       headers.join(','),
-      ...filteredRows.map((r) => [
+      ...rows.map((r) => [
         r.submissionId,
         `"${r.role}"`,
         `"${r.project}"`,
@@ -191,100 +179,7 @@ export default function ReportsDashboard({ role }) {
         </div>
       </div>
 
-      <div className="bg-white overflow-hidden" style={{ borderRadius: '16px', boxShadow: '0 10px 25px rgba(0,0,0,0.08)', padding: '20px' }}>
-        <div className="px-2 py-4 mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-gray-900">Pending List</h3>
-        </div>
 
-        <div className="px-2 mb-4">
-          <div className="relative max-w-md">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <SearchOutlined className="text-gray-400" style={{ fontSize: '18px' }} />
-            </div>
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by Submission, Role, Project, Priority, Stage..."
-              className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 text-gray-900 font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all duration-300"
-              style={{ borderRadius: '10px' }}
-            />
-          </div>
-        </div>
-
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Submission</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Role</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Project</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Department</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Priority</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Stage</th>
-                <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">Days</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRows.length > 0 ? (
-                filteredRows
-                  .slice()
-                  .sort((a, b) => b.daysPending - a.daysPending)
-                  .map((r) => (
-                    <tr key={r.submissionId} className="border-b border-gray-100 transition-all duration-300 hover:bg-gray-50">
-                      <td className="px-6 py-5 whitespace-nowrap text-sm font-bold text-indigo-600">{r.submissionId}</td>
-                      <td className="px-6 py-5 whitespace-nowrap text-sm font-medium text-gray-900">{r.role}</td>
-                      <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-600">{r.project}</td>
-                      <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-600">{r.department}</td>
-                      <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-700">{r.priority}</td>
-                      <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-700">{r.stage}</td>
-                      <td className="px-6 py-5 whitespace-nowrap text-sm text-center">
-                        <span className="inline-flex items-center justify-center w-10 h-8 bg-indigo-100 text-indigo-700 rounded-full font-bold text-xs">{r.daysPending}</span>
-                      </td>
-                    </tr>
-                  ))
-              ) : (
-                <tr>
-                  <td colSpan={7} className="px-6 py-10 text-center text-gray-500">
-                    <SearchOutlined style={{ fontSize: '32px', color: '#9ca3af' }} />
-                    <p className="text-sm font-medium mt-2">No requests found matching "{searchTerm}"</p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Mobile Card View */}
-        <div className="md:hidden px-2 pb-4 space-y-3">
-          {filteredRows.length > 0 ? (
-            filteredRows
-              .slice()
-              .sort((a, b) => b.daysPending - a.daysPending)
-              .map((r) => (
-                <div key={r.submissionId} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-bold text-indigo-600 mb-1">{r.submissionId}</div>
-                      <div className="text-sm font-bold text-gray-900 truncate">{r.role}</div>
-                      <div className="text-xs text-gray-500 truncate">{r.project} • {r.department}</div>
-                    </div>
-                    <span className="inline-flex items-center justify-center w-9 h-7 bg-indigo-100 text-indigo-700 rounded-full font-bold text-xs ml-2 flex-shrink-0">{r.daysPending}d</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <span className="text-xs px-2 py-1 bg-gray-100 rounded-full text-gray-700">{r.priority}</span>
-                    <span className="text-xs px-2 py-1 bg-blue-50 rounded-full text-blue-700">{r.stage}</span>
-                  </div>
-                </div>
-              ))
-          ) : (
-            <div className="py-8 text-center text-gray-500">
-              <SearchOutlined style={{ fontSize: '32px', color: '#9ca3af' }} />
-              <p className="text-sm font-medium mt-2">No requests found</p>
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   )
 }

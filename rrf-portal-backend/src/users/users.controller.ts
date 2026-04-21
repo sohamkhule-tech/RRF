@@ -9,11 +9,16 @@ import {
   Request,
   ParseIntPipe,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../guards/permission.guard';
 import { RequirePermission } from '../decorators/require-permission.decorator';
 import { UsersService } from './users.service';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 
+@ApiTags('Users')
+@ApiBearerAuth()
 @Controller('users')
 @UseGuards(JwtAuthGuard, PermissionGuard)
 export class UsersController {
@@ -65,24 +70,21 @@ export class UsersController {
   }
 
   /**
-   * Create a new user
+   * Create a new user with optional subfunction assignment
    * POST /users
    */
   @RequirePermission('USERS.CREATE')
   @Post()
-  async createUser(
-    @Body()
-    body: {
-      userId: string;
-      email: string;
-      password: string;
-      fullName: string;
-      department?: string;
-      phone?: string;
-      roleId: number;
-    },
-  ) {
-    const user = await this.usersService.createUser(body);
+  @ApiOperation({
+    summary: 'Create new user',
+    description: 'Creates a new user. If role is APPROVER, subfunctionIds must be provided.',
+  })
+  @ApiBody({ type: CreateUserDto })
+  @ApiResponse({ status: 201, description: 'User created successfully' })
+  @ApiResponse({ status: 400, description: 'Validation failed or missing subfunctions for APPROVER' })
+  @ApiResponse({ status: 409, description: 'User ID or email already exists' })
+  async createUser(@Body() createUserDto: CreateUserDto) {
+    const user = await this.usersService.createUser(createUserDto);
     return {
       success: true,
       message: 'User created successfully',
@@ -91,23 +93,24 @@ export class UsersController {
   }
 
   /**
-   * Update user (role, status, profile fields)
+   * Update user with subfunction management
    * PUT /users/:id
    */
   @RequirePermission('USERS.UPDATE')
   @Put(':id')
+  @ApiOperation({
+    summary: 'Update user',
+    description: 'Updates user details. If role is changed to APPROVER, subfunctionIds must be provided.',
+  })
+  @ApiBody({ type: UpdateUserDto })
+  @ApiResponse({ status: 200, description: 'User updated successfully' })
+  @ApiResponse({ status: 400, description: 'Validation failed' })
+  @ApiResponse({ status: 404, description: 'User not found' })
   async updateUser(
     @Param('id', ParseIntPipe) id: number,
-    @Body()
-    body: {
-      roleId?: number;
-      isActive?: boolean;
-      fullName?: string;
-      department?: string;
-      phone?: string;
-    },
+    @Body() updateUserDto: UpdateUserDto,
   ) {
-    const user = await this.usersService.updateUser(id, body);
+    const user = await this.usersService.updateUser(id, updateUserDto);
     return {
       success: true,
       message: 'User updated successfully',

@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsEnum, IsOptional, IsInt, Min, Max, IsNumber, IsArray, MaxLength } from 'class-validator';
+import { IsString, IsNotEmpty, IsEnum, IsOptional, IsInt, Min, Max, IsNumber, IsArray, MaxLength, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Priority, EmploymentType, RequisitionType } from '../entities/rrf.entity';
 
@@ -74,6 +74,10 @@ export class CreateRrfDto {
   @IsOptional()
   preferredSkills?: string;
 
+  @IsString()
+  @IsOptional()
+  technologies?: string;
+
   @IsNumber()
   @IsOptional()
   @Min(0)
@@ -122,4 +126,8 @@ export class CreateRrfDto {
   @IsString()
   @IsOptional()
   urgencyReason?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  saveAsTemplate?: boolean;
 }

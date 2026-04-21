@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   PrinterOutlined,
   DownloadOutlined,
@@ -28,6 +28,10 @@ export default function PMOViewRRFPage() {
   const submissionId = params.id
   const fromSent = searchParams.get('from') === 'sent'
   
+  // Loading and data state
+  const [pageLoading, setPageLoading] = useState(true)  // ✅ FIX: Renamed for clarity
+  const [rrfData, setRrfData] = useState(null)
+  
   // Section navigation state
   const [activeSection, setActiveSection] = useState('requisition')
   
@@ -36,10 +40,12 @@ export default function PMOViewRRFPage() {
   const [internalRrfNumber, setInternalRrfNumber] = useState('')
   const [candidateName, setCandidateName] = useState('')
   const [dateOfJoining, setDateOfJoining] = useState('')
+  const [submittingClose, setSubmittingClose] = useState(false)  // ✅ FIX: Separate loading for close action
 
   // PMO Open for Requisition State
   const [showOpenModal, setShowOpenModal] = useState(false)
   const [remark, setRemark] = useState('')
+  const [submittingOpen, setSubmittingOpen] = useState(false)  // ✅ FIX: Separate loading for open action
   
   // Section definitions
   const sections = [
@@ -49,57 +55,106 @@ export default function PMOViewRRFPage() {
     { id: 'description', label: 'Job Description', icon: <FileTextOutlined className="text-lg" /> }
   ]
 
-  // Mock data - in production this would come from API/database
-  const [rrfData] = useState({
-    submissionId: submissionId,
-    submittedDate: '20/03/2026',
-    status: fromSent ? 'Sent to HR Team - Open for Hiring' : 'Approved by Approver',
-    
-    // Requisition Details
-    managerName: 'John Doe',
-    entity: 'Datafortune Inc',
-    organisation: 'DataFortune',
-    function: 'Delivery',
-    subFunction: 'SGINTL',
-    department: 'Engineering',
-    requisitionType: 'Billable',
-    customerName: 'ABC Bank',
-    projectName: 'Banking Project',
-    jobTitle: 'Senior React Developer',
-    expectedBillingStartDate: '01/04/2026',
-    billingRate: '120',
-    
-    // Position Details
-    positionType: 'Replacement',
-    employmentType: 'Full-time',
-    numberOfPositions: 2,
-    priorityLevel: 'High',
-    jobLocation: ['Pune', 'Bengaluru'],
-    workMode: 'Hybrid',
-    minimumExperience: '5-7 years',
-    
-    // Technical Requirements
-    primaryTechnologies: 'React, TypeScript, Next.js, Redux',
-    mustHaveSkills: 'React.js (5+ years), TypeScript, Redux/Context API, RESTful APIs, Git, Agile methodology',
-    niceToHaveSkills: 'Next.js, GraphQL, Docker, AWS, Unit Testing (Jest/React Testing Library)',
-    jobDescription: 'We are looking for an experienced React Developer to join our banking project team. The candidate will be responsible for developing and maintaining complex web applications, collaborating with cross-functional teams, and ensuring high-quality code delivery.',
-    additionalNotes: 'Candidate should be comfortable working in a fast-paced environment and have excellent communication skills.'
-  })
-
-  const handleCloseWithBench = () => {
-    // Validate Internal RRF Number
-    if (!internalRrfNumber.trim()) {
-      toast.error('Please enter Internal RRF Number')
-      return
-    }
-    
-    // Check format IN-RRF-XXX
-    const rrfPattern = /^IN-RRF-\d{3}$/
-    if (!rrfPattern.test(internalRrfNumber)) {
-      toast.error('Invalid format! Use IN-RRF-XXX (e.g., IN-RRF-001)')
+  // Fetch RRF data from API
+  useEffect(() => {
+    if (!submissionId) {
+      toast.error('Invalid RRF ID')
+      setLoading(false)
       return
     }
 
+    let isMounted = true  // ✅ Prevent state updates after unmount
+
+    const fetchRRF = async () => {
+      try {
+        setPageLoading(true)  // ✅ FIX: Use pageLoading instead of loading
+        const response = await rrfApi.getById(submissionId)
+        
+        if (!isMounted) return  // ✅ Component unmounted, don't update state
+        
+        const rrf = response?.data || response
+        
+        if (!rrf) {
+          toast.error('RRF not found')
+          setPageLoading(false)  // ✅ FIX: Use pageLoading
+          return
+        }
+
+        // Debug: Log the API response to verify data structure
+        console.log('[DEBUG] RRF API Response:', rrf)
+
+        // Normalize location to array
+        const location = Array.isArray(rrf.location)
+          ? rrf.location
+          : rrf.location
+            ? String(rrf.location).split(',').map(l => l.trim()).filter(Boolean)
+            : []
+
+        // Format the data to match the UI expectations
+        setRrfData({
+          submissionId: rrf.id || submissionId,
+          displayId: rrf.rrfNumber || rrf.subId || `SUB-${rrf.id || submissionId}`,
+          submittedDate: rrf.createdAt ? new Date(rrf.createdAt).toLocaleDateString('en-GB') : 'N/A',
+          status: rrf.status || '',
+          
+          // Requisition Details
+          managerName: rrf.createdBy?.fullName || rrf.createdBy?.name || '',
+          entity: rrf.entity || '',
+          organisation: rrf.organisation || 'DataFortune',
+          function: rrf.function || '',
+          subFunction: rrf.subFunction || '',
+          department: rrf.department || '',
+          requisitionType: rrf.requisitionType || '',
+          customerName: rrf.customerName || '',
+          projectName: rrf.projectName || '',
+          jobTitle: rrf.positionTitle || rrf.jobTitle || '',
+          expectedBillingStartDate: rrf.anticipatedBillingStartDate || rrf.billingStartDate || '',
+          billingRate: rrf.billingRate || '',
+          
+          // Position Details
+          positionType: rrf.positionType || '',
+          employmentType: rrf.employmentType || '',
+          numberOfPositions: rrf.headcount || rrf.positions || '',
+          priorityLevel: rrf.priority || '',
+          jobLocation: location,
+          workMode: rrf.workMode || '',
+          minimumExperience: rrf.experienceMin && rrf.experienceMax 
+            ? `${rrf.experienceMin}-${rrf.experienceMax} years` 
+            : '',
+          
+          // Technical Requirements
+          primaryTechnologies: Array.isArray(rrf.technologies) 
+            ? rrf.technologies.join(', ') 
+            : rrf.technologies || '',
+          mustHaveSkills: Array.isArray(rrf.requiredSkills)
+            ? rrf.requiredSkills.join(', ')
+            : rrf.requiredSkills || '',
+          niceToHaveSkills: Array.isArray(rrf.preferredSkills)
+            ? rrf.preferredSkills.join(', ')
+            : rrf.preferredSkills || '',
+          jobDescription: rrf.jobDescription || '',
+          additionalNotes: rrf.notes || ''
+        })
+      } catch (error) {
+        if (!isMounted) return  // ✅ Component unmounted, don't show error
+        
+        console.error('[ERROR] Failed to fetch RRF:', error)
+        toast.error(error?.response?.data?.message || 'Failed to load RRF data')
+      } finally {
+        if (isMounted) setPageLoading(false)  // ✅ FIX: Use pageLoading
+      }
+    }
+
+    fetchRRF()
+    
+    // ✅ Cleanup function prevents memory leaks
+    return () => {
+      isMounted = false
+    }
+  }, [submissionId])  // ✅ Only re-run if submissionId changes
+
+  const handleCloseWithBench = async () => {
+    // Validate required fields
     if (!candidateName.trim()) {
       toast.error('Please enter candidate name')
       return
@@ -110,25 +165,67 @@ export default function PMOViewRRFPage() {
       return
     }
 
-    toast.success(`Position filled from bench! Internal RRF: ${internalRrfNumber}`, {
-      duration: 4000,
-      style: {
-        fontWeight: '600',
-      },
-    })
-    
-    setShowCloseModal(false)
-    setInternalRrfNumber('')
-    setCandidateName('')
-    setDateOfJoining('')
-    setTimeout(() => {
-      router.push('/pmo/pending')
-    }, 500)
+    // ✅ Validate RRF status before submission
+    const validStatuses = ['approved', 'in-progress']
+    if (!validStatuses.includes(rrfData?.status)) {
+      toast.error(`Cannot fill from bench. RRF must be APPROVED or IN_PROGRESS. Current status: ${rrfData?.status || 'unknown'}`)
+      return
+    }
+
+    try {
+      setSubmittingClose(true)  // ✅ FIX: Use separate state, doesn't trigger full-page spinner
+      
+      // Convert DD/MM/YYYY to YYYY-MM-DD for backend
+      const [day, month, year] = dateOfJoining.split('/')
+      const formattedDate = `${year}-${month}-${day}`
+      
+      console.log('[DEBUG] Calling fillByBench API:', { submissionId, candidateName, formattedDate })  // ✅ Debug log
+      
+      const response = await rrfApi.fillByBench(submissionId, candidateName, formattedDate)
+      
+      console.log('[DEBUG] fillByBench API response:', response)  // ✅ Debug log
+      
+      // Show auto-generated Internal RRF Number in success message
+      const generatedRrfNo = response?.data?.internalRrfNo || 'Auto-Generated'
+      toast.success(`Position filled from bench and closed! Internal RRF: ${generatedRrfNo}`, {
+        duration: 4000,
+        style: {
+          fontWeight: '600',
+        },
+      })
+      
+      // Reset form
+      setShowCloseModal(false)
+      setCandidateName('')
+      setDateOfJoining('')
+      
+      // ✅ FIX: Redirect immediately, no setTimeout needed
+      router.push('/pmo/closed')
+    } catch (error) {
+      console.error('[ERROR] Failed to fill position:', error)  // ✅ Better logging
+      console.error('[ERROR] Error details:', error?.response?.data)  // ✅ Log backend error
+      
+      // ✅ Show detailed error message
+      const errorMsg = error?.response?.data?.message || error?.message || 'Failed to fill position from bench'
+      toast.error(errorMsg, {
+        duration: 5000,
+        style: {
+          maxWidth: '500px',
+        },
+      })
+    } finally {
+      setSubmittingClose(false)  // ✅ FIX: Use separate state
+    }
   }
 
   const handleOpenForRequisition = async () => {
     try {
+      setSubmittingOpen(true)  // ✅ FIX: Show loading on button
+      
+      console.log('[DEBUG] Calling openForHiring API:', { submissionId })  // ✅ Debug log
+      
       await rrfApi.openForHiring(submissionId);
+      
       toast.success('RRF has been opened for HR recruitment!', {
         duration: 4000,
         style: {
@@ -138,12 +235,15 @@ export default function PMOViewRRFPage() {
       
       setShowOpenModal(false)
       setRemark('')
-      setTimeout(() => {
-        router.push('/pmo/sent-to-approvers')
-      }, 500)
+      
+      // ✅ FIX: Redirect immediately
+      router.push('/pmo/sent-to-approvers')
     } catch (error) {
-      console.error('Failed to open for hiring:', error);
+      console.error('[ERROR] Failed to open for hiring:', error);  // ✅ Better logging
+      console.error('[ERROR] Error details:', error?.response?.data);  // ✅ Log backend error
       toast.error(error?.response?.data?.message || 'Failed to open request for hiring');
+    } finally {
+      setSubmittingOpen(false)  // ✅ FIX: Always clear loading
     }
   }
 
@@ -198,6 +298,37 @@ export default function PMOViewRRFPage() {
     
     pdf.save(`SUB-${rrfData.submissionId}.pdf`)
     toast.success('PDF exported successfully!')
+  }
+
+  // ✅ FIX: Loading state - only show for initial page load
+  if (pageLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-slate-600 font-medium">Loading RRF details...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Error state - no data found
+  if (!rrfData) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-600 text-5xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-slate-800 mb-2">RRF Not Found</h2>
+          <p className="text-slate-600 mb-6">The requested RRF could not be found.</p>
+          <button
+            onClick={() => router.back()}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -269,7 +400,7 @@ export default function PMOViewRRFPage() {
                 {rrfData.status}
               </div>
               <div className="text-xs text-slate-300 font-medium space-y-1">
-                <div>SUB-{rrfData.submissionId}</div>
+                <div>{rrfData.displayId}</div>
                 <div>Submitted: {rrfData.submittedDate}</div>
               </div>
             </div>
@@ -335,20 +466,36 @@ export default function PMOViewRRFPage() {
               </button>
               {!fromSent && (
                 <>
-                  <button 
-                    onClick={() => setShowOpenModal(true)}
-                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 font-medium rounded-lg transition-all flex items-center gap-2 shadow-md"
-                  >
-                    <SendOutlined />
-                    <span className="hidden sm:inline">Open for Requisition</span>
-                  </button>
-                  <button 
-                    onClick={() => setShowCloseModal(true)}
-                    className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 font-medium rounded-lg transition-all flex items-center gap-2 shadow-md"
-                  >
-                    <CheckCircleOutlined />
-                    <span className="hidden sm:inline">Fill from Bench</span>
-                  </button>
+                  {/* ✅ Show "Open for Requisition" only if APPROVED */}
+                  {rrfData?.status === 'approved' && (
+                    <button 
+                      onClick={() => setShowOpenModal(true)}
+                      className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 font-medium rounded-lg transition-all flex items-center gap-2 shadow-md"
+                      title="Open this RRF for HR recruitment"
+                    >
+                      <SendOutlined />
+                      <span className="hidden sm:inline">Open for Requisition</span>
+                    </button>
+                  )}
+                  
+                  {/* ✅ Show "Fill from Bench" if APPROVED or IN_PROGRESS */}
+                  {(rrfData?.status === 'approved' || rrfData?.status === 'in-progress') && (
+                    <button 
+                      onClick={() => setShowCloseModal(true)}
+                      className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 font-medium rounded-lg transition-all flex items-center gap-2 shadow-md"
+                      title="Fill this position from internal bench"
+                    >
+                      <CheckCircleOutlined />
+                      <span className="hidden sm:inline">Fill from Bench</span>
+                    </button>
+                  )}
+                  
+                  {/* ✅ Show helpful message if neither button is available */}
+                  {rrfData?.status && !['approved', 'in-progress'].includes(rrfData.status) && (
+                    <div className="px-4 py-2 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-sm">
+                      ⚠️ Actions available only for approved or in-progress RRFs
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -360,7 +507,7 @@ export default function PMOViewRRFPage() {
               <div className="print-header">
                 <h1 className="text-3xl font-bold text-slate-900 mb-2">{rrfData.jobTitle}</h1>
                 <div className="flex items-center gap-4 text-sm text-slate-600">
-                  <span>SUB-{rrfData.submissionId}</span>
+                  <span>{rrfData.displayId}</span>
                   <span>•</span>
                   <span>Submitted: {rrfData.submittedDate}</span>
                   <span>•</span>
@@ -514,16 +661,15 @@ export default function PMOViewRRFPage() {
             <div className="px-4 md:px-8 py-4 md:py-6 space-y-6">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Internal RRF Number <span className="text-red-500">*</span>
+                  Internal RRF Number
                 </label>
-                <input
-                  type="text"
-                  value={internalRrfNumber}
-                  onChange={(e) => setInternalRrfNumber(e.target.value)}
-                  placeholder="IN-RRF-001"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:ring-4 focus:ring-green-100 focus:outline-none transition-all"
-                />
-                <p className="text-xs text-gray-500 mt-2">Format: IN-RRF-XXX (e.g., IN-RRF-001)</p>
+                <div className="w-full px-4 py-3 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl">
+                  <div className="flex items-center gap-2">
+                    <CheckCircleOutlined className="text-green-600" />
+                    <span className="text-sm font-semibold text-green-700">Auto Generated</span>
+                  </div>
+                  <p className="text-xs text-gray-600 mt-1">System will generate format: RRF-INT-XXX (e.g., RRF-INT-001)</p>
+                </div>
               </div>
 
               <div>
@@ -556,22 +702,34 @@ export default function PMOViewRRFPage() {
               <button
                 onClick={() => {
                   setShowCloseModal(false)
-                  setInternalRrfNumber('')
                   setCandidateName('')
                   setDateOfJoining('')
                 }}
-                className="px-6 py-3 bg-white border-2 border-gray-300 text-gray-700 hover:bg-gray-100 font-semibold transition-all duration-300"
+                disabled={submittingClose}  // ✅ FIX: Disable during submission
+                className="px-6 py-3 bg-white border-2 border-gray-300 text-gray-700 hover:bg-gray-100 font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ borderRadius: '10px' }}
               >
                 Cancel
               </button>
               <button
                 onClick={handleCloseWithBench}
-                className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 font-semibold transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-2"
+                disabled={submittingClose}  // ✅ FIX: Disable during submission
+                className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 font-semibold transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ borderRadius: '10px' }}
               >
-                <CheckCircleOutlined />
-                Confirm & Close
+                {submittingClose ? (
+                  // ✅ FIX: Show loading spinner
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                    <span>Closing...</span>
+                  </>
+                ) : (
+                  // Normal state
+                  <>
+                    <CheckCircleOutlined />
+                    Confirm & Close
+                  </>
+                )}
               </button>
             </div>
           </div>

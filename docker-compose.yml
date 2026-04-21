@@ -30,7 +30,7 @@ services:
     ports:
       - "4000:4000"
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=production
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USERNAME=postgres
@@ -55,17 +55,14 @@ services:
     container_name: rrf-frontend
     ports:
       - "3000:3000"
-    volumes:
-      - ./rrf-portal-nextjs:/app
-      - /app/node_modules
-      - /app/.next
+    # IMPORTANT: Volume mapping removed to prevent stale code override
+    # In production mode, container uses its own built .next folder
+    # If you need hot reload for development, use docker-compose.dev.yml instead
     environment:
       # Browser (on the host machine) talks to localhost:4000 — NOT the internal service name.
       # The internal docker name 'backend' is only for server-to-server calls,
       # but this Next.js app is fully client-side so the browser URL is used.
       - NEXT_PUBLIC_API_URL=http://localhost:4000
-      - WATCHPACK_POLLING=true
-      - CHOKIDAR_USEPOLLING=true
     depends_on:
       - backend
     networks:

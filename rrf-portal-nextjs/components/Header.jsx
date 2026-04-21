@@ -31,7 +31,7 @@ export default function Header({ initialRole = 'hiring-manager', onToggleSidebar
     if (pathname === '/hiring-manager/dashboard') return 'Dashboard'
     if (pathname === '/hiring-manager/create-rrf') return 'Create RRF Request'
     if (pathname === '/hiring-manager/drafts') return 'Saved Drafts'
-    if (pathname === '/hiring-manager/my-requests') return 'My RRF Requests'
+    if (pathname === '/hiring-manager/my-requests') return 'RRF Requests'
     if (pathname.includes('/hiring-manager/view-rrf/')) return 'View RRF Details'
     if (pathname === '/approver') return 'Dashboard'
     if (pathname === '/approver/pending') return 'Pending RRF Approvals'
@@ -48,7 +48,7 @@ export default function Header({ initialRole = 'hiring-manager', onToggleSidebar
     if (pathname === '/pmo/reports') return 'Reports & Insights'
     if (pathname === '/pmo/pending') return 'Opened Positions'
     if (pathname === '/pmo/opened-positions') return 'Opened Positions'
-    if (pathname === '/pmo/sent-to-approvers') return 'Sent to HR Team'
+    if (pathname === '/pmo/sent-to-approvers') return 'Sent to Talent Acquisition'
     if (pathname.includes('/pmo/view-rrf/')) return 'View RRF'
     return 'RRF Portal'
   }
@@ -83,8 +83,15 @@ export default function Header({ initialRole = 'hiring-manager', onToggleSidebar
       .slice(0, 2)
   }
 
-  const userName = user?.name || 'User'
+  const userName = user?.name || user?.fullName || 'User'
   const userEmail = user?.email || 'user@company.com'
+  const getDisplayName = (role) => {
+    if (!role) return 'User'
+    const name = typeof role === 'string' ? role : (role.name || role.roleName || 'User')
+    return name.trim().toLowerCase() === 'hr team' ? 'Talent Acquisition' : name
+  }
+
+  const userRole = getDisplayName(user?.role || user?.roleName)
   const userInitials = getInitials(userName)
 
   return (
@@ -118,7 +125,15 @@ export default function Header({ initialRole = 'hiring-manager', onToggleSidebar
             </div>
             <div className="hidden md:block">
               <div className="text-sm font-semibold text-gray-900">{userName}</div>
-              <div className="text-xs text-gray-500">{userEmail}</div>
+              <div className="text-xs text-gray-500 flex items-center gap-1">
+                <span>{userRole}</span>
+                {userEmail && (
+                  <>
+                    <span className="text-gray-300">•</span>
+                    <span className="truncate max-w-[150px]" title={userEmail}>{userEmail}</span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 

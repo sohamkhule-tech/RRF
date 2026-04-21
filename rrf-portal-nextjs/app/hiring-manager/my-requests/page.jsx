@@ -18,21 +18,10 @@ function MyRequestsContent() {
   const [activeTab, setActiveTab] = useState('all')
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedSubFunction, setSelectedSubFunction] = useState('all')
-  const [selectedStatus, setSelectedStatus] = useState('all')
+  // ✅ REMOVED: selectedSubFunction and selectedStatus filters
   
   // Fetch requests from API (hook fetches on mount via useSmartFetch — no extra useEffect needed)
   const { requests, loading, error, refresh } = useMyRequests()
-  
-  // Sub-function values from RRF form
-  const subFunctions = [
-    'Talent Acquisition', 'HR Operations', 'Learning & Development',
-    'Finance', 'Sales', 'Marketing', 'PMO', 'Engineering',
-    'Quality Assurance', 'DevOps', 'Data Science', 'Support'
-  ]
-  
-  // Status options
-  const statusOptions = ['Closed', 'Approved', 'On-hold', 'Declined']
 
   // Set active tab based on URL query parameter
   useEffect(() => {
@@ -74,15 +63,7 @@ function MyRequestsContent() {
       filtered = allRequests.filter(req => req.status?.toLowerCase() === activeTab.toLowerCase())
     }
     
-    // Apply status filter dropdown (independent of tabs)
-    if (selectedStatus !== 'all') {
-      filtered = filtered.filter(req => req.status.toLowerCase() === selectedStatus.toLowerCase())
-    }
-    
-    // Apply sub-function filter
-    if (selectedSubFunction !== 'all') {
-      filtered = filtered.filter(req => req.subFunction === selectedSubFunction)
-    }
+    // ✅ REMOVED: Status and sub-function filter dropdowns
     
     // Apply search filter
     if (searchTerm) {
@@ -427,56 +408,14 @@ function MyRequestsContent() {
             )}
           </div>
           
-          {/* Sub-Function Filter */}
-          <div className="w-full md:w-48 lg:w-72">
-            <select
-              value={selectedSubFunction}
-              onChange={(e) => setSelectedSubFunction(e.target.value)}
-              className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 focus:outline-none transition-all duration-300 bg-white hover:border-gray-300 hover:shadow-md cursor-pointer text-sm font-medium text-gray-700"
-              style={{ fontSize: '14px', appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none', backgroundImage: 'url("data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e")', backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem' }}
-            >
-              <option value="all">🗂️ All Sub-Functions</option>
-              {subFunctions.map(sf => (
-                <option key={sf} value={sf}>{sf}</option>
-              ))}
-            </select>
-          </div>
-          
-          {/* Status Filter */}
-          <div className="w-full md:w-44 lg:w-64">
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 focus:outline-none transition-all duration-300 bg-white hover:border-gray-300 hover:shadow-md cursor-pointer text-sm font-medium text-gray-700"
-              style={{ fontSize: '14px', appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none', backgroundImage: 'url("data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e")', backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem' }}
-            >
-              <option value="all">🏷️ All Status</option>
-              {statusOptions.map(status => (
-                <option key={status} value={status}>{status}</option>
-              ))}
-            </select>
-          </div>
+          {/* ✅ REMOVED: Sub-Function and Status filter dropdowns */}
         </div>
         
-          {(searchTerm || selectedSubFunction !== 'all' || selectedStatus !== 'all') && (
-          <div className="flex items-center justify-between">
+        {searchTerm && (
           <p className="text-sm text-gray-600">
-              Found {filteredRequests.length} result{filteredRequests.length !== 1 ? 's' : ''}
-              {searchTerm && ` for "${searchTerm}"`}
-              {selectedSubFunction !== 'all' && ` in ${selectedSubFunction}`}
-              {selectedStatus !== 'all' && ` with status: ${selectedStatus}`}
-            </p>
-            <button
-              onClick={() => {
-                setSearchTerm('')
-                setSelectedSubFunction('all')
-                setSelectedStatus('all')
-              }}
-              className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
-            >
-              Clear all filters
-            </button>
-          </div>
+            Found {filteredRequests.length} result{filteredRequests.length !== 1 ? 's' : ''}
+            {searchTerm && ` for "${searchTerm}"`}
+          </p>
         )}
       </div>
 
@@ -550,7 +489,14 @@ function MyRequestsContent() {
               {filteredRequests.length > 0 ? (
                 filteredRequests.map((request) => (
                   <tr key={request.id} className="border-b border-gray-100 transition-all duration-300 hover:bg-gray-50">
-                    <td className="px-6 py-5 whitespace-nowrap text-sm font-bold text-indigo-600">{request.displayId}</td>
+                    <td className="px-6 py-5 whitespace-nowrap text-sm font-bold text-indigo-600">
+                      {request.displayId}
+                      {request.internalRrfNo && (
+                        <div className="text-xs font-semibold text-purple-600 mt-1">
+                          Internal: {request.internalRrfNo}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-600">{request.project}</td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm font-medium text-gray-900">{request.role}</td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-600">{request.subFunction || '—'}</td>
@@ -593,7 +539,12 @@ function MyRequestsContent() {
               <div key={request.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1 min-w-0">
-                    <div className="text-xs font-bold text-indigo-600 mb-1">{request.displayId}</div>
+                    <div className="text-xs font-bold text-indigo-600 mb-1">
+                      {request.displayId}
+                      {request.internalRrfNo && (
+                        <span className="text-purple-600 ml-2">({request.internalRrfNo})</span>
+                      )}
+                    </div>
                     <div className="text-sm font-bold text-gray-900 truncate">{request.role}</div>
                     <div className="text-xs text-gray-500 truncate">{request.project} {request.subFunction ? `• ${request.subFunction}` : ''}</div>
                   </div>

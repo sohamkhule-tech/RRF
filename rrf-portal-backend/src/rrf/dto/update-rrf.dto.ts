@@ -79,6 +79,10 @@ export class UpdateRrfDto {
   @IsOptional()
   preferredSkills?: string;
 
+  @IsString()
+  @IsOptional()
+  technologies?: string;
+
   @IsNumber()
   @IsOptional()
   @Min(0)

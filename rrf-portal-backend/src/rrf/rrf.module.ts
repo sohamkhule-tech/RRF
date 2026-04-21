@@ -9,11 +9,13 @@ import { RrfFormConfig } from './entities/rrf-form-config.entity';
 import { User } from '../users/user.entity';
 import { Permission } from '../permissions/permission.entity';
 import { PermissionsModule } from '../permissions/permissions.module';
+import { JobDescriptionsModule } from '../job-descriptions/job-descriptions.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Rrf, RrfApprover, RrfFormConfig, User, Permission]),
     PermissionsModule,
+    JobDescriptionsModule,
   ],
   controllers: [RrfController],
   providers: [RrfService, RrfFormConfigService],

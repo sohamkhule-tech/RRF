@@ -34,11 +34,6 @@ function OpenPositionsPage() {
     fetchOpenPositions();
   }, [fetchOpenPositions]);
 
-  const formatDate = (dateString) => {
-    if (!dateString) return '—';
-    return new Date(dateString).toLocaleDateString('en-GB');
-  };
-
   const getPriorityBadge = (priority) => {
     const cfg = {
       'Low':      { bg: '#f3f4f6', color: '#374151' },
@@ -151,7 +146,7 @@ function OpenPositionsPage() {
           <table className="w-full min-w-0">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">RRF ID</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">ID</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Requester</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Role</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Project</th>
@@ -197,7 +192,7 @@ function OpenPositionsPage() {
                       {getPriorityBadge(rrf.priority)}
                     </td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(rrf.approvedAt || rrf.createdAt)}
+                      {(rrf.approvedAt || rrf.createdAt) ? new Date(rrf.approvedAt || rrf.createdAt).toLocaleDateString('en-GB') : 'N/A'}
                     </td>
                     <td className="px-6 py-5 whitespace-nowrap">
                       <ActionButton
@@ -250,7 +245,7 @@ function OpenPositionsPage() {
                     {rrf.headcount || 1} pos
                   </span>
                 </div>
-                <div className="text-xs text-gray-500 mb-3">Approved: {formatDate(rrf.approvedAt || rrf.createdAt)}</div>
+                <div className="text-xs text-gray-500 mb-3">Approved: {(rrf.approvedAt || rrf.createdAt) ? new Date(rrf.approvedAt || rrf.createdAt).toLocaleDateString('en-GB') : 'N/A'}</div>
                 <div className="flex justify-end pt-2 border-t border-gray-100">
                   <ActionButton role="PMO" status={rrf.status} href={`/pmo/view-rrf/${rrf.id}`} />
                 </div>

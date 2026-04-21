@@ -24,6 +24,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { ErrorMessage } from '@/components/ErrorMessage'
 import InfoField from '@/components/InfoField'
 import StatusWithDetails from '@/components/StatusWithDetails'
+import RRFContentSections from '@/components/RRFContentSections'
 import { rrfApi } from '@/lib/api/rrfApi'
 
 export default function HRViewRRFPage() {
@@ -77,9 +78,6 @@ export default function HRViewRRFPage() {
   }
   
   const sections = [
-    ...(isPending
-      ? [{ id: 'approval', label: 'Approval Decision', icon: <UserOutlined className="text-lg" /> }]
-      : []),
     { id: 'requisition', label: 'Requisition Info',       icon: <BuildOutlined    className="text-lg" /> },
     { id: 'position',    label: 'Position Details',        icon: <UserOutlined     className="text-lg" /> },
     { id: 'technical',   label: 'Technical Requirements',  icon: <ToolOutlined     className="text-lg" /> },
@@ -90,9 +88,7 @@ export default function HRViewRRFPage() {
   const rrfData = rrf ? {
     id: rrf.id,
     displayId: rrf.rrfNumber || rrf.subId,
-    submittedDate: rrf.submittedAt
-      ? new Date(rrf.submittedAt).toLocaleDateString('en-GB')
-      : new Date(rrf.createdAt).toLocaleDateString('en-GB'),
+    submittedDate: (rrf.submittedAt || rrf.createdAt) ? new Date(rrf.submittedAt || rrf.createdAt).toLocaleDateString('en-GB') : 'N/A',
     status: rrf.status === 'pending'   ? 'Pending Approval'
           : rrf.status === 'approved'  ? 'Approved'
           : rrf.status === 'rejected'  ? 'Declined'
@@ -110,9 +106,7 @@ export default function HRViewRRFPage() {
     customerName:   rrf.customerName,
     projectName:    rrf.projectName,
     jobTitle:       rrf.positionTitle,
-    billingStartDate: rrf.expectedStartDate
-      ? new Date(rrf.expectedStartDate).toLocaleDateString('en-GB')
-      : null,
+    billingStartDate: rrf.expectedStartDate ? new Date(rrf.expectedStartDate).toLocaleDateString('en-GB') : null,
     positionType:       rrf.positionType,
     employmentType:     rrf.employmentType,
     workMode:           rrf.workMode,
@@ -124,8 +118,9 @@ export default function HRViewRRFPage() {
       : null,
     requiredSkills:  rrf.requiredSkills,
     preferredSkills: rrf.preferredSkills,
+    primaryTechnologies: rrf.technologies,
     jobDescription:  rrf.jobDescription,
-    additionalNotes: rrf.urgencyReason,
+    additionalNotes: rrf.notes || rrf.urgencyReason,
     // ── Decision fields ─────────────────────────────────────────────
     // declineReason: set by /decline endpoint; fallback to notes (on-hold) or statusHistory
     declineReason:  rrf.declineReason
@@ -234,7 +229,7 @@ export default function HRViewRRFPage() {
                 />
               </div>
               <div className="text-xs text-slate-300 font-medium space-y-1">
-                <div>RRF-{rrfData.id}</div>
+                <div>{rrfData.displayId}</div>
                 <div>Requested on: {rrfData.submittedDate}</div>
               </div>
             </div>
@@ -299,7 +294,7 @@ export default function HRViewRRFPage() {
               <div className="print-header">
                 <h1 className="text-3xl font-bold text-slate-900 mb-2">{rrfData.jobTitle}</h1>
                 <div className="flex items-center gap-4 text-sm text-slate-600">
-                  <span>RRF-{rrfData.id}</span><span>•</span>
+                  <span>{rrfData.displayId}</span><span>•</span>
                   <span>Submitted: {rrfData.submittedDate}</span><span>•</span>
                   <StatusWithDetails 
                     status={rrfData.status} 
@@ -310,158 +305,7 @@ export default function HRViewRRFPage() {
                 </div>
               </div>
 
-              {/* ── APPROVAL DECISION SECTION ─── */}
-              {isPending && (
-                <div className={`space-y-6 print-section ${activeSection === 'approval' ? '' : 'screen-hidden'}`}>
-                  <h3 className="text-xl md:text-2xl font-bold border-b-2 border-slate-200 pb-3 mb-6 text-slate-800">
-                    Approval Status
-                  </h3>
-                  
-                  {/* Per-approver comments */}
-                  {rrfData.approvers.filter(a => a.comments).length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3">Approver Comments</h4>
-                      <div className="space-y-3">
-                        {rrfData.approvers
-                          .filter(a => a.comments)
-                          .map((approver, idx) => (
-                            <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-                              <div className="flex items-start justify-between gap-3 mb-2">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
-                                    <UserOutlined className="text-indigo-600 text-xs" />
-                                  </div>
-                                  <div>
-                                    <p className="text-sm font-bold text-slate-800">
-                                      {approver.user?.fullName || 'Approver'}
-                                    </p>
-                                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                                      approver.approvalStatus === 'approved' ? 'bg-emerald-100 text-emerald-700' :
-                                      approver.approvalStatus === 'rejected' ? 'bg-red-100 text-red-700' :
-                                      'bg-slate-100 text-slate-600'
-                                    }`}>
-                                      {approver.approvalStatus?.toUpperCase()}
-                                    </span>
-                                  </div>
-                                </div>
-                                {(approver.approvedAt || approver.rejectedAt) && (
-                                  <p className="text-xs text-slate-400 flex-shrink-0">
-                                    {new Date(approver.approvedAt || approver.rejectedAt).toLocaleDateString('en-GB')}
-                                  </p>
-                                )}
-                              </div>
-                              <p className="text-sm text-slate-700 leading-relaxed ml-10">
-                                {approver.comments}
-                              </p>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Status history timeline */}
-                  {rrfData.statusHistory?.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3">Status History</h4>
-                      <div className="relative ml-3">
-                        <div className="absolute left-3 top-0 bottom-0 w-px bg-slate-200" />
-                        <div className="space-y-4">
-                          {rrfData.statusHistory.map((entry, idx) => (
-                            <div key={idx} className="relative flex items-start gap-4 pl-8">
-                              <div className="absolute left-0 w-6 h-6 rounded-full bg-white border-2 border-slate-300 flex items-center justify-center" style={{ top: '2px' }}>
-                                <div className="w-2 h-2 rounded-full bg-indigo-500" />
-                              </div>
-                              <div className="flex-1 bg-white border border-slate-100 rounded-lg p-3 shadow-sm">
-                                <div className="flex items-center justify-between flex-wrap gap-2">
-                                  <span className={`text-xs font-bold uppercase px-2.5 py-1 rounded-full ${
-                                    entry.status === 'declined' || entry.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                                    entry.status === 'approved'      ? 'bg-emerald-100 text-emerald-700' :
-                                    entry.status === 'on-hold'       ? 'bg-amber-100 text-amber-700' :
-                                    entry.status === 'pending'       ? 'bg-blue-100 text-blue-700' :
-                                    'bg-slate-100 text-slate-600'
-                                  }`}>
-                                    {entry.status?.replace(/-/g, ' ')}
-                                  </span>
-                                  {entry.changedAt && (
-                                    <span className="text-xs text-slate-400">
-                                      {new Date(entry.changedAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}
-                                    </span>
-                                  )}
-                                </div>
-                                {entry.reason && (
-                                  <p className="mt-1.5 text-sm text-slate-600">{entry.reason}</p>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Requisition Info */}
-              <div className={`space-y-8 print-section ${activeSection === 'requisition' ? '' : 'screen-hidden'}`}>
-                <h3 className="text-xl md:text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Requisition Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <InfoField label="Requisition Manager" value={rrfData.managerName} />
-                  <InfoField label="Entity"              value={rrfData.entity} />
-                  <InfoField label="Organisation"        value={rrfData.organisation} />
-                  <InfoField label="Function"            value={rrfData.function} />
-                  <InfoField label="Sub-function"        value={rrfData.subFunction} />
-                  <InfoField label="Department"          value={rrfData.department} />
-                  <InfoField label="Requisition Type"    value={rrfData.requisitionType} />
-                  <InfoField label="Customer Name"       value={rrfData.customerName} />
-                  <InfoField label="Project Name"        value={rrfData.projectName} />
-                  <InfoField label="Billing Start Date"  value={rrfData.billingStartDate} />
-                </div>
-              </div>
-
-              {/* Position Details */}
-              <div className={`space-y-8 print-section ${activeSection === 'position' ? '' : 'screen-hidden'}`}>
-                <h3 className="text-xl md:text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Position Details</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <InfoField label="Position Type"       value={rrfData.positionType} />
-                  <InfoField label="Employment Type"       value={rrfData.employmentType} />
-                  <InfoField label="Work Mode"       value={rrfData.workMode} />
-                  <InfoField label="Number of Positions" value={rrfData.numberOfPositions} />
-                  {/* Priority has special badge styling — keep inline */}
-                  {rrfData.priorityLevel && (
-                    <div className="bg-[#E3F2FD] rounded-lg p-4 shadow-sm">
-                      <p className="text-[10px] font-bold uppercase text-slate-500 tracking-wider mb-1">Priority Level</p>
-                      <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-bold ${
-                        rrfData.priorityLevel === 'High'     ? 'bg-orange-100 text-orange-800 border border-orange-200' :
-                        rrfData.priorityLevel === 'Critical' ? 'bg-red-100 text-red-800 border border-red-200' :
-                        rrfData.priorityLevel === 'Medium'   ? 'bg-blue-100 text-blue-800 border border-blue-200' :
-                        'bg-gray-100 text-gray-800 border border-gray-200'
-                      }`}>
-                        {rrfData.priorityLevel}
-                      </span>
-                    </div>
-                  )}
-                  <InfoField label="Job Location"        value={rrfData.jobLocation} />
-                  <InfoField label="Experience Required"  value={rrfData.minimumExperience} />
-                </div>
-              </div>
-
-              {/* Technical Requirements */}
-              <div className={`space-y-8 print-section ${activeSection === 'technical' ? '' : 'screen-hidden'}`}>
-                <h3 className="text-xl md:text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Technical Requirements</h3>
-                <div className="space-y-4">
-                  <InfoField label="Required Skills"     value={rrfData.requiredSkills}  rich />
-                  <InfoField label="Preferred Skills"    value={rrfData.preferredSkills} rich />
-                </div>
-              </div>
-
-              {/* Job Description */}
-              <div className={`space-y-8 print-section ${activeSection === 'description' ? '' : 'screen-hidden'}`}>
-                <h3 className="text-xl md:text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Job Description</h3>
-                <div className="space-y-4">
-                  <InfoField label="Job Description" value={rrfData.jobDescription} rich />
-                  <InfoField label="Additional Notes" value={rrfData.additionalNotes} rich />
-                </div>
-              </div>
+              <RRFContentSections rrfData={rrfData} activeSection={activeSection} />
             </div>
           </div>
         </div>
@@ -502,7 +346,9 @@ export default function HRViewRRFPage() {
                   <option value="Resource Hired (External Candidate)">Resource Hired (External Candidate)</option>
                   <option value="Sourced Internally">Sourced Internally</option>
                   <option value="Closed/Cancelled by Business">Closed/Cancelled by Business</option>
-                  <option value="Replacement Dropped">Replacement Dropped</option>
+                  {(rrfData.positionType?.toLowerCase() === 'replacement' || rrfData.requisitionType?.toLowerCase() === 'replacement') && (
+                    <option value="Replacement Dropped">Replacement Dropped</option>
+                  )}
                 </select>
               </div>
               

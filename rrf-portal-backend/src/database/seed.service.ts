@@ -9,6 +9,9 @@ import { User } from '../users/user.entity';
 import { Rrf, RrfStatus, Priority, EmploymentType } from '../rrf/entities/rrf.entity';
 import { RrfApprover, ApprovalLevel, ApprovalStatus } from '../rrf/entities/rrf-approver.entity';
 import { RrfFormConfig } from '../rrf/entities/rrf-form-config.entity';
+import { Subfunction } from '../subfunctions/subfunction.entity';
+import { Function } from '../functions/function.entity';
+import { JobDescription } from '../job-descriptions/job-description.entity';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -32,6 +35,12 @@ export class SeedService {
     private rrfApproverRepository: Repository<RrfApprover>,
     @InjectRepository(RrfFormConfig)
     private rrfFormConfigRepository: Repository<RrfFormConfig>,
+    @InjectRepository(Subfunction)
+    private subfunctionRepository: Repository<Subfunction>,
+    @InjectRepository(Function)
+    private functionRepository: Repository<Function>,
+    @InjectRepository(JobDescription)
+    private jobDescriptionRepository: Repository<JobDescription>,
   ) {}
 
   async seedAll() {
@@ -41,23 +50,32 @@ export class SeedService {
       // 1. Seed Roles
       await this.seedRoles();
 
-      // 2. Seed Modules
+      // 2. Seed Functions
+      await this.seedFunctions();
+
+      // 3. Seed Subfunctions
+      await this.seedSubfunctions();
+
+      // 4. Seed Modules
       await this.seedModules();
 
-      // 3. Seed Permissions
+      // 4. Seed Permissions
       await this.seedPermissions();
 
-      // 4. Map Role-Permissions
+      // 5. Map Role-Permissions
       await this.seedRolePermissions();
 
-      // 5. Seed Demo Users
+      // 6. Seed Demo Users
       await this.seedUsers();
 
-      // 6. Seed Sample RRFs
+      // 7. Seed Sample RRFs
       await this.seedRrfs();
 
-      // 7. Seed Form Configurations
+      // 8. Seed Form Configurations
       await this.seedFormConfigs();
+
+      // 9. Seed Job Descriptions
+      await this.seedJobDescriptions();
 
       this.logger.log('✅ Database seed completed successfully!');
     } catch (error) {
@@ -90,7 +108,7 @@ export class SeedService {
         isActive: true,
       },
       {
-        roleName: 'HR Team',
+        roleName: 'Talent Acquisition',
         roleCode: 'HR',
         description: 'HR team member who processes approved RRFs',
         priority: 4,
@@ -116,6 +134,151 @@ export class SeedService {
         this.logger.log(`✓ Created role: ${roleData.roleName}`);
       } else {
         this.logger.log(`⊙ Role already exists: ${roleData.roleName}`);
+      }
+    }
+  }
+
+  private async seedFunctions() {
+    const functions = [
+      { name: 'Delivery', description: 'Delivery Department', displayOrder: 1 },
+      { name: 'Sales', description: 'Sales and Marketing', displayOrder: 2 },
+      { name: 'Support', description: 'Support and Operations', displayOrder: 3 },
+    ];
+
+    for (const funcData of functions) {
+      const exists = await this.functionRepository.findOne({
+        where: { name: funcData.name },
+      });
+
+      if (!exists) {
+        const func = this.functionRepository.create({
+          ...funcData,
+          isActive: true,
+        });
+        await this.functionRepository.save(func);
+        this.logger.log(`✓ Created function: ${funcData.name}`);
+      } else {
+        this.logger.log(`⊙ Function already exists: ${funcData.name}`);
+      }
+    }
+  }
+
+  private async seedSubfunctions() {
+    const subfunctions = [
+      // Delivery subfunctions
+      { 
+        name: 'SGINTL', 
+        function: 'Delivery', 
+        description: 'SGINTL Delivery Team',
+        displayOrder: 1,
+        isActive: true,
+      },
+      { 
+        name: 'VR', 
+        function: 'Delivery', 
+        description: 'VR Delivery Team',
+        displayOrder: 2,
+        isActive: true,
+      },
+      { 
+        name: 'PMO', 
+        function: 'Delivery', 
+        description: 'Project Management Office',
+        displayOrder: 3,
+        isActive: true,
+      },
+      
+      // Sales subfunctions
+      { 
+        name: 'BDE', 
+        function: 'Sales', 
+        description: 'Business Development Executive',
+        displayOrder: 1,
+        isActive: true,
+      },
+      { 
+        name: 'Sales', 
+        function: 'Sales', 
+        description: 'Sales Team',
+        displayOrder: 2,
+        isActive: true,
+      },
+      { 
+        name: 'MR', 
+        function: 'Sales', 
+        description: 'Marketing Representative',
+        displayOrder: 3,
+        isActive: true,
+      },
+      { 
+        name: 'Marketing', 
+        function: 'Sales', 
+        description: 'Marketing Team',
+        displayOrder: 4,
+        isActive: true,
+      },
+      
+      // Support subfunctions
+      { 
+        name: 'Human Resources', 
+        function: 'Support', 
+        description: 'HR Department',
+        displayOrder: 1,
+        isActive: true,
+      },
+      { 
+        name: 'Talent Acquisition', 
+        function: 'Support', 
+        description: 'TA Department',
+        displayOrder: 2,
+        isActive: true,
+      },
+      { 
+        name: 'Accounts', 
+        function: 'Support', 
+        description: 'Accounts Department',
+        displayOrder: 3,
+        isActive: true,
+      },
+      { 
+        name: 'IT Networking', 
+        function: 'Support', 
+        description: 'IT and Networking Support',
+        displayOrder: 4,
+        isActive: true,
+      },
+    ];
+
+    for (const subfunctionData of subfunctions) {
+      const existingSubfunction = await this.subfunctionRepository.findOne({
+        where: { name: subfunctionData.name },
+      });
+
+      if (!existingSubfunction) {
+        // Find the parent function entity
+        const parentFunction = await this.functionRepository.findOne({
+          where: { name: subfunctionData.function }
+        });
+
+        const subfunction = this.subfunctionRepository.create({
+          ...subfunctionData,
+          functionEntity: parentFunction, // Link to the actual entity
+        });
+        await this.subfunctionRepository.save(subfunction);
+        this.logger.log(`✓ Created subfunction: ${subfunctionData.name} (${subfunctionData.function})`);
+      } else {
+        // Even if it exists, ensure the link is there (migration/safety)
+        if (!existingSubfunction.functionEntity) {
+           const parentFunction = await this.functionRepository.findOne({
+            where: { name: subfunctionData.function }
+          });
+          if (parentFunction) {
+            existingSubfunction.functionEntity = parentFunction;
+            await this.subfunctionRepository.save(existingSubfunction);
+            this.logger.log(`⚡ Linked existing subfunction: ${subfunctionData.name} to ${subfunctionData.function}`);
+          }
+        }
+        this.logger.log(`⊙ Subfunction already exists: ${subfunctionData.name}`);
       }
     }
   }
@@ -219,6 +382,9 @@ export class SeedService {
           { code: 'READ', name: 'View RRF', description: 'View resource requisition forms' },
           { code: 'UPDATE', name: 'Update RRF', description: 'Edit resource requisition forms' },
           { code: 'DELETE', name: 'Delete RRF', description: 'Delete resource requisition forms' },
+          { code: 'OPEN_FOR_HIRING', name: 'Open for Hiring', description: 'Mark RRF as open for hiring' },
+          { code: 'FILL_FROM_BENCH', name: 'Fill from Bench', description: 'Fill position from bench resources' },
+          { code: 'CLOSE', name: 'Close RRF', description: 'Close resource requisition forms' },
         ],
       },
       // Approvals Permissions
@@ -295,8 +461,9 @@ export class SeedService {
     // Define role-permission mappings
     const roleMappings = {
       ADMIN: [
-        // Admin: Full access to Users, Settings, Dashboard, Reports (NO business operations)
+        // Admin: Full access to Users, Settings, Dashboard, Reports + Read RRF for statistics
         'DASHBOARD.READ',
+        'RRF.READ',  // Added for admin dashboard statistics
         'USERS.CREATE',
         'USERS.READ',
         'USERS.UPDATE',
@@ -313,6 +480,9 @@ export class SeedService {
         'RRF.READ',
         'RRF.UPDATE',
         'RRF.DELETE',
+        'RRF.OPEN_FOR_HIRING',
+        'RRF.FILL_FROM_BENCH',
+        'RRF.CLOSE',
         'APPROVALS.READ',
         'USERS.READ',
         'REPORTS.READ',
@@ -328,9 +498,10 @@ export class SeedService {
         'REPORTS.READ',
       ],
       HR: [
-        // HR: View approved RRFs, basic dashboard
+        // HR: View approved RRFs, basic dashboard, close completed positions
         'DASHBOARD.READ',
         'RRF.READ',
+        'RRF.CLOSE',
         'APPROVALS.READ',
         'REPORTS.READ',
         'REPORTS.EXPORT',
@@ -789,5 +960,100 @@ export class SeedService {
     this.logger.log('   Step 2 - Position Details:');
     this.logger.log('     • Position Type, Employment Type, Priority');
     this.logger.log('     • Work Mode, Location');
+  }
+
+  /**
+   * Seed initial job description templates
+   */
+  private async seedJobDescriptions() {
+    const existing = await this.jobDescriptionRepository.count();
+
+    if (existing > 0) {
+      this.logger.log('⊙ Job Descriptions already seeded');
+      return;
+    }
+
+    // Use a default user ID for seeded JDs (Admin or PMO)
+    const adminUser = await this.userRepository.findOne({ where: { userId: 'admin001' } });
+    const creatorId = adminUser ? adminUser.id : 1;
+
+    const jds = [
+      {
+        title: 'Senior Backend Developer',
+        description: `
+          <p><strong>Responsibilities:</strong></p>
+          <ul>
+            <li>Design and develop scalable RESTful APIs using Node.js and NestJS.</li>
+            <li>Maintain and optimize PostgreSQL databases and TypeORM entities.</li>
+            <li>Implement security and data protection measures.</li>
+            <li>Collaborate with frontend developers to integrate user-facing elements.</li>
+          </ul>
+          <p><strong>Requirements:</strong></p>
+          <ul>
+            <li>Proven experience as a Backend Developer.</li>
+            <li>In-depth knowledge of Node.js engine and asynchronous programming.</li>
+            <li>Experience with cloud services (AWS/Azure) and Docker containers.</li>
+          </ul>`,
+        createdById: creatorId
+      },
+      {
+        title: 'Senior Frontend Developer',
+        description: `
+          <p><strong>Responsibilities:</strong></p>
+          <ul>
+            <li>Build reusable components and frontend libraries for future use.</li>
+            <li>Translate designs and wireframes into high-quality code using React.js.</li>
+            <li>Optimize components for maximum performance across various web-capable devices and browsers.</li>
+          </ul>
+          <p><strong>Requirements:</strong></p>
+          <ul>
+            <li>Expertise in React.js, Next.js, and modern CSS frameworks (Tailwind/Sass).</li>
+            <li>Strong understanding of state management (Redux/Context API).</li>
+            <li>Experience with responsive and adaptive design principles.</li>
+          </ul>`,
+        createdById: creatorId
+      },
+      {
+        title: 'DevOps Engineer',
+        description: `
+          <p><strong>Responsibilities:</strong></p>
+          <ul>
+            <li>Manage CI/CD pipelines and deployment automation tools.</li>
+            <li>Monitor system performance and ensure high availability.</li>
+            <li>Implement infrastructure as code using Terraform or CloudFormation.</li>
+          </ul>
+          <p><strong>Requirements:</strong></p>
+          <ul>
+            <li>Hands-on experience with Docker, Kubernetes, and cloud platforms like AWS.</li>
+            <li>Proficiency in scripting languages (Bash, Python).</li>
+            <li>Knowledge of networking, security, and storage in cloud environments.</li>
+          </ul>`,
+        createdById: creatorId
+      },
+      {
+        title: 'QA Lead',
+        description: `
+          <p><strong>Responsibilities:</strong></p>
+          <ul>
+            <li>Establish and maintain automation testing frameworks.</li>
+            <li>Lead the QA team in creating comprehensive test strategies and plans.</li>
+            <li>Analyze bug reports and highlight potential risks in the project life cycle.</li>
+          </ul>
+          <p><strong>Requirements:</strong></p>
+          <ul>
+            <li>Extensive experience with Selenium, Cypress, or Playwright.</li>
+            <li>Strong knowledge of software QA methodologies, tools, and processes.</li>
+            <li>Excellent leadership and communication skills.</li>
+          </ul>`,
+        createdById: creatorId
+      }
+    ];
+
+    for (const jdData of jds) {
+      const jd = this.jobDescriptionRepository.create(jdData);
+      await this.jobDescriptionRepository.save(jd);
+    }
+
+    this.logger.log('✓ Job Descriptions seeded successfully');
   }
 }

@@ -1,0 +1,471 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  UseInterceptors,
+  HttpCode,
+  HttpStatus,
+  ParseIntPipe,
+  ParseBoolPipe,
+  DefaultValuePipe,
+  ForbiddenException,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiQuery,
+  ApiBearerAuth,
+  ApiBody,
+} from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionGuard } from '../guards/permission.guard';
+import { RequirePermission } from '../decorators/require-permission.decorator';
+import { CurrentUser } from '../decorators/current-user.decorator';
+import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { TransformInterceptor } from '../common/interceptors/transform.interceptor';
+import { RrfService } from './rrf.service';
+import { RrfFormConfigService } from './rrf-form-config.service';
+import { CreateRrfDto } from './dto/create-rrf.dto';
+import { UpdateRrfDto } from './dto/update-rrf.dto';
+import { RrfQueryDto } from './dto/rrf-query.dto';
+import { UpdateRrfFormConfigDto } from './dto/update-rrf-form-config.dto';
+import { ApproveRrfDto } from './dto/approve-rrf.dto';
+import { RejectRrfDto } from './dto/reject-rrf.dto';
+import { DeclineRrfDto } from './dto/decline-rrf.dto';
+import { OnHoldRrfDto } from './dto/on-hold-rrf.dto';
+import { FillByBenchDto } from './dto/fill-by-bench.dto';
+import { CloseRrfDto } from './dto/close-rrf.dto';
+
+@ApiTags('RRF - Resource Requisition Forms')
+@ApiBearerAuth()
+@Controller('rrf')
+@UseGuards(JwtAuthGuard, PermissionGuard)
+@UseInterceptors(TransformInterceptor)
+export class RrfController {
+  constructor(
+    private readonly rrfService: RrfService,
+    private readonly formConfigService: RrfFormConfigService,
+  ) {}
+
+  @Post()
+  @RequirePermission('RRF.CREATE')
+  @ApiOperation({ 
+    summary: 'Create new RRF',
+    description: 'Creates a new Resource Requisition Form. Available to users with RRF.CREATE permission.',
+  })
+  @ApiResponse({ status: 201, description: 'RRF created successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid input data' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  async create(
+    @Body() createRrfDto: CreateRrfDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const rrf = await this.rrfService.create(createRrfDto, user.id);
+    return { message: 'RRF created successfully', data: rrf };
+  }
+
+  @Get()
+  @RequirePermission('RRF.READ')
+  @ApiOperation({ 
+    summary: 'Get all RRFs with filtering and pagination',
+    description: 'Retrieves a paginated list of RRFs with optional filters (status, createdById)',
+  })
+  @ApiQuery({ name: 'status', required: false, description: 'Filter by status (comma-separated)', example: 'pending,approved' })
+  @ApiQuery({ name: 'createdById', required: false, type: Number, description: 'Filter by creator user ID' })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default: 10)' })
+  @ApiResponse({ status: 200, description: 'Returns paginated RRF list' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  async findAll(
+    @Query() queryDto: RrfQueryDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.rrfService.findAll(queryDto, user);
+  }
+
+  @Get('my-requests')
+  @RequirePermission('RRF.READ')
+  @ApiOperation({ 
+    summary: "Get current user's RRFs",
+    description: 'Retrieves all RRFs created by the authenticated user (Hiring Manager view)',
+  })
+  @ApiResponse({ status: 200, description: 'Returns user-created RRFs' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getMyRequests(@CurrentUser() user: AuthUser) {
+    return this.rrfService.findByCreator(user.id);
+  }
+
+  @Get('statistics')
+  @RequirePermission('RRF.READ')
+  @ApiOperation({ 
+    summary: 'Get RRF statistics',
+    description: 'Retrieves aggregated statistics (counts by status). Pass ?all=true to get system-wide stats.',
+  })
+  @ApiQuery({ 
+    name: 'all', 
+    required: false, 
+    type: Boolean,
+    description: 'If true, returns system-wide stats; otherwise returns stats for current user only',
+  })
+  @ApiResponse({ status: 200, description: 'Returns RRF statistics' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getStatistics(
+    @CurrentUser() user: AuthUser,
+    @Query('all', new DefaultValuePipe(false), ParseBoolPipe) all: boolean,
+  ) {
+    const userId = all ? undefined : user.id;
+    return this.rrfService.getStatistics(userId);
+  }
+
+  @Get('pending-approvals')
+  @RequirePermission('APPROVALS.APPROVE')
+  @ApiOperation({ 
+    summary: 'Get pending approvals (Approver dashboard)',
+    description: 'Retrieves all RRFs with status=pending awaiting approval',
+  })
+  @ApiResponse({ status: 200, description: 'Returns pending RRFs' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  async getPendingApprovals() {
+    return this.rrfService.getPendingApprovals();
+  }
+
+  @Get('pmo/open-positions')
+  @RequirePermission('RRF.READ')
+  @ApiOperation({ 
+    summary: 'Get open positions (PMO dashboard)',
+    description: 'Retrieves all approved RRFs open for hiring',
+  })
+  @ApiResponse({ status: 200, description: 'Returns open positions' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getOpenPositions() {
+    return this.rrfService.getOpenPositions();
+  }
+
+  @Get('pmo/dashboard-stats')
+  @RequirePermission('RRF.READ')
+  @ApiOperation({ 
+    summary: 'Get PMO dashboard statistics',
+    description: 'Retrieves aggregated metrics for PMO dashboard view',
+  })
+  @ApiResponse({ status: 200, description: 'Returns PMO statistics' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getPMODashboardStats() {
+    return this.rrfService.getPMODashboardStats();
+  }
+
+  @Get('hr/open-for-hiring')
+  @RequirePermission('RRF.READ')
+  @ApiOperation({ 
+    summary: 'Get open for hiring (HR dashboard)',
+    description: 'Retrieves all RRFs with status=open-for-hiring or in-progress',
+  })
+  @ApiResponse({ status: 200, description: 'Returns RRFs open for hiring' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getOpenForHiring() {
+    return this.rrfService.getOpenForHiring();
+  }
+
+  @Get('form-config')
+  @RequirePermission('RRF.READ')
+  @ApiOperation({ 
+    summary: 'Get all form configurations',
+    description: 'Retrieves dynamic dropdown options for RRF form fields',
+  })
+  @ApiResponse({ status: 200, description: 'Returns form configurations' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getFormConfigs() {
+    return this.formConfigService.findAll();
+  }
+
+  @Put('form-config/:fieldName')
+  @RequirePermission('RRF.DELETE')
+  @ApiOperation({ 
+    summary: 'Update form configuration (Admin/PMO only)',
+    description: 'Updates dropdown options for a specific form field',
+  })
+  @ApiParam({ name: 'fieldName', description: 'Name of the form field to update', example: 'departments' })
+  @ApiResponse({ status: 200, description: 'Configuration updated successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid field name or data' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  @ApiResponse({ status: 404, description: 'Field configuration not found' })
+  async updateFormConfig(
+    @Param('fieldName') fieldName: string,
+    @Body() updateDto: UpdateRrfFormConfigDto,
+  ) {
+    const config = await this.formConfigService.updateConfig(fieldName, updateDto);
+    return { message: 'Form configuration updated successfully', data: config };
+  }
+
+  @Get(':id')
+  @RequirePermission('RRF.READ')
+  @ApiOperation({ 
+    summary: 'Get single RRF by ID',
+    description: 'Retrieves detailed information for a specific RRF',
+  })
+  @ApiParam({ name: 'id', description: 'RRF ID', type: Number, example: 123 })
+  @ApiResponse({ status: 200, description: 'Returns RRF details' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'RRF not found' })
+  async findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.rrfService.findOne(id);
+  }
+
+  @Put(':id')
+  @RequirePermission('RRF.UPDATE')
+  @ApiOperation({ 
+    summary: 'Update RRF',
+    description: 'Updates an existing RRF. Only the creator or admin can update.',
+  })
+  @ApiParam({ name: 'id', description: 'RRF ID', type: Number })
+  @ApiResponse({ status: 200, description: 'RRF updated successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid input data' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions or not the creator' })
+  @ApiResponse({ status: 404, description: 'RRF not found' })
+  async update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateRrfDto: UpdateRrfDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    // Ownership validation: ensure user is creator or has admin permission
+    const rrf = await this.rrfService.findOne(id);
+    if (rrf.createdById !== user.id && !user.permissions?.includes('RRF.DELETE')) {
+      throw new ForbiddenException('You can only update your own RRFs');
+    }
+
+    const updated = await this.rrfService.update(id, updateRrfDto, user.id);
+    return { message: 'RRF updated successfully', data: updated };
+  }
+
+  @Post(':id/submit')
+  @RequirePermission('RRF.UPDATE')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ 
+    summary: 'Submit RRF for approval',
+    description: 'Changes status from draft to pending, triggering the approval workflow',
+  })
+  @ApiParam({ name: 'id', description: 'RRF ID', type: Number })
+  @ApiResponse({ status: 200, description: 'RRF submitted successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid state transition' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Not the creator' })
+  @ApiResponse({ status: 404, description: 'RRF not found' })
+  async submit(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const rrf = await this.rrfService.submit(id, user.id);
+    return { message: 'RRF submitted for approval', data: rrf };
+  }
+
+  @Post(':id/approve')
+  @RequirePermission('APPROVALS.APPROVE')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ 
+    summary: 'Approve RRF (Approver action)',
+    description: 'Approves a pending RRF, moving it to approved status',
+  })
+  @ApiParam({ name: 'id', description: 'RRF ID', type: Number })
+  @ApiBody({ type: ApproveRrfDto })
+  @ApiResponse({ status: 200, description: 'RRF approved successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid state transition' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  @ApiResponse({ status: 404, description: 'RRF not found' })
+  async approve(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() approveDto: ApproveRrfDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const rrf = await this.rrfService.approve(id, user.id, approveDto.comments);
+    return { message: 'RRF approved successfully', data: rrf };
+  }
+
+  @Post(':id/reject')
+  @RequirePermission('APPROVALS.REJECT')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ 
+    summary: 'Reject RRF (Approver action)',
+    description: 'Rejects a pending RRF with mandatory comments',
+  })
+  @ApiParam({ name: 'id', description: 'RRF ID', type: Number })
+  @ApiBody({ type: RejectRrfDto })
+  @ApiResponse({ status: 200, description: 'RRF rejected' })
+  @ApiResponse({ status: 400, description: 'Invalid state or missing comments' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  @ApiResponse({ status: 404, description: 'RRF not found' })
+  async reject(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() rejectDto: RejectRrfDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const rrf = await this.rrfService.reject(id, user.id, rejectDto.comments);
+    return { message: 'RRF rejected', data: rrf };
+  }
+
+  @Post(':id/decline')
+  @RequirePermission('APPROVALS.APPROVE')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ 
+    summary: 'Decline RRF (Approver action)',
+    description: 'Declines a pending RRF with mandatory reason',
+  })
+  @ApiParam({ name: 'id', description: 'RRF ID', type: Number })
+  @ApiBody({ type: DeclineRrfDto })
+  @ApiResponse({ status: 200, description: 'RRF declined successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid state or missing reason' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  @ApiResponse({ status: 404, description: 'RRF not found' })
+  async decline(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() declineDto: DeclineRrfDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const rrf = await this.rrfService.decline(id, user.id, declineDto.reason);
+    return { message: 'RRF declined successfully', data: rrf };
+  }
+
+  @Post(':id/on-hold')
+  @RequirePermission('APPROVALS.ON_HOLD')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ 
+    summary: 'Put RRF on hold (Approver action)',
+    description: 'Places an RRF on hold with mandatory reason',
+  })
+  @ApiParam({ name: 'id', description: 'RRF ID', type: Number })
+  @ApiBody({ type: OnHoldRrfDto })
+  @ApiResponse({ status: 200, description: 'RRF put on hold successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid state or missing reason' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  @ApiResponse({ status: 404, description: 'RRF not found' })
+  async putOnHold(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() onHoldDto: OnHoldRrfDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const rrf = await this.rrfService.putOnHold(id, user.id, onHoldDto.reason);
+    return { message: 'RRF put on hold successfully', data: rrf };
+  }
+
+  @Post(':id/open-for-hiring')
+  @RequirePermission('RRF.OPEN_FOR_HIRING')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ 
+    summary: 'Open RRF for hiring (PMO action)',
+    description: 'Moves an approved RRF to open-for-hiring status',
+  })
+  @ApiParam({ name: 'id', description: 'RRF ID', type: Number })
+  @ApiResponse({ status: 200, description: 'RRF opened for hiring successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid state transition' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  @ApiResponse({ status: 404, description: 'RRF not found' })
+  async openForHiring(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const rrf = await this.rrfService.openForHiring(id, user.id);
+    return { message: 'RRF opened for hiring successfully', data: rrf };
+  }
+
+  @Post(':id/fill-by-bench')
+  @RequirePermission('RRF.FILL_FROM_BENCH')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ 
+    summary: 'Fill position from bench (PMO action)',
+    description: 'Marks the position as filled from internal bench resources',
+  })
+  @ApiParam({ name: 'id', description: 'RRF ID', type: Number })
+  @ApiBody({ type: FillByBenchDto })
+  @ApiResponse({ status: 200, description: 'Position filled by bench successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid state transition' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  @ApiResponse({ status: 404, description: 'RRF not found' })
+  async fillByBench(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() fillByBenchDto: FillByBenchDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const rrf = await this.rrfService.fillByBench(id, user.id, fillByBenchDto.notes);
+    return { message: 'Position filled by bench successfully', data: rrf };
+  }
+
+  @Post(':id/close')
+  @RequirePermission('RRF.CLOSE')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ 
+    summary: 'Close RRF (HR action)',
+    description: 'Closes an RRF by providing candidate details and closure information',
+  })
+  @ApiParam({ name: 'id', description: 'RRF ID', type: Number })
+  @ApiBody({ type: CloseRrfDto })
+  @ApiResponse({ status: 200, description: 'RRF closed successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid state or missing required fields' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  @ApiResponse({ status: 404, description: 'RRF not found' })
+  async closeRrf(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() closeDto: CloseRrfDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const rrf = await this.rrfService.closeRrf(
+      id,
+      user.id,
+      closeDto.candidateName,
+      closeDto.joiningDate,
+      closeDto.closureStatus,
+      closeDto.notes,
+    );
+    return { message: 'RRF closed successfully', data: rrf };
+  }
+
+  @Post(':id/assign-approvers')
+  @RequirePermission('RRF.UPDATE')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ 
+    summary: 'Assign approvers to RRF (Utility endpoint)',
+    description: 'Internal utility for fixing RRFs missing approver assignments',
+  })
+  @ApiParam({ name: 'id', description: 'RRF ID', type: Number })
+  @ApiResponse({ status: 200, description: 'Approvers assigned successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  @ApiResponse({ status: 404, description: 'RRF not found' })
+  async assignApprovers(@Param('id', ParseIntPipe) id: number) {
+    const rrf = await this.rrfService.assignApproversToRrf(id);
+    return { message: 'Approvers assigned successfully', data: rrf };
+  }
+
+  @Delete(':id')
+  @RequirePermission('RRF.DELETE')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ 
+    summary: 'Delete RRF (Admin/PMO only)',
+    description: 'Permanently deletes an RRF. Requires elevated permissions.',
+  })
+  @ApiParam({ name: 'id', description: 'RRF ID', type: Number })
+  @ApiResponse({ status: 204, description: 'RRF deleted successfully (no content)' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  @ApiResponse({ status: 404, description: 'RRF not found' })
+  async remove(@Param('id', ParseIntPipe) id: number) {
+    await this.rrfService.remove(id);
+  }
+}

@@ -4,7 +4,7 @@ FROM node:20-alpine
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package files first (better layer caching)
 COPY package.json package-lock.json* ./
 
 # Install dependencies
@@ -13,8 +13,14 @@ RUN npm install
 # Copy project files
 COPY . .
 
-# Expose Next.js dev server port
+# CRITICAL: Remove any existing build cache before building
+RUN rm -rf .next
+
+# Build the Next.js app for production
+RUN npm run build
+
+# Expose Next.js port
 EXPOSE 3000
 
-# Start development server
-CMD ["npm", "run", "dev"]
+# Start production server (uses the .next build)
+CMD ["npm", "start"]

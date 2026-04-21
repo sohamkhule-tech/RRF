@@ -52,6 +52,9 @@ export default function AdminDashboard() {
 
   const byStatus = stats?.byStatus || {}
 
+  // ✅ Map backend status values correctly
+  const inProgressCount = (byStatus['in-progress'] || 0) + (byStatus['open-for-hiring'] || 0)
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 md:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
@@ -80,7 +83,7 @@ export default function AdminDashboard() {
           />
           <StatCard
             title="In Progress"
-            value={byStatus.openForHiring || 0}
+            value={inProgressCount}
             icon={<SyncOutlined />}
             color="cyan"
           />

@@ -49,13 +49,6 @@ export default function ApproverDashboard() {
   // Single polling + visibility handler (60 s interval, replaces 30 s + double-fire)
   useVisibilityRefresh(fetchData, { intervalMs: 60_000 })
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A'
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric', month: 'short', day: 'numeric'
-    })
-  }
-
   // Fixed: actually uses the status param with a proper color map
   const getStatusBadge = (status) => {
     const statusConfig = {
@@ -133,16 +126,18 @@ export default function ApproverDashboard() {
   const approvedCount = byStatus['approved'] || 0
   const declinedCount = (byStatus['declined'] || 0) + (byStatus['rejected'] || 0)
   const onHoldCount   = (byStatus['on-hold'] || 0) + (byStatus['onHold'] || 0)
+  const closedCount   = (byStatus['closed'] || 0) + (byStatus['closedByBench'] || 0)
 
   return (
     <ProtectedRoute requiredPermission={PERMISSIONS.APPROVALS.READ}>
       <div className="p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8">
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-5">
           <StatCard title="Pending Approvals" value={String(pendingCount)} icon={<ClockCircleOutlined />} color="orange" href="/approver/pending" />
           <StatCard title="Approved"           value={String(approvedCount)} icon={<CheckCircleOutlined />} color="green" href="/approver/approved" />
           <StatCard title="Declined"           value={String(declinedCount)} icon={<CloseCircleOutlined />} color="red" href="/approver/declined" />
           <StatCard title="On Hold"            value={String(onHoldCount)} subtitle="Needs action" icon={<ClockCircleOutlined />} color="orange" href="/approver/on-hold" />
+          <StatCard title="Closed"             value={String(closedCount)} icon={<CheckCircleOutlined />} color="indigo" href="/approver/closed" />
         </div>
 
         {/* Pending Requests Table */}
@@ -183,7 +178,7 @@ export default function ApproverDashboard() {
             <table className="w-full">
               <thead className="bg-gray-50/80 border-b-2 border-gray-200">
                 <tr>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">RRF ID</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">ID</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Manager</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Role</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Project</th>

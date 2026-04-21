@@ -8,6 +8,10 @@ import { RolesModule } from './roles/roles.module';
 import { ModulesModule } from './modules/modules.module';
 import { PermissionsModule } from './permissions/permissions.module';
 import { RolePermissionsModule } from './role-permissions/role-permissions.module';
+import { FunctionsModule } from './functions/functions.module';
+import { SubfunctionsModule } from './subfunctions/subfunctions.module';
+import { UserSubfunctionsModule } from './user-subfunctions/user-subfunctions.module';
+import { JobDescriptionsModule } from './job-descriptions/job-descriptions.module';
 import { SeedModule } from './database/seed.module';
 import { RrfModule } from './rrf/rrf.module';
 import { typeOrmConfig } from './config/typeorm.config';
@@ -34,6 +38,10 @@ import { typeOrmConfig } from './config/typeorm.config';
     ModulesModule,
     PermissionsModule,
     RolePermissionsModule,
+    FunctionsModule,
+    SubfunctionsModule,
+    UserSubfunctionsModule,
+    JobDescriptionsModule,
     SeedModule,
     RrfModule,
   ],

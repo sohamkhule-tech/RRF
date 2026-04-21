@@ -397,7 +397,7 @@ export default function AdminRolesPage() {
               Save Changes
             </Button>,
           ]}
-          destroyOnClose
+          destroyOnHidden
         >
           {loadingPermissions ? (
             <div className="flex justify-center items-center py-12">

@@ -20,6 +20,12 @@ export class RrfFormConfig {
   @Column({ type: 'jsonb', name: 'field_options' })
   options: string[];
 
+  @Column({ name: 'field_type', length: 50, default: 'dropdown' })
+  type: string;
+
+  @Column({ name: 'is_required', default: false })
+  isRequired: boolean;
+
   @Column({ name: 'step', type: 'int', default: 1 })
   step: number;
 

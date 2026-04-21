@@ -33,15 +33,9 @@ export default function DashboardPage() {
   // Get recent 6 requests (exclude drafts)
   const recentRequests = (requests || []).filter(req => req.status?.toLowerCase() !== 'draft').slice(0, 6)
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A'
-    const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-  }
-
   const handleExportRRF = () => {
     // Create CSV content
-    const headers = ['RRF ID', 'Role', 'Project', 'Positions', 'Priority', 'Status', 'Created Date']
+    const headers = ['ID', 'Role', 'Project', 'Positions', 'Priority', 'Status', 'Created Date']
     const csvContent = [
       headers.join(','),
       ...recentRequests.map(request => 
@@ -52,7 +46,7 @@ export default function DashboardPage() {
           request.headcount,
           request.priority,
           request.status,
-          formatDate(request.createdAt)
+          (request.createdAt ? new Date(request.createdAt).toLocaleDateString('en-GB') : 'N/A')
         ].join(',')
       )
     ].join('\n')
@@ -264,7 +258,7 @@ export default function DashboardPage() {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">RRF ID</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">ID</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Role</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Project</th>
                 <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">Positions</th>
@@ -288,7 +282,7 @@ export default function DashboardPage() {
                   </td>
                   <td className="px-6 py-5 whitespace-nowrap text-sm">{getPriorityBadge(request.priority)}</td>
                   <td className="px-6 py-5 whitespace-nowrap text-sm">{getStatusBadge(request.status)}</td>
-                  <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-600">{formatDate(request.createdAt)}</td>
+                  <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-600">{request.createdAt ? new Date(request.createdAt).toLocaleDateString('en-GB') : 'N/A'}</td>
                   <td className="px-6 py-5 whitespace-nowrap text-sm">
                     <ActionButton 
                       role="HM"
@@ -335,7 +329,7 @@ export default function DashboardPage() {
                 
                 <div className="flex items-center justify-between pt-3 border-t border-gray-100">
                   <div className="text-xs text-gray-500">
-                    {formatDate(request.createdAt)}
+                    {request.createdAt ? new Date(request.createdAt).toLocaleDateString('en-GB') : 'N/A'}
                   </div>
                   <ActionButton 
                     role="HM"

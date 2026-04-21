@@ -78,6 +78,7 @@ export default function ApproverViewRRFPage() {
     minimumExperience:  rrf.experienceMin && rrf.experienceMax ? `${rrf.experienceMin}-${rrf.experienceMax} years` : null,
     requiredSkills:  rrf.requiredSkills,
     preferredSkills: rrf.preferredSkills,
+    primaryTechnologies: rrf.technologies,
     jobDescription:  rrf.jobDescription,
     additionalNotes: rrf.urgencyReason,
   } : null
@@ -299,7 +300,7 @@ export default function ApproverViewRRFPage() {
                 {rrfData.status}
               </div>
               <div className="text-xs text-slate-300 font-medium space-y-1">
-                <div>RRF-{rrfData.id}</div>
+                <div>{rrfData.displayId}</div>
                 <div>Requested on: {rrfData.submittedDate}</div>
               </div>
             </div>
@@ -437,7 +438,7 @@ export default function ApproverViewRRFPage() {
               <div className="print-header">
                 <h1 className="text-3xl font-bold text-slate-900 mb-2">{rrfData.jobTitle}</h1>
                 <div className="flex items-center gap-4 text-sm text-slate-600">
-                  <span>RRF-{rrfData.id}</span>
+                  <span>{rrfData.displayId}</span>
                   <span>•</span>
                   <span>Submitted: {rrfData.submittedDate}</span>
                   <span>•</span>
@@ -490,8 +491,9 @@ export default function ApproverViewRRFPage() {
               <div className={`space-y-8 print-section ${activeSection === 'technical' ? '' : 'screen-hidden'}`}>
                 <h3 className="text-xl md:text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Technical Requirements</h3>
                 <div className="space-y-4">
-                  <InfoField label="Required Skills"  value={rrfData.requiredSkills}  rich />
-                  <InfoField label="Preferred Skills" value={rrfData.preferredSkills} rich />
+                  <InfoField label="Primary Technologies" value={rrfData.primaryTechnologies} rich />
+                  <InfoField label="Must-Have Skills"     value={rrfData.requiredSkills}  rich />
+                  <InfoField label="Nice-to-Have Skills"  value={rrfData.preferredSkills} rich />
                 </div>
               </div>
 

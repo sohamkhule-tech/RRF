@@ -37,6 +37,7 @@ export default function Sidebar({ role = 'hiring-manager', isCollapsed = false }
       case 'approver':
         return [
           { key: '/approver', icon: <HomeOutlined className="text-xl" />, label: 'Dashboard', href: '/approver' },
+          { key: '/approver/closed', icon: <FolderOpenOutlined className="text-xl" />, label: 'Closed Requests', href: '/approver/closed' },
           { key: '/approver/reports', icon: <BarChartOutlined className="text-xl" />, label: 'Reports', href: '/approver/reports' }
         ]
       case 'hr':

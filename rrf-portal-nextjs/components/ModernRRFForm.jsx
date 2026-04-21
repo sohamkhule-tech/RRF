@@ -8,14 +8,30 @@ import toast from 'react-hot-toast'
 import TagInput from './TagInput'
 import RichTextEditor from './RichTextEditor'
 import DateInput from './DateInput'
+import DependentDropdown from './DependentDropdown'
 import { rrfApi } from '@/lib/api/rrfApi'
+import { jobDescriptionsApi } from '@/lib/api/jobDescriptionsApi'
 import { useFormConfig } from '@/hooks/useFormConfig'
 
 export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuth()
-  const { configs, getConfig } = useFormConfig()
+  const { configs, loading: configsLoading, getConfig } = useFormConfig()
+  
+  // Debug: Log configs to verify structure and data flow
+  useEffect(() => {
+    console.log('=== CONFIGS DEBUG ===')
+    console.log('CONFIGS:', configs)
+    console.log('CONFIGS TYPE:', typeof configs)
+    console.log('IS OBJECT:', configs && typeof configs === 'object')
+    console.log('IS ARRAY:', Array.isArray(configs))
+    console.log('CONFIG KEYS:', configs ? Object.keys(configs) : 'null')
+    console.log('CONFIG VALUES:', configs ? Object.values(configs) : 'null')
+    console.log('====================')
+  }, [configs])
+  
+  
   const [currentStep, setCurrentStep] = useState(1)
   const [currentDraftId, setCurrentDraftId] = useState(null)
   const [isEditingRrf, setIsEditingRrf] = useState(false)
@@ -29,7 +45,15 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
   const [otherLocation, setOtherLocation] = useState('')
   const [billingRateType, setBillingRateType] = useState('amount')
   const [billingCurrency, setBillingCurrency] = useState('USD')
-  const [formData, setFormData] = useState({
+  
+  // Job Description prefill state
+  const [jdList, setJdList] = useState([])
+  const [selectedJdId, setSelectedJdId] = useState('')
+  const [loadingJds, setLoadingJds] = useState(false)
+  const [jdFilterStatus, setJdFilterStatus] = useState('')
+  
+  // Base formData structure
+  const getBaseFormData = () => ({
     managerName: user?.name || user?.username || '',
     entity: '',
     organisation: 'DataFortune',
@@ -48,16 +72,140 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
     employmentType: '',
     positions: '',
     priority: '',
-    location: [],
+    location: [],  // ✅ Array default
     workMode: '',
     experienceMin: '',
     experienceMax: '',
-    technologies: [],
-    mustHaveSkills: [],
-    niceToHaveSkills: [],
+    technologies: [],  // ✅ Array default
+    mustHaveSkills: [],  // ✅ Array default
+    niceToHaveSkills: [],  // ✅ Array default
     jobDescription: '',
-    additionalNotes: ''
+    additionalNotes: '',
+    saveAsTemplate: false
   })
+  
+  const [formData, setFormData] = useState(getBaseFormData())
+
+  // Fetch Job Descriptions when SubFunction changes
+  useEffect(() => {
+    const fetchJobDescriptions = async () => {
+      // Clear current selection when fetching new templates
+      setSelectedJdId('')
+      
+      try {
+        setLoadingJds(true)
+        // Fetch templates filtered by subFunction
+        // Backend handles fallback to global templates if none found for subFunction
+        const subFunction = formData.subFunction
+        const data = await jobDescriptionsApi.getAll(subFunction)
+        setJdList(data || [])
+        
+        // Update UX message based on returned data
+        if (subFunction) {
+          const hasMatch = data?.some(jd => jd.subFunction === subFunction)
+          setJdFilterStatus(hasMatch 
+            ? `Showing templates for ${subFunction}` 
+            : `No ${subFunction} templates found. Showing global templates.`)
+        } else {
+          setJdFilterStatus('')
+        }
+      } catch (error) {
+        console.error('Error fetching job descriptions:', error)
+      } finally {
+        setLoadingJds(false)
+      }
+    }
+    
+    fetchJobDescriptions()
+  }, [formData.subFunction])
+  
+  // Initialize formData with dynamic fields from config (runs after configs loads)
+  useEffect(() => {
+    if (!configs || typeof configs !== 'object') {
+      console.log('[FormData Init] Skipped - configs not ready')
+      return
+    }
+    
+    const configArray = Object.values(configs)
+    if (configArray.length === 0) {
+      console.log('[FormData Init] Skipped - no configs available')
+      return
+    }
+    
+    console.log('[FormData Init] Adding dynamic fields from', configArray.length, 'configs')
+    
+    setFormData(prevData => {
+      const updatedData = { ...prevData }
+      let addedFields = 0
+      
+      configArray.forEach(config => {
+        if (config?.fieldName && !updatedData.hasOwnProperty(config.fieldName)) {
+          // ✅ FIX: Initialize arrays as [], not as ''
+          if (config.type === 'multi-select' || config.type === 'tags') {
+            updatedData[config.fieldName] = []
+          } else {
+            updatedData[config.fieldName] = config.type === 'dropdown' ? '' : ''
+          }
+          addedFields++
+        }
+      })
+      
+      console.log('[FormData Init] Added', addedFields, 'dynamic fields')
+      return updatedData
+    })
+  }, [configs])
+  
+  // Helper function to render dynamic fields
+  const renderDynamicField = (config) => {
+    // Skip fields that have custom rendering logic
+    const skipFields = ['entity', 'function', 'subFunction', 'requisitionType', 'positionType', 
+                       'employmentType', 'priority', 'workMode', 'location', 'nonBillableSubType']
+    if (skipFields.includes(config.fieldName)) {
+      return null
+    }
+    
+    if (config.type === 'dropdown') {
+      const filteredOptions = config.options
+      
+      return (
+        <div key={config.fieldName}>
+          <label className="block text-sm font-semibold text-slate-700 mb-2">
+            {config.label} {config.isRequired && <span className="text-red-500">*</span>}
+          </label>
+          <select
+            name={config.fieldName}
+            value={formData[config.fieldName] || ''}
+            onChange={handleChange}
+            className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 placeholder:text-slate-400 bg-white hover:border-slate-400"
+            required={config.isRequired}
+          >
+            <option value="">Select {config.label.toLowerCase()}</option>
+            {filteredOptions?.map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
+        </div>
+      )
+    } else if (config.type === 'text') {
+      return (
+        <div key={config.fieldName}>
+          <label className="block text-sm font-semibold text-slate-700 mb-2">
+            {config.label} {config.isRequired && <span className="text-red-500">*</span>}
+          </label>
+          <input
+            type="text"
+            name={config.fieldName}
+            value={formData[config.fieldName] || ''}
+            onChange={handleChange}
+            className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 placeholder:text-slate-400 bg-white hover:border-slate-400"
+            placeholder={`Enter ${config.label.toLowerCase()}`}
+            required={config.isRequired}
+          />
+        </div>
+      )
+    }
+    return null
+  }
 
   const steps = [
     { number: 1, title: 'Requisition Details', icon: BankOutlined, description: 'Basic Information' },
@@ -132,6 +280,22 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
     setFormData(updatedFormData)
   }
 
+  const handleJdSelect = (e) => {
+    const jdId = e.target.value
+    setSelectedJdId(jdId)
+    
+    if (jdId) {
+      const selectedJd = jdList.find(jd => jd.id === parseInt(jdId))
+      if (selectedJd) {
+        setFormData(prev => ({
+          ...prev,
+          jobDescription: selectedJd.description
+        }))
+        toast.success(`Job Description prefilled: ${selectedJd.title}`)
+      }
+    }
+  }
+
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value })
   }
@@ -168,12 +332,22 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
   // ============================================
   
   const handleSubmit = async (e) => {
-    e.preventDefault()
+    if (e && e.preventDefault) e.preventDefault()
     
-    // ── Manual validation for fields that can't use native HTML5 required ──
-    // (RichTextEditor and TagInput hidden-required inputs were removed because
-    //  display:none elements cause "invalid form control not focusable" browser errors)
-
+    // ✅ CRITICAL: Prevent premature Step 3 validation if user presses Enter on Step 1 or 2
+    // Only allow submission when explicitly on Step 3
+    if (currentStep !== 3) {
+      console.log(`[Form] Prevented premature submission. Current step: ${currentStep}`)
+      // Don't call nextStep here to avoid double validation
+      // Just prevent the submit - user should use Next button
+      return
+    }
+    
+    // ✅ STEP 3 VALIDATION ONLY - Job Description & Technical Skills
+    // Step 1 & 2 validations happen in nextStep() via validateStep()
+    
+    console.log('[Form] Step 3 - Final validation before submit')
+    
     // Quill empty state is '<p><br></p>' — treat that as empty
     const isJobDescriptionEmpty =
       !formData.jobDescription ||
@@ -185,13 +359,33 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
       return
     }
 
-    if (!formData.technologies || formData.technologies.length === 0) {
+    // ✅ FIX ISSUE 1: Safe array length check
+    if (!formData.technologies || !Array.isArray(formData.technologies) || formData.technologies.length === 0) {
       toast.error('Primary Technologies is required. Please add at least one technology.')
       return
     }
 
-    if (!formData.mustHaveSkills || formData.mustHaveSkills.length === 0) {
+    // ✅ FIX ISSUE 1: Safe array length check
+    if (!formData.mustHaveSkills || !Array.isArray(formData.mustHaveSkills) || formData.mustHaveSkills.length === 0) {
       toast.error('Must-Have Skills is required. Please add at least one skill.')
+      return
+    }
+    
+    // ✅ FIX ISSUE 2: Only validate Step 3 dynamic fields (technical fields)
+    const missingFields = []
+    if (configs && typeof configs === 'object') {
+      Object.values(configs).forEach(config => {
+        // Only validate technical/skill-related fields that appear in Step 3
+        const step3Fields = ['certifications', 'tools', 'frameworks']
+        if (step3Fields.includes(config.fieldName) && config?.isRequired && 
+            (!formData[config.fieldName] || formData[config.fieldName] === '')) {
+          missingFields.push(config.label)
+        }
+      })
+    }
+    
+    if (missingFields.length > 0) {
+      toast.error(`Please fill in required fields: ${missingFields.join(', ')}`)
       return
     }
     
@@ -211,6 +405,8 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
         function: formData.function || undefined,
         subFunction: formData.subFunction || undefined,
         
+        department: formData.department || undefined,
+        
         // Requisition details — send undefined (not "") for unset enum values
         requisitionType: formData.requisitionType || undefined,
         customerName: formData.customerName || undefined,
@@ -229,18 +425,30 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
         budgetMin: formData.budgetMin ? parseFloat(formData.budgetMin) : undefined,
         budgetMax: formData.budgetMax ? parseFloat(formData.budgetMax) : undefined,
         
-        // Location (array to comma-separated string)
-        location: Array.isArray(formData.location) 
+        // Location (array to comma-separated string) - ✅ Safe array check
+        location: (Array.isArray(formData.location) && formData.location.length > 0)
           ? formData.location.join(', ') 
-          : formData.location || undefined,
+          : (typeof formData.location === 'string' && formData.location.trim() !== '')
+            ? formData.location
+            : undefined,
         
         // Skills (arrays to comma-separated strings)
-        requiredSkills: Array.isArray(formData.mustHaveSkills)
+        // IMPORTANT: Backend expects string, not array
+        technologies: Array.isArray(formData.technologies) && formData.technologies.length > 0
+          ? formData.technologies.join(', ')
+          : (typeof formData.technologies === 'string' && formData.technologies.trim() !== '')
+            ? formData.technologies
+            : undefined,
+        requiredSkills: Array.isArray(formData.mustHaveSkills) && formData.mustHaveSkills.length > 0
           ? formData.mustHaveSkills.join(', ')
-          : formData.mustHaveSkills || undefined,
-        preferredSkills: Array.isArray(formData.niceToHaveSkills)
+          : (typeof formData.mustHaveSkills === 'string' && formData.mustHaveSkills.trim() !== '')
+            ? formData.mustHaveSkills
+            : undefined,
+        preferredSkills: Array.isArray(formData.niceToHaveSkills) && formData.niceToHaveSkills.length > 0
           ? formData.niceToHaveSkills.join(', ')
-          : formData.niceToHaveSkills || undefined,
+          : (typeof formData.niceToHaveSkills === 'string' && formData.niceToHaveSkills.trim() !== '')
+            ? formData.niceToHaveSkills
+            : undefined,
         
         // Job Description (rich text HTML content)
         jobDescription: formData.jobDescription || '',
@@ -248,9 +456,48 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
         // Other optional fields
         urgencyReason: formData.additionalNotes || undefined,
       }
+      
+      // Add all dynamic fields from config
+      if (configs && typeof configs === 'object') {
+        Object.values(configs).forEach(config => {
+          if (config?.fieldName && formData.hasOwnProperty(config.fieldName) && 
+              !backendData.hasOwnProperty(config.fieldName)) {
+            backendData[config.fieldName] = formData[config.fieldName] || undefined
+          }
+        })
+      }
 
+      // ✅ FINAL PAYLOAD VALIDATION: Ensure no undefined fields have .length called on them
+      Object.keys(backendData).forEach(key => {
+        const value = backendData[key]
+        // Convert any unexpected undefined/null to proper undefined
+        if (value === null || value === '' || (Array.isArray(value) && value.length === 0)) {
+          backendData[key] = undefined
+        }
+        // Ensure arrays are actually arrays
+        if (value && !Array.isArray(value) && typeof value === 'object') {
+          console.warn(`[RRF Submit] Field ${key} is an object, not array:`, value)
+        }
+      })
+      
+      // Remove all undefined fields to prevent backend errors
+      Object.keys(backendData).forEach(key => {
+        if (backendData[key] === undefined) {
+          delete backendData[key]
+        }
+      })
+      
       // DEBUG: Log exact payload being sent (remove when no longer needed)
-      console.log('[RRF Submit] Payload to POST /rrf:', JSON.stringify(backendData, null, 2))
+      console.log('[RRF Submit] Final validated payload to POST /rrf:', JSON.stringify(backendData, null, 2))
+      
+      // ✅ Additional validation debug for key fields
+      console.log('[RRF Submit] Key fields check:', {
+        entity: backendData.entity,
+        technologies: backendData.technologies,
+        type: typeof backendData.technologies,
+        isString: typeof backendData.technologies === 'string',
+        length: backendData.technologies?.length || 0  // ✅ Safe with fallback
+      })
       
       // Step 1: Create or Update RRF
       let rrfId;
@@ -268,7 +515,12 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
       }
       
       // Step 2: Submit RRF (DRAFT → SUBMITTED)
-      await rrfApi.submit(rrfId)
+      const submitResponse = await rrfApi.submit(rrfId)
+      
+      // The backend returns the updated RRF entity after submission. 
+      // If PMO is submitting, it bypasses approval and gets an 'rrfNumber'.
+      const submittedRrfData = submitResponse?.data?.data || submitResponse?.data || {}
+      const finalDisplayId = submittedRrfData.rrfNumber || submittedRrfData.subId || subId || `SUB-${rrfId}`
       
       // Step 3: Clear localStorage draft reference if this was edited from drafts
       if (currentDraftId) {
@@ -277,14 +529,38 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
 
       // Step 4: Redirect with toast notification
       const redirectPath = userRole === 'pmo' ? '/pmo' : '/hiring-manager/my-requests'
-      toast.success(`RRF submitted successfully! Submission ID: ${subId}`)
+      toast.success(`RRF submitted successfully! ID: ${finalDisplayId}`)
       router.push(redirectPath)
 
     } catch (error) {
       console.error('[RRF Submit] Error details:', error)
-      // Show the actual backend error message if available
-      const errorMessage = error.message || 'Failed to submit RRF. Please try again.'
-      toast.error(`Submission failed: ${errorMessage}`)
+      console.error('[RRF Submit] Error response:', error?.response)
+      console.error('[RRF Submit] Error data:', error?.response?.data)
+      
+      // ✅ IMPROVED ERROR HANDLING: Show detailed backend error messages
+      let errorMessage = 'Failed to submit RRF. Please try again.'
+      
+      if (error?.response?.data?.message) {
+        // Backend validation error message
+        errorMessage = error.response.data.message
+      } else if (error?.message) {
+        // General error message
+        errorMessage = error.message
+      }
+      
+      // If error mentions specific fields, show helpful message
+      if (errorMessage.includes('Cannot read properties of undefined')) {
+        errorMessage = 'Invalid form data. Please check all required fields and try again.'
+      } else if (errorMessage.includes('validation')) {
+        errorMessage = `Validation error: ${errorMessage}`
+      }
+      
+      toast.error(`Submission failed: ${errorMessage}`, {
+        duration: 5000,
+        style: {
+          maxWidth: '500px',
+        },
+      })
     }
   }
 
@@ -299,6 +575,9 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
         organisation: formData.organisation || undefined,
         function: formData.function || undefined,
         subFunction: formData.subFunction || undefined,
+        
+        department: formData.department || undefined,
+        
         // Strip empty strings for enum fields — @IsOptional() only skips null/undefined, not ""
         requisitionType: formData.requisitionType || undefined,
         customerName: formData.customerName || undefined,
@@ -312,15 +591,64 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
         experienceMax: parseInt(formData.experienceMax) || 0,
         budgetMin: formData.budgetMin ? parseFloat(formData.budgetMin) : undefined,
         budgetMax: formData.budgetMax ? parseFloat(formData.budgetMax) : undefined,
-        location: Array.isArray(formData.location) ? formData.location.join(', ') : formData.location || undefined,
-        requiredSkills: Array.isArray(formData.mustHaveSkills) ? formData.mustHaveSkills.join(', ') : formData.mustHaveSkills || undefined,
-        preferredSkills: Array.isArray(formData.niceToHaveSkills) ? formData.niceToHaveSkills.join(', ') : formData.niceToHaveSkills || undefined,
+        // ✅ FIX: Safe array check for location
+        location: (Array.isArray(formData.location) && formData.location.length > 0)
+          ? formData.location.join(', ')
+          : (typeof formData.location === 'string' && formData.location.trim() !== '')
+            ? formData.location
+            : undefined,
+        // IMPORTANT: Backend expects string, not array - convert empty arrays to undefined
+        technologies: Array.isArray(formData.technologies) && formData.technologies.length > 0
+          ? formData.technologies.join(', ')
+          : (typeof formData.technologies === 'string' && formData.technologies.trim() !== '')
+            ? formData.technologies
+            : undefined,
+        requiredSkills: Array.isArray(formData.mustHaveSkills) && formData.mustHaveSkills.length > 0
+          ? formData.mustHaveSkills.join(', ')
+          : (typeof formData.mustHaveSkills === 'string' && formData.mustHaveSkills.trim() !== '')
+            ? formData.mustHaveSkills
+            : undefined,
+        preferredSkills: Array.isArray(formData.niceToHaveSkills) && formData.niceToHaveSkills.length > 0
+          ? formData.niceToHaveSkills.join(', ')
+          : (typeof formData.niceToHaveSkills === 'string' && formData.niceToHaveSkills.trim() !== '')
+            ? formData.niceToHaveSkills
+            : undefined,
         jobDescription: formData.jobDescription || '',
         department: formData.department || undefined,
         urgencyReason: formData.additionalNotes || undefined,
       }
+      
+      // Add all dynamic fields from config
+      if (configs && typeof configs === 'object') {
+        Object.values(configs).forEach(config => {
+          if (config?.fieldName && formData.hasOwnProperty(config.fieldName) && 
+              !backendData.hasOwnProperty(config.fieldName)) {
+            // ✅ FIX: Convert array fields to strings if needed
+            let fieldValue = formData[config.fieldName]
+            if (Array.isArray(fieldValue)) {
+              fieldValue = fieldValue.length > 0 ? fieldValue.join(', ') : undefined
+            }
+            backendData[config.fieldName] = fieldValue || undefined
+          }
+        })
+      }
+      
+      // ✅ FINAL VALIDATION: Clean up payload before sending
+      Object.keys(backendData).forEach(key => {
+        if (backendData[key] === undefined || backendData[key] === null || backendData[key] === '') {
+          delete backendData[key]
+        }
+      })
 
-      console.log('[RRF Draft] Payload to POST /rrf:', JSON.stringify(backendData, null, 2))
+      console.log('[RRF Draft] Final validated payload to POST /rrf:', JSON.stringify(backendData, null, 2))
+      
+      // DEBUG: Log specific fields that might cause validation errors
+      console.log('[RRF Validation Debug]', {
+        technologies: backendData.technologies,
+        technologiesType: typeof backendData.technologies,
+        requiredSkills: backendData.requiredSkills,
+        preferredSkills: backendData.preferredSkills
+      })
 
       const createResponse = await rrfApi.create(backendData)
       const newDraftId = createResponse.data.id
@@ -331,7 +659,28 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
       router.push(redirectPath)
     } catch (error) {
       console.error('[RRF Draft] Error details:', error)
-      toast.error(error.message || 'Failed to save draft. Please try again.')
+      console.error('[RRF Draft] Error response:', error?.response)
+      console.error('[RRF Draft] Error data:', error?.response?.data)
+      
+      // ✅ IMPROVED ERROR HANDLING: Show detailed error messages
+      let errorMessage = 'Failed to save draft. Please try again.'
+      
+      if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message
+      } else if (error?.message) {
+        errorMessage = error.message
+      }
+      
+      if (errorMessage.includes('Cannot read properties of undefined')) {
+        errorMessage = 'Invalid form data. Please check all fields and try again.'
+      }
+      
+      toast.error(errorMessage, {
+        duration: 5000,
+        style: {
+          maxWidth: '500px',
+        },
+      })
     }
   }
 
@@ -385,10 +734,10 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
                 : (draft.data.technologies || '').split(',').map(t => t.trim()).filter(t => t),
               mustHaveSkills: Array.isArray(draft.data.mustHaveSkills) 
                 ? draft.data.mustHaveSkills 
-                : (draft.data.mustHaveSkills || '').split('\n').filter(s => s.trim()),
+                : (draft.data.mustHaveSkills || '').split('n').filter(s => s.trim()),
               niceToHaveSkills: Array.isArray(draft.data.niceToHaveSkills)
                 ? draft.data.niceToHaveSkills
-                : (draft.data.niceToHaveSkills || '').split('\n').filter(s => s.trim())
+                : (draft.data.niceToHaveSkills || '').split('n').filter(s => s.trim())
             }
             setFormData(draftData)
             setRequisitionType(draft.requisitionType || draft.data.requisitionType || '')
@@ -412,6 +761,9 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
                 organisation: rrf.organisation || 'DataFortune',
                 function: rrf.function || '',
                 subFunction: rrf.subFunction || '',
+                
+                department: rrf.department || '',
+                
                 requisitionType: rrf.requisitionType || '',
                 customerName: rrf.customerName || '',
                 nonBillableSubType: rrf.nonBillableSubType || '',
@@ -454,17 +806,94 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
     loadData();
   }, [searchParams])
 
+  // ✅ FIX ISSUE 2: Add step-by-step validation before moving to next step
+  const validateStep = (step) => {
+    const missingFields = []
+    
+    if (step === 1) {
+      // Step 1: Requisition Details validation
+      if (!formData.entity) missingFields.push('Entity')
+      if (!formData.function) missingFields.push('Function')
+      if (!formData.subFunction) missingFields.push('Sub-Function')
+      if (!formData.requisitionType) missingFields.push('Requisition Type')
+      if (!formData.jobTitle) missingFields.push('Job Title')
+      
+      // Validate dynamic config fields for Step 1
+      if (configs && typeof configs === 'object') {
+        Object.values(configs).forEach(config => {
+          // Only validate fields that appear in Step 1 (organizational fields)
+          const step1Fields = ['entity', 'department', 'costCenter']
+          if (step1Fields.includes(config.fieldName) && config?.isRequired && 
+              (!formData[config.fieldName] || formData[config.fieldName] === '')) {
+            missingFields.push(config.label)
+          }
+        })
+      }
+    } else if (step === 2) {
+      // Step 2: Position Details validation
+      if (!formData.positions) missingFields.push('Number of Positions')
+      if (!formData.positionType) missingFields.push('Position Type')
+      if (!formData.employmentType) missingFields.push('Employment Type')
+      if (!formData.priority) missingFields.push('Priority')
+      if (!formData.workMode) missingFields.push('Work Mode')
+      if (!formData.location || (Array.isArray(formData.location) && formData.location.length === 0)) {
+        missingFields.push('Location')
+      }
+    } else if (step === 3) {
+      // Step 3: Technical Skills validation (full validation before submit)
+      // This validation happens in handleSubmit
+      return { valid: true, missingFields: [] }
+    }
+    
+    if (missingFields.length > 0) {
+      toast.error(`Please fill in required fields: ${missingFields.join(', ')}`, {
+        duration: 4000,
+      })
+      return { valid: false, missingFields }
+    }
+    
+    return { valid: true, missingFields: [] }
+  }
+  
   const nextStep = () => {
-    if (currentStep < 3) setCurrentStep(currentStep + 1)
+    console.log(`[Form] Attempting to move from Step ${currentStep} to Step ${currentStep + 1}`)
+    
+    // Validate current step before moving to next
+    const validation = validateStep(currentStep)
+    
+    if (!validation.valid) {
+      console.log(`[Form] Step ${currentStep} validation failed:`, validation.missingFields)
+      return
+    }
+    
+    if (validation.valid && currentStep < 3) {
+      console.log(`[Form] Step ${currentStep} validation passed. Moving to next step.`)
+      setCurrentStep(currentStep + 1)
+    }
   }
 
   const prevStep = () => {
-    if (currentStep > 1) setCurrentStep(currentStep - 1)
+    if (currentStep > 1) {
+      console.log(`[Form] Moving back from Step ${currentStep} to Step ${currentStep - 1}`)
+      setCurrentStep(currentStep - 1)
+    }
   }
 
   const allLocations = getConfig('location')?.options || ['Pune', 'Chennai', 'Bengaluru', 'US', 'Other']
 
   const progressPercentage = (currentStep / 3) * 100
+
+  // Loading guard: Show loading state while configs are being fetched
+  if (configsLoading || !configs || typeof configs !== 'object') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 py-8 px-4 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-slate-600 font-medium">Loading form configuration...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 py-4 md:py-8 px-3 md:px-4">
@@ -629,46 +1058,27 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
                     />
                   </div>
 
-                  {/* Function */}
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">
-                      Function <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      name="function"
-                      value={formData.function}
-                      onChange={handleFunctionChange}
-                      className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 placeholder:text-slate-400 bg-white hover:border-slate-400"
-                      required
-                    >
-                      <option value="">Select {(getConfig('function')?.label || 'function').toLowerCase()}</option>
-                      {getConfig('function')?.options?.map((option) => (
-                        <option key={option} value={option}>{option}</option>
-                      ))}
-                    </select>
-                  </div>
+                  {/* Function & SubFunction - API-driven dependent dropdowns */}
+                  <DependentDropdown
+                    functionValue={formData.function}
+                    subfunctionValue={formData.subFunction}
+                    onFunctionChange={(id, name) => {
+                      // Call existing handler to preserve auto-set requisition type logic
+                      handleFunctionChange({ target: { value: name } });
+                    }}
+                    onSubfunctionChange={(id, name) => {
+                      // Call existing handler to preserve PMO → Non-Billable logic
+                      handleSubFunctionChange({ target: { value: name } });
+                    }}
+                    mode="name"  // Use names for backward compatibility
+                    required={true}
+                  />
 
-                  {/* SubFunction */}
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">
-                      Sub Function <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      name="subFunction"
-                      value={formData.subFunction}
-                      onChange={handleSubFunctionChange}
-                      disabled={!selectedFunction}
-                      className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 placeholder:text-slate-400 bg-white hover:border-slate-400 disabled:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-500"
-                      required
-                    >
-                      <option value="">
-                        {selectedFunction ? 'Select sub function' : 'Select function first'}
-                      </option>
-                      {selectedFunction && subfunctionOptions[selectedFunction]?.map(subFunc => (
-                        <option key={subFunc} value={subFunc}>{subFunc}</option>
-                      ))}
-                    </select>
-                  </div>
+                  {/* Dynamic Fields for Step 1 */}
+                  {configs && typeof configs === 'object' && 
+                    Object.values(configs)
+                      .filter(config => config?.step === 1)
+                      .map(config => renderDynamicField(config))}
 
                   {/* Requisition Type */}
                   <div>
@@ -1150,6 +1560,11 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
                     )}
                   </div>
 
+                  {/* Dynamic Fields for Step 2 */}
+                  {configs && typeof configs === 'object' && 
+                    Object.values(configs)
+                      .filter(config => config?.step === 2)
+                      .map(config => renderDynamicField(config))}
 
                 </div>
               </div>
@@ -1200,16 +1615,79 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
                     helperText="Optional skills that would be beneficial"
                   />
 
+                   {/* Prefilled Job Description Selector */}
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      Select Prefilled JD <span className="text-slate-500 text-xs font-normal">(Optional)</span>
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={selectedJdId}
+                        onChange={handleJdSelect}
+                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 placeholder:text-slate-400 bg-white hover:border-slate-400 disabled:bg-slate-50 disabled:cursor-not-allowed pr-10"
+                        disabled={loadingJds || !formData.subFunction}
+                      >
+                        <option value="">
+                          {!formData.subFunction 
+                            ? 'Select a Sub-Function on Step 1 to view templates' 
+                            : loadingJds ? 'Fetching relevant templates...' : 'Choose a template to prefill'}
+                        </option>
+                        {jdList.map(jd => (
+                          <option key={jd.id} value={jd.id}>
+                            {jd.title} {jd.subFunction ? `(${jd.subFunction})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      {loadingJds && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          <div className="animate-spin h-4 w-4 border-2 border-indigo-500 border-t-transparent rounded-full"></div>
+                        </div>
+                      )}
+                    </div>
+                    {jdFilterStatus && (
+                      <p className="text-xs text-indigo-600 mt-1.5 font-medium flex items-center gap-1">
+                        <CheckOutlined className="text-[10px]" /> {jdFilterStatus}
+                      </p>
+                    )}
+                    {!formData.subFunction && (
+                      <p className="text-xs text-amber-600 mt-1.5 font-medium">
+                        ⚠️ Please select a Sub-Function to see relevant JD templates
+                      </p>
+                    )}
+                  </div>
+
                   {/* Job Description */}
-                  <RichTextEditor
-                    value={formData.jobDescription}
-                    onChange={(content) => setFormData({ ...formData, jobDescription: content })}
-                    label="Job Description"
-                    placeholder="Provide detailed job description including responsibilities and requirements..."
-                    helperText="Use the toolbar to format text, add lists, and highlight important points"
-                    minHeight="200px"
-                    required
-                  />
+                  <div className="space-y-4">
+                    <RichTextEditor
+                      value={formData.jobDescription}
+                      onChange={(content) => setFormData({ ...formData, jobDescription: content })}
+                      label="Job Description"
+                      placeholder="Provide detailed job description including responsibilities and requirements..."
+                      helperText="Use the toolbar to format text, add lists, and highlight important points"
+                      minHeight="200px"
+                    />
+
+                    {/* Save as Template Checkbox */}
+                    <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200 hover:border-indigo-200 transition-colors">
+                      <div className="flex items-center h-5">
+                        <input
+                          id="saveAsTemplate"
+                          type="checkbox"
+                          checked={formData.saveAsTemplate}
+                          onChange={(e) => setFormData({ ...formData, saveAsTemplate: e.target.checked })}
+                          className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div className="flex flex-col">
+                        <label htmlFor="saveAsTemplate" className="text-sm font-semibold text-slate-800 cursor-pointer">
+                          Save this Job Description as a reusable template
+                        </label>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Future RRFs with the same Sub-Function will be able to select this JD from the dropdown above.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Additional Notes */}
                   <RichTextEditor
