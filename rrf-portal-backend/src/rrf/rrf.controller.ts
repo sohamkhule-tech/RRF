@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Put,
+  Patch,
   Delete,
   Body,
   Param,
@@ -14,7 +15,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../guards/permission.guard';
-import { RequirePermission } from '../decorators/require-permission.decorator';
+import { RequirePermission } from '../decorators/permissions.decorator';
 import { CurrentUser } from '../decorators/current-user.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { RrfService } from './rrf.service';
@@ -208,10 +209,10 @@ export class RrfController {
   }
 
   /**
-   * Update RRF
-   * PUT /rrf/:id
+   * Update RRF (partial update)
+   * PATCH /rrf/:id
    */
-  @Put(':id')
+  @Patch(':id')
   @RequirePermission('RRF.UPDATE')
   async update(
     @Param('id', ParseIntPipe) id: number,
@@ -386,20 +387,20 @@ export class RrfController {
     @CurrentUser() user: AuthUser,
   ) {
     console.log(`[Controller] fillByBench called - RRF ID: ${id}, User: ${user.id}`);  // 🔍 Debug log
-    
+
     try {
       // ✅ Add timeout protection to prevent infinite hanging
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('Request timeout after 30 seconds')), 30000);
       });
-      
+
       const servicePromise = this.rrfService.fillByBench(id, user.id, candidateName, joiningDate);
-      
+
       // Race between service call and timeout
       const rrf = await Promise.race([servicePromise, timeoutPromise]) as any;
-      
+
       console.log(`[Controller] fillByBench completed - RRF ID: ${id}`);  // 🔍 Debug log
-      
+
       return {
         success: true,
         message: 'Position filled by bench and closed successfully',

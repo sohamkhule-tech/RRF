@@ -14,12 +14,12 @@ import {
 import { JobDescriptionsService } from './job-descriptions.service';
 import { CreateJobDescriptionDto } from './dto/create-job-description.dto';
 import { UpdateJobDescriptionDto } from './dto/update-job-description.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../guards/permissions.guard';
-import { RequirePermissions } from '../decorators/permissions.decorator';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionGuard } from '../guards/permission.guard';
+import { RequirePermission } from '../decorators/permissions.decorator';
 
 @Controller('job-descriptions')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard)
 export class JobDescriptionsController {
   constructor(private readonly jobDescriptionsService: JobDescriptionsService) {}
 
@@ -61,7 +61,7 @@ export class JobDescriptionsController {
    * Requires RRF create permission
    */
   @Post()
-  @RequirePermissions('create_rrf')
+  @RequirePermission('create_rrf')
   async create(@Body() createDto: CreateJobDescriptionDto, @Request() req) {
     return this.jobDescriptionsService.create(createDto, req.user.userId);
   }
@@ -72,7 +72,7 @@ export class JobDescriptionsController {
    * Requires RRF update permission
    */
   @Put(':id')
-  @RequirePermissions('update_rrf')
+  @RequirePermission('update_rrf')
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateDto: UpdateJobDescriptionDto,
@@ -86,7 +86,7 @@ export class JobDescriptionsController {
    * Requires RRF delete permission
    */
   @Delete(':id')
-  @RequirePermissions('delete_rrf')
+  @RequirePermission('delete_rrf')
   async remove(@Param('id', ParseIntPipe) id: number) {
     await this.jobDescriptionsService.remove(id);
     return { message: 'Job Description deleted successfully' };
