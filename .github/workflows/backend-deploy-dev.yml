@@ -32,7 +32,6 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           npm install   # ✅ FIXED (was npm ci)
-          npx prisma generate
           npm run build
 
       # 🔥 SSH SETUP
