@@ -314,8 +314,24 @@ export class RrfService {
 
   async update(id: number, updateRrfDto: UpdateRrfDto, userId: number): Promise<Rrf> {
     const rrf = await this.findOne(id);
+    const numericUserId = Number(userId);
 
-    const allowedEditStatuses = [
+    // ─── Role-based edit permission matrix ──────────────────────────────────
+    // Determine if caller is the original creator (Hiring Manager)
+    const isCreator = rrf.createdById === numericUserId;
+
+    // Determine if caller is a registered approver for this RRF
+    const approverRecord = rrf.approvers?.find(
+      (a) => Number(a.userId) === numericUserId,
+    );
+    const isApprover = !!approverRecord;
+
+    if (!isCreator && !isApprover) {
+      throw new ForbiddenException('You are not authorized to edit this RRF');
+    }
+
+    // Statuses where each role is allowed to edit
+    const hmAllowedStatuses: RrfStatus[] = [
       RrfStatus.DRAFT,
       RrfStatus.PENDING,
       RrfStatus.SUBMITTED,
@@ -324,13 +340,24 @@ export class RrfService {
       RrfStatus.ON_HOLD,
     ];
 
-    if (!allowedEditStatuses.includes(rrf.status as RrfStatus)) {
-      throw new BadRequestException(`Cannot update RRF with status: ${rrf.status}. Editing is not allowed for approved or closed requests.`);
-    }
+    const approverAllowedStatuses: RrfStatus[] = [
+      RrfStatus.PENDING,
+      RrfStatus.SUBMITTED,
+      RrfStatus.DECLINED,
+      RrfStatus.REJECTED,
+    ];
 
-    if (rrf.createdById !== Number(userId)) {
-      throw new ForbiddenException('You can only update your own RRF requests');
+    const allowedStatuses = isCreator ? hmAllowedStatuses : approverAllowedStatuses;
+
+    if (!allowedStatuses.includes(rrf.status as RrfStatus)) {
+      throw new BadRequestException(
+        `Cannot update RRF with status: ${rrf.status}. ` +
+        (isCreator
+          ? 'Editing is only allowed for PENDING, DECLINED, and ON_HOLD requests.'
+          : 'Approvers can only edit PENDING or DECLINED requests.'),
+      );
     }
+    // ────────────────────────────────────────────────────────────────────────
 
     if (
       updateRrfDto.budgetMin !== undefined &&
@@ -353,6 +380,12 @@ export class RrfService {
         );
       }
     }
+
+    // ─── Collaboration tracking fields ──────────────────────────────────────
+    rrf.lastEditedById = numericUserId;
+    rrf.lastEditedByRole = isCreator ? 'HIRING_MANAGER' : 'APPROVER';
+    rrf.lastEditedAt = new Date();
+    // ────────────────────────────────────────────────────────────────────────
 
     Object.assign(rrf, updateRrfDto);
     return await this.rrfRepository.save(rrf);
@@ -406,9 +439,18 @@ export class RrfService {
       throw new ForbiddenException('You can only submit your own RRFs');
     }
 
-    if (rrf.status !== RrfStatus.DRAFT) {
+    // Allow first submission (DRAFT) and resubmission after being declined/rejected
+    const submittableStatuses = [
+      RrfStatus.DRAFT,
+      RrfStatus.DECLINED,
+      RrfStatus.REJECTED,
+    ];
+
+    if (!submittableStatuses.includes(rrf.status as RrfStatus)) {
       throw new BadRequestException(`Cannot submit RRF with status: ${rrf.status}`);
     }
+
+    const isResubmission = rrf.status === RrfStatus.DECLINED || rrf.status === RrfStatus.REJECTED;
 
     // Fetch user to check role
     const user = await this.userRepository.findOne({
@@ -430,34 +472,65 @@ export class RrfService {
       return await this.rrfRepository.save(rrf);
     }
 
-    // HM Workflow: Assign Approvers
-    const approvers = await this.getApprovers();
+    // ─── Resubmission: reset approver records so approval chain restarts ────
+    if (isResubmission) {
+      const existingApprovers = await this.rrfApproverRepository.find({
+        where: { rrfId: id },
+      });
 
-    if (approvers.length === 0) {
-      throw new BadRequestException(
-        'No approvers available in the system. Please contact administrator.',
+      if (existingApprovers.length > 0) {
+        for (const approver of existingApprovers) {
+          approver.approvalStatus = ApprovalStatus.PENDING;
+          approver.approvedAt = null;
+          approver.rejectedAt = null;
+          approver.comments = null;
+        }
+        await this.rrfApproverRepository.save(existingApprovers);
+      }
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
+    // HM Workflow: Assign Approvers (only on first submission; resubmission reuses existing records)
+    if (!isResubmission) {
+      const approvers = await this.getApprovers();
+
+      if (approvers.length === 0) {
+        throw new BadRequestException(
+          'No approvers available in the system. Please contact administrator.',
+        );
+      }
+
+      rrf.status = RrfStatus.PENDING;
+      rrf.submittedAt = new Date();
+      this.appendStatusHistory(rrf, this.buildStatusHistoryEntry(RrfStatus.PENDING, userId));
+
+      const savedRrf = await this.rrfRepository.save(rrf);
+
+      const approverRecords = approvers.map((approver, index) =>
+        this.rrfApproverRepository.create({
+          rrfId: savedRrf.id,
+          userId: approver.id,
+          approvalLevel: ApprovalLevel.L1,
+          approvalOrder: index + 1,
+          approvalStatus: ApprovalStatus.PENDING,
+          isMandatory: false,
+        }),
       );
+
+      await this.rrfApproverRepository.save(approverRecords);
+      return await this.findOne(id);
     }
 
+    // Resubmission path: transition DECLINED → PENDING
     rrf.status = RrfStatus.PENDING;
     rrf.submittedAt = new Date();
-    this.appendStatusHistory(rrf, this.buildStatusHistoryEntry(RrfStatus.PENDING, userId));
-
-    const savedRrf = await this.rrfRepository.save(rrf);
-
-    const approverRecords = approvers.map((approver, index) =>
-      this.rrfApproverRepository.create({
-        rrfId: savedRrf.id,
-        userId: approver.id,
-        approvalLevel: ApprovalLevel.L1,
-        approvalOrder: index + 1,
-        approvalStatus: ApprovalStatus.PENDING,
-        isMandatory: false,
-      }),
+    rrf.declineReason = null;
+    this.appendStatusHistory(
+      rrf,
+      this.buildStatusHistoryEntry(RrfStatus.PENDING, userId, 'Resubmitted after decline'),
     );
 
-    await this.rrfApproverRepository.save(approverRecords);
-
+    await this.rrfRepository.save(rrf);
     return await this.findOne(id);
   }
 

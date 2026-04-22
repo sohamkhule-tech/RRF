@@ -368,19 +368,19 @@ export default function ApproverViewRRFPage() {
               
               <div className="hidden sm:block w-px h-8 bg-slate-300 mx-2"></div>
 
-              {/* Action buttons: ONLY show when RRF is still pending — avoids 403 on already-actioned RRFs */}
+              {/* Action buttons area — behaviour depends on status */}
+              {/* Edit button: visible for PENDING and DECLINED (Approver can edit both) */}
+              {(rrf?.status === 'pending' || rrf?.status === 'declined' || rrf?.status === 'rejected') && hasPermission(PERMISSIONS.APPROVALS.APPROVE) && (
+                <Link href={`/approver/edit-rrf/${rrfId}`}>
+                  <button className="px-4 py-2 bg-white border border-indigo-300 text-indigo-600 hover:bg-indigo-50 font-semibold rounded-lg transition-all">
+                    Edit
+                  </button>
+                </Link>
+              )}
+
+              {/* Workflow action buttons: ONLY show when RRF is still pending — avoids 403 on already-actioned RRFs */}
               {rrf?.status === 'pending' ? (
                 <>
-                  {/* Edit Button */}
-                  {hasPermission(PERMISSIONS.APPROVALS.APPROVE) && (
-                    <Link href={`/approver/edit-rrf/${rrfId}`}>
-                      <button
-                        className="px-4 py-2 bg-white border border-indigo-300 text-indigo-600 hover:bg-indigo-50 font-semibold rounded-lg transition-all"
-                      >
-                        Edit
-                      </button>
-                    </Link>
-                  )}
                   {/* Decline Button */}
                   {hasPermission(PERMISSIONS.APPROVALS.REJECT) && (
                     <button

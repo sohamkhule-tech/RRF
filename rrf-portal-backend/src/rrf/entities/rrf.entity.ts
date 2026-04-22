@@ -270,6 +270,22 @@ export class Rrf {
 
   // ========== WORKFLOW SYSTEM UPDATE END ==========
 
+  // ─── Collaborative Edit Tracking ────────────────────────────────────────────
+  // Tracks who last edited this RRF and in what role (HM vs Approver)
+
+  @Column({ name: 'last_edited_by_id', nullable: true })
+  lastEditedById: number;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'last_edited_by_id' })
+  lastEditedBy: User;
+
+  @Column({ name: 'last_edited_by_role', length: 50, nullable: true })
+  lastEditedByRole: string; // 'HIRING_MANAGER' | 'APPROVER'
+
+  @Column({ name: 'last_edited_at', type: 'timestamp', nullable: true })
+  lastEditedAt: Date;
+
   // Relations
   @OneToMany(() => RrfApprover, (approver) => approver.rrf)
   approvers: RrfApprover[];
@@ -280,3 +296,4 @@ export class Rrf {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 }
+

@@ -237,8 +237,8 @@ export default function HMViewRRFPage() {
             </div>
             <div className="flex flex-wrap items-center gap-2 md:gap-3">
               {isEditable && (
-                <button 
-                  onClick={() => router.push(`/hiring-manager/create-rrf?draftId=${rrfData.id}`)}
+                <button
+                  onClick={() => router.push(`/hiring-manager/edit-rrf/${rrfData.id}`)}
                   className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 font-bold rounded-lg transition-all flex items-center gap-2 shadow-md"
                 >
                   <EditOutlined /> <span className="hidden sm:inline">Edit Request</span>
