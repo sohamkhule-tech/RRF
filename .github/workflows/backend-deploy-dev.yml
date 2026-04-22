@@ -3,7 +3,7 @@ name: Deploy Backend to EC2
 on:
   push:
     branches:
-      - devops  # Updated to match your current branch
+      - devops
     paths:
       - 'backend/**'
       - '.github/workflows/backend-deploy-dev.yml'
@@ -11,6 +11,7 @@ on:
 jobs:
   deploy-backend:
     runs-on: ubuntu-latest
+
     concurrency:
       group: deploy-backend-ec2
       cancel-in-progress: true
@@ -19,56 +20,60 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 20
 
+      # 🔥 BUILD IN CI (not on server)
       - name: Install & Build Backend
         working-directory: backend
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           npm ci
-          npx prisma generate --schema=prisma/schema.prisma
+          npx prisma generate
           npm run build
-          
-      - name: Start SSH agent
+
+      # 🔥 SSH SETUP
+      - name: Start SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
 
-      - name: Add EC2 to known hosts
+      - name: Add Host
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Ensure app directory exists
+      # 🔥 CREATE DIR
+      - name: Ensure Backend Directory
         run: |
-          ssh "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" "mkdir -p '${{ secrets.EC2_APP_DIR }}/backend'"
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} \
+          "mkdir -p ${{ secrets.EC2_APP_DIR }}/backend"
 
-      - name: Sync backend files
+      # 🔥 SYNC ONLY REQUIRED FILES
+      - name: Sync Backend to Server
         run: |
           rsync -az --delete \
-            --exclude='.env' \
-            --exclude='node_modules' \
-            backend/ \
-            "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:${{ secrets.EC2_APP_DIR }}/backend/"
-            
-      - name: Deploy & Restart Backend App
+            backend/dist \
+            backend/node_modules \
+            backend/package.json \
+            backend/prisma \
+            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:${{ secrets.EC2_APP_DIR }}/backend/
+
+      # 🔥 RUN WITH PM2
+      - name: Deploy Backend
         run: |
           ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+
             export PATH=$PATH:/usr/bin:/usr/local/bin
-            cd "${{ secrets.EC2_APP_DIR }}/backend"
-            
-            # Install only production dependencies
-            npm install --omit=dev
-            
-            # Generate Prisma Client
-            npx prisma generate --schema=./prisma/schema.prisma
-            
-            # Restart using the compiled JS instead of 'npm start'
+            cd ${{ secrets.EC2_APP_DIR }}/backend
+
             pm2 delete backend || true
-            pm2 start dist/src/main.js --name "backend"
+
+            pm2 start dist/src/main.js --name backend
+
             pm2 save
+
           EOF
