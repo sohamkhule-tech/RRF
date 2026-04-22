@@ -32,6 +32,7 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: "http://3.108.60.209:4000/api"
         run: |
+          export NODE_OPTIONS="--max-old-space-size=1024"
           npm ci --legacy-peer-deps
           npm run build
 
