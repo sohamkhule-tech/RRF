@@ -20,7 +20,6 @@ import { typeOrmConfig } from './config/typeorm.config';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
     }),
     TypeOrmModule.forRoot(typeOrmConfig),
     // Rate limiting: max 10 requests per 60 seconds globally,
