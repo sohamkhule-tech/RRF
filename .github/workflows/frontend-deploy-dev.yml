@@ -55,6 +55,11 @@ jobs:
       - name: Sync Frontend to Server
         run: |
           rsync -az --delete \
+          --include='.next/***' \
+          --include='public/***' \
+          --include='package.json' \
+          --include='node_modules/***' \
+          --exclude='*' \
           rrf-portal-nextjs/ \
           ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:${{ secrets.EC2_APP_DIR }}/rrf-portal-nextjs/
 
