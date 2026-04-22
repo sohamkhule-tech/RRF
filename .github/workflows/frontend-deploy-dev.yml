@@ -36,6 +36,12 @@ jobs:
           npm ci --legacy-peer-deps
           npm run build
 
+      - name: Check Build Output
+        run: |
+          echo "Listing .next folder"
+          ls -la rrf-portal-nextjs/.next
+          ls -la rrf-portal-nextjs/.next/standalone || echo "No standalone build"
+
       - name: Start SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
