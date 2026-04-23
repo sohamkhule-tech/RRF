@@ -28,8 +28,6 @@ jobs:
       # ✅ BUILD IN CI
       - name: Install & Build Backend
         working-directory: rrf-portal-backend
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           npm install   # ✅ FIXED (was npm ci)
           npm run build
