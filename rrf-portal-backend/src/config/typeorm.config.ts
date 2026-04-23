@@ -7,6 +7,9 @@ export const typeOrmConfig: TypeOrmModuleOptions = {
   username: process.env.DB_USERNAME,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_DATABASE,
+  ssl: {
+  rejectUnauthorized: false,
+  },
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
   synchronize: process.env.NODE_ENV !== 'production', // Auto-create tables in dev
   logging: process.env.NODE_ENV !== 'production',
