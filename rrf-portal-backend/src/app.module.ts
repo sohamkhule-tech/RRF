@@ -15,13 +15,29 @@ import { JobDescriptionsModule } from './job-descriptions/job-descriptions.modul
 import { SeedModule } from './database/seed.module';
 import { RrfModule } from './rrf/rrf.module';
 import { typeOrmConfig } from './config/typeorm.config';
+import { ConfigService } from '@nestjs/config';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    TypeOrmModule.forRoot(typeOrmConfig),
+    TypeOrmModule.forRootAsync({
+        inject: [ConfigService],
+        useFactory: (config: ConfigService) => ({
+          type: 'postgres',
+          host: config.get<string>('DB_HOST'),
+          port: parseInt(config.get<string>('DB_PORT') || '5432'),
+          username: config.get<string>('DB_USERNAME'),
+          password: config.get<string>('DB_PASSWORD'),
+          database: config.get<string>('DB_DATABASE'),
+          entities: [__dirname + '/../**/*.entity{.ts,.js}'],
+          synchronize: false,
+          logging: false,
+          retryAttempts: 10,
+          retryDelay: 3000,
+        }),
+      }),
     // Rate limiting: max 10 requests per 60 seconds globally,
     // tightened per-route on login endpoint
     ThrottlerModule.forRoot([
