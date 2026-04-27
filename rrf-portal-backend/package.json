@@ -6,7 +6,11 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main",
-    "build": "nest build"
+    "build": "nest build",
+    "migration:run": "typeorm-ts-node-commonjs -d data-source.ts migration:run",
+    "migration:revert": "typeorm-ts-node-commonjs -d data-source.ts migration:revert",
+    "migration:generate": "typeorm-ts-node-commonjs -d data-source.ts migration:generate src/migrations/migration",
+    "migration:show": "typeorm-ts-node-commonjs -d data-source.ts migration:show"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",

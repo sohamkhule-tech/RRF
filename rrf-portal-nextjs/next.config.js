@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  output: 'standalone',
   // ✅ DOCKER HOT RELOAD CONFIGURATION
   // Enables file watching in Docker containers via polling
   webpack: (config, { dev }) => {
