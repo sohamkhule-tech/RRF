@@ -31,7 +31,7 @@ jobs:
       - name: Build Frontend
         working-directory: rrf-portal-nextjs
         env:
-          NEXT_PUBLIC_API_URL: "http://13.126.110.36:4000/api"
+          NEXT_PUBLIC_API_URL: "http://13.126.110.36:4000"
         run: |
           npm ci --legacy-peer-deps
           npm run build

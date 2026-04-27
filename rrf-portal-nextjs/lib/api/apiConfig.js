@@ -35,9 +35,6 @@ const handleUnauthorized = () => {
  * ✅ FIX ISSUE 1: Enhanced error logging and validation
  */
 export const apiRequest = async (endpoint, options = {}) => {
-  // Use absolute URL from environment if present, otherwise default to local
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-  
   const token = getAuthToken();
 
   // Temporary Debug Logs (Requirement 6)
