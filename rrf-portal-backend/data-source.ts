@@ -30,7 +30,6 @@ const AppDataSource = new DataSource({
 
   synchronize: false,
   logging: ['query', 'error', 'warn', 'migration'],
-  logging: ['error', 'warn'],
 
   poolSize: 10,
   connectTimeoutMS: 10000,
