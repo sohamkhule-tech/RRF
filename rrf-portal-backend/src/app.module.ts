@@ -32,7 +32,7 @@ import { ConfigService } from '@nestjs/config';
           password: config.get<string>('DB_PASSWORD'),
           database: config.get<string>('DB_DATABASE'),
           entities: [__dirname + '/../**/*.entity{.ts,.js}'],
-          synchronize: true,
+          synchronize: false,
           logging: false,
           retryAttempts: 10,
           retryDelay: 3000,
