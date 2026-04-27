@@ -63,7 +63,6 @@ jobs:
           rsync -az --delete \
             --exclude='.env' \
             rrf-portal-nextjs/.next \
-            rrf-portal-nextjs/public \
             rrf-portal-nextjs/package.json \
             rrf-portal-nextjs/next.config.js \
             rrf-portal-nextjs/jsconfig.json \
