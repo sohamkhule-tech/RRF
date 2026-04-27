@@ -36,6 +36,7 @@ import { ConfigService } from '@nestjs/config';
           logging: false,
           retryAttempts: 10,
           retryDelay: 3000,
+          ssl: config.get<string>('DB_SSL') === 'true' ? { rejectUnauthorized: false } : false,
         }),
       }),
     // Rate limiting: max 10 requests per 60 seconds globally,
