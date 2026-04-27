@@ -8,10 +8,8 @@ export const typeOrmConfig: TypeOrmModuleOptions = {
   password: process.env.DB_PASSWORD,
   database: process.env.DB_DATABASE,
 
-  // REQUIRED FOR AWS DB--MS
-  ssl: {
-    rejectUnauthorized: false,
-  },
+  // ✅ THIS LINE IS THE REAL FIX
+  ssl: true,
 
   extra: {
     ssl: {
