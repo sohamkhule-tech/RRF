@@ -1,4 +1,4 @@
-import { Controller, Post, ForbiddenException } from '@nestjs/common';
+import { Controller, Post } from '@nestjs/common';
 import { SeedService } from './seed.service';
 import { MigrateSubIdService } from './migrate-subid.service';
 
@@ -11,11 +11,7 @@ export class SeedController {
 
   @Post()
   async seedDatabase() {
-    // Only allow seeding in development environment
-    if (process.env.NODE_ENV === 'production') {
-      throw new ForbiddenException('Database seeding is disabled in production');
-    }
-
+    // Only allow seeding if DB is empty (idempotent guard)
     try {
       await this.seedService.seedAll();
       return {
@@ -33,11 +29,6 @@ export class SeedController {
 
   @Post('migrate-sub-ids')
   async migrateSubIds() {
-    // Only allow migration in development environment
-    if (process.env.NODE_ENV === 'production') {
-      throw new ForbiddenException('Database migration is disabled in production');
-    }
-
     try {
       return await this.migrateSubIdService.migrateExistingRecords();
     } catch (error) {

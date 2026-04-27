@@ -1,0 +1,80 @@
+================================================================
+RRF PORTAL - LIGHTSAIL DEPLOYMENT STEPS
+================================================================
+
+STEP 1 — SSH into backend Lightsail instance
+----------------------------------------------------------------
+ssh -i your-key.pem ubuntu@<backend-lightsail-ip>
+
+
+STEP 2 — Check backend is running
+----------------------------------------------------------------
+pm2 status
+pm2 logs rrf-portal-backend --lines 50
+
+
+STEP 3 — Create .env file
+----------------------------------------------------------------
+cd <EC2_APP_DIR>/rrf-portal-backend
+nano .env
+
+Paste the following (replace values accordingly):
+
+    NODE_ENV=production
+    DB_HOST=<db-lightsail-public-ip>
+    DB_PORT=5432
+    DB_USERNAME=postgres
+    DB_PASSWORD=yourpassword
+    DB_DATABASE=rrf_portal
+    DB_SSL=false
+    JWT_SECRET=your_secret_here
+    JWT_EXPIRES_IN=24h
+    ALLOWED_ORIGINS=http://13.126.110.36:3000
+
+Save: Ctrl+X → Y → Enter
+
+
+STEP 4 — Restart backend to pick up .env and create tables
+----------------------------------------------------------------
+pm2 restart rrf-portal-backend
+pm2 logs rrf-portal-backend --lines 30
+
+Check logs — TypeORM will auto-create all tables on first start.
+
+
+STEP 5 — Copy seed files to server (run from your LOCAL machine)
+----------------------------------------------------------------
+scp -i your-key.pem Data/seed-admin.sql ubuntu@<backend-lightsail-ip>:~/
+scp -i your-key.pem Data/seed-demo-users.sql ubuntu@<backend-lightsail-ip>:~/
+
+
+STEP 6 — Run seed scripts (run from backend Lightsail SSH)
+----------------------------------------------------------------
+PGPASSWORD=yourpassword psql -U postgres -d rrf_portal -h <db-lightsail-public-ip> -f ~/seed-admin.sql
+PGPASSWORD=yourpassword psql -U postgres -d rrf_portal -h <db-lightsail-public-ip> -f ~/seed-demo-users.sql
+
+
+STEP 7 — Verify users created
+----------------------------------------------------------------
+PGPASSWORD=yourpassword psql -U postgres -d rrf_portal -h <db-lightsail-public-ip> -c "SELECT user_id, full_name, is_active FROM users;"
+
+
+================================================================
+DEMO CREDENTIALS
+================================================================
+Hiring Manager   : hm001  / hm123
+PMO              : pmo001 / pmo123
+Approver         : app001 / app123
+Talent Acq.      : hr001  / hr123
+Admin            : admin001 / admin123
+
+
+================================================================
+NOTES
+================================================================
+- EC2_APP_DIR is the GitHub secret you set — check your repo
+  Settings → Secrets → EC2_APP_DIR for the exact path
+- DB Lightsail and Backend Lightsail are separate instances
+- Port 5432 must be open on DB Lightsail firewall for backend IP
+- ALLOWED_ORIGINS must match the exact URL users use in browser
+================================================================
