@@ -52,4 +52,15 @@ export class CreateUserDto {
   @IsOptional()
   @IsNumber({}, { each: true })
   subfunctionIds?: number[];
+
+  @ApiProperty({
+    description: 'Array of technology strings (names from master list)',
+    example: ['Java', 'React'],
+    required: false,
+    type: [String],
+  })
+  @IsArray()
+  @IsOptional()
+  @IsString({ each: true })
+  technologies?: string[];
 }

@@ -23,6 +23,7 @@ import { RrfFormConfigService } from './rrf-form-config.service';
 import { CreateRrfDto } from './dto/create-rrf.dto';
 import { UpdateRrfDto } from './dto/update-rrf.dto';
 import { RrfQueryDto } from './dto/rrf-query.dto';
+import { CreateRrfFormConfigDto } from './dto/create-rrf-form-config.dto';
 import { UpdateRrfFormConfigDto } from './dto/update-rrf-form-config.dto';
 
 @Controller('rrf')
@@ -61,7 +62,7 @@ export class RrfController {
     @Query() queryDto: RrfQueryDto,
     @CurrentUser() user: AuthUser,
   ) {
-    const result = await this.rrfService.findAll(queryDto);
+    const result = await this.rrfService.findAll(queryDto, user);
     return {
       success: true,
       ...result,
@@ -89,11 +90,10 @@ export class RrfController {
   @Get('statistics')
   @RequirePermission('RRF.READ')
   async getStatistics(@CurrentUser() user: AuthUser, @Query('all') all?: string) {
-    const userId = all === 'true' ? undefined : user.id;
-    const stats = await this.rrfService.getStatistics(userId);
+    const result = await this.rrfService.getStatistics(user, all === 'true');
     return {
       success: true,
-      data: stats,
+      data: result,
     };
   }
 
@@ -108,8 +108,8 @@ export class RrfController {
    */
   @Get('pending-approvals')
   @RequirePermission('APPROVALS.APPROVE')
-  async getPendingApprovals() {
-    const rrfs = await this.rrfService.getPendingApprovals();
+  async getPendingApprovals(@CurrentUser() user: AuthUser) {
+    const rrfs = await this.rrfService.getPendingApprovals(user);
     return {
       success: true,
       data: rrfs,
@@ -163,6 +163,21 @@ export class RrfController {
   // ========================================================================
 
   /**
+   * Create new form configuration
+   * POST /rrf/form-config
+   */
+  @Post('form-config')
+  @RequirePermission('RRF.UPDATE') // Changed from DELETE to UPDATE
+  async createFormConfig(@Body() createDto: CreateRrfFormConfigDto) {
+    const config = await this.formConfigService.create(createDto);
+    return {
+      success: true,
+      message: 'Form configuration created successfully',
+      data: config,
+    };
+  }
+
+  /**
    * Get all form configurations (for dynamic dropdowns)
    * GET /rrf/form-config
    */
@@ -176,12 +191,8 @@ export class RrfController {
     };
   }
 
-  /**
-   * Update form configuration (PMO only)
-   * PUT /rrf/form-config/:fieldName
-   */
   @Put('form-config/:fieldName')
-  @RequirePermission('RRF.DELETE')
+  @RequirePermission('RRF.UPDATE')
   async updateFormConfig(
     @Param('fieldName') fieldName: string,
     @Body() updateDto: UpdateRrfFormConfigDto,
@@ -195,13 +206,42 @@ export class RrfController {
   }
 
   /**
+   * Delete form configuration
+   * DELETE /rrf/form-config/:fieldName
+   */
+  @Delete('form-config/:fieldName')
+  @RequirePermission('RRF.DELETE')
+  async removeFormConfig(@Param('fieldName') fieldName: string) {
+    await this.formConfigService.remove(fieldName);
+    return {
+      success: true,
+      message: 'Form configuration deleted successfully',
+    };
+  }
+
+  /**
+   * Get suggested interviewers based on technologies
+   * GET /rrf/suggested-interviewers?technologies=Java,React
+   */
+  @Get('suggested-interviewers')
+  @RequirePermission('RRF.READ')
+  async getSuggestedInterviewers(@Query('technologies') technologies: string) {
+    const techList = technologies ? technologies.split(',').map(t => t.trim()) : [];
+    const interviewers = await this.rrfService.getSuggestedInterviewers(techList);
+    return {
+      success: true,
+      data: interviewers,
+    };
+  }
+
+  /**
    * Get single RRF by ID
    * GET /rrf/:id
    */
   @Get(':id')
   @RequirePermission('RRF.READ')
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    const rrf = await this.rrfService.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthUser) {
+    const rrf = await this.rrfService.findOne(id, true, user);
     return {
       success: true,
       data: rrf,
@@ -434,4 +474,5 @@ export class RrfController {
       data: rrf,
     };
   }
+
 }

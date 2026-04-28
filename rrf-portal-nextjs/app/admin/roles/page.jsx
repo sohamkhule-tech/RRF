@@ -69,7 +69,7 @@ export default function AdminRolesPage() {
   // ─── Group Permissions by Module ────────────────────────────
   const groupedPermissions = useMemo(() => {
     if (!allPermissions.length) return []
-    
+
     const groups = allPermissions.reduce((acc, perm) => {
       const moduleCode = perm.module?.moduleCode || 'OTHER'
       if (!acc[moduleCode]) {
@@ -103,7 +103,7 @@ export default function AdminRolesPage() {
   }, [initialPermissions, selectedPermissions])
 
   // ─── Select All Checkbox State ─────────────────────────────
-  const allChecked = allPermissions.length > 0 && 
+  const allChecked = allPermissions.length > 0 &&
     selectedPermissions.length === allPermissions.length
   const indeterminate = selectedPermissions.length > 0 && !allChecked
 
@@ -117,11 +117,11 @@ export default function AdminRolesPage() {
     try {
       console.log('📋 Opening permissions modal for role:', role)
       console.log('🌐 API Base URL:', process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000')
-      
+
       // Fetch all permissions and role-specific permissions in parallel
       const [allPermsRes, rolePermsRes] = await Promise.all([
-        allPermissions.length > 0 
-          ? Promise.resolve({ data: allPermissions }) 
+        allPermissions.length > 0
+          ? Promise.resolve({ data: allPermissions })
           : permissionsApi.getAll(),
         rolesApi.getPermissions(role.id),
       ])
@@ -142,7 +142,7 @@ export default function AdminRolesPage() {
       console.log('✅ Modal loaded successfully')
     } catch (error) {
       console.error('❌ Failed to load permissions:', error)
-      
+
       // Provide detailed error message
       let errorMessage = 'Failed to load permissions'
       if (error.message) {
@@ -156,7 +156,7 @@ export default function AdminRolesPage() {
           errorMessage = `Failed to load permissions: ${error.message}`
         }
       }
-      
+
       toast.error(errorMessage)
       console.error('🔍 Debugging info:', {
         errorMessage: error.message,
@@ -211,7 +211,7 @@ export default function AdminRolesPage() {
     const modulePermIds = groupedPermissions
       .find((g) => g.moduleCode === moduleCode)
       ?.permissions.map((p) => p.id) || []
-    
+
     const otherPermIds = selectedPermissions.filter(
       (id) => !modulePermIds.includes(id)
     )
@@ -333,10 +333,10 @@ export default function AdminRolesPage() {
               allowClear
             />
             <Tooltip title="Refresh">
-              <Button 
-                icon={<ReloadOutlined />} 
-                onClick={loadRoles} 
-                loading={loading} 
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={loadRoles}
+                loading={loading}
               />
             </Tooltip>
           </div>
@@ -354,7 +354,7 @@ export default function AdminRolesPage() {
               pageSize: 10,
               showSizeChanger: true,
               pageSizeOptions: ['10', '20', '50'],
-              showTotal: (total, range) => 
+              showTotal: (total, range) =>
                 `${range[0]}-${range[1]} of ${total} role${total !== 1 ? 's' : ''}`,
             }}
             locale={{

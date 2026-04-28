@@ -10,6 +10,7 @@ import {
   Index,
 } from 'typeorm';
 import { User } from '../../users/user.entity';
+import { Subfunction } from '../../subfunctions/subfunction.entity';
 import { RrfApprover } from './rrf-approver.entity';
 
 // ============================================
@@ -107,6 +108,14 @@ export class Rrf {
   @Column({ name: 'sub_function', length: 100, nullable: true })
   subFunction: string;
 
+  @Column({ name: 'subfunction_id', nullable: true })
+  @Index()
+  subFunctionId: number;
+
+  @ManyToOne(() => Subfunction)
+  @JoinColumn({ name: 'subfunction_id' })
+  subFunctionEntity: Subfunction;
+
   @Column({ name: 'project_name', length: 200, nullable: true })
   projectName: string;
 
@@ -139,6 +148,14 @@ export class Rrf {
   @Column({ name: 'technologies', type: 'text', nullable: true })
   technologies: string;
 
+  @Column({ 
+    name: 'interview_panel', 
+    type: 'jsonb', 
+    nullable: true, 
+    default: () => "'[]'::jsonb" 
+  })
+  interviewPanel: number[];
+
   @Column({ name: 'experience_min', type: 'decimal', precision: 3, scale: 1, nullable: true })
   experienceMin: number;
 
@@ -170,6 +187,18 @@ export class Rrf {
 
   @Column({ name: 'urgency_reason', type: 'text', nullable: true })
   urgencyReason: string;
+
+  @Column({ name: 'billing_rate', type: 'decimal', precision: 10, scale: 2, nullable: true })
+  billingRate: number;
+
+  @Column({ name: 'billing_currency', length: 10, nullable: true })
+  billingCurrency: string;
+
+  @Column({ name: 'billing_start_date', type: 'timestamp', nullable: true })
+  billingStartDate: Date;
+
+  @Column({ name: 'expected_onboarding_date', type: 'timestamp', nullable: true })
+  expectedOnboardingDate: Date;
 
   // Foreign Keys
   @Column({ name: 'created_by_id' })
@@ -212,6 +241,9 @@ export class Rrf {
   @Column({ name: 'approved_by_id', nullable: true })
   approvedById: number;
 
+  @Column({ name: 'approved_by_name', length: 255, nullable: true })
+  approvedByName: string;
+
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'approved_by_id' })
   approvedBy: User;
@@ -225,12 +257,26 @@ export class Rrf {
   @Column({ name: 'declined_by_id', nullable: true })
   declinedById: number;
 
+  @Column({ name: 'declined_by_name', length: 255, nullable: true })
+  declinedByName: string;
+
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'declined_by_id' })
   declinedBy: User;
 
   @Column({ name: 'decline_reason', type: 'text', nullable: true })
   declineReason: string;
+
+  // On-hold tracking
+  @Column({ name: 'on_hold_by_id', nullable: true })
+  onHoldById: number;
+
+  @Column({ name: 'on_hold_by_name', length: 255, nullable: true })
+  onHoldByName: string;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'on_hold_by_id' })
+  onHoldBy: User;
 
   @Column({ name: 'closed_at', type: 'timestamp', nullable: true })
   closedAt: Date;
@@ -250,6 +296,9 @@ export class Rrf {
 
   @Column({ name: 'closure_status', type: 'varchar', length: 255, nullable: true })
   closureStatus: string;
+
+  @Column({ name: 'close_reason', type: 'varchar', length: 50, nullable: true })
+  closeReason: string;
 
   @Column({ name: 'internal_rrf_no', type: 'varchar', length: 50, nullable: true, unique: true })
   internalRrfNo: string;

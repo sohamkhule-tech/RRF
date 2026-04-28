@@ -463,7 +463,10 @@ export class SeedService {
       ADMIN: [
         // Admin: Full access to Users, Settings, Dashboard, Reports + Read RRF for statistics
         'DASHBOARD.READ',
-        'RRF.READ',  // Added for admin dashboard statistics
+        'RRF.READ',
+        'RRF.CREATE',
+        'RRF.UPDATE',
+        'RRF.DELETE',
         'USERS.CREATE',
         'USERS.READ',
         'USERS.UPDATE',
@@ -512,6 +515,7 @@ export class SeedService {
         'RRF.CREATE',
         'RRF.READ',
         'RRF.UPDATE',
+        'USERS.READ',
         'REPORTS.READ',
       ],
     };
@@ -915,6 +919,35 @@ export class SeedService {
         step: 2,
         section: 'Position Information',
         displayOrder: 5,
+        isActive: true,
+      },
+
+      // ========== STEP 3: TECHNICAL REQUIREMENTS ==========
+      {
+        fieldName: 'primaryTechnologies',
+        label: 'Primary Technologies',
+        options: ['Java', 'Python', 'React', 'Node.js', 'Angular', 'DotNet', 'AWS', 'Azure'],
+        step: 3,
+        section: 'Core Expertise',
+        displayOrder: 1,
+        isActive: true,
+      },
+      {
+        fieldName: 'mustHaveSkills',
+        label: 'Must Have Skills',
+        options: [],
+        step: 3,
+        section: 'Skillset',
+        displayOrder: 2,
+        isActive: true,
+      },
+      {
+        fieldName: 'niceToHaveSkills',
+        label: 'Nice To Have Skills',
+        options: [],
+        step: 3,
+        section: 'Skillset',
+        displayOrder: 3,
         isActive: true,
       },
     ];

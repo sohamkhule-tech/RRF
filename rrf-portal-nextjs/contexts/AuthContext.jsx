@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
+import { clearAllCache } from '@/lib/apiCache'
 
 const AuthContext = createContext({})
 
@@ -73,6 +74,7 @@ export function AuthProvider({ children }) {
   }
 
   const logout = () => {
+    clearAllCache()
     localStorage.removeItem('token')
     localStorage.removeItem('user')
     localStorage.removeItem('permissions')

@@ -46,9 +46,16 @@ export class User {
   @ManyToOne(() => Role, { eager: true })
   @JoinColumn({ name: 'role_id' })
   role: Role;
-
   @OneToMany(() => UserSubfunction, (userSubfunction) => userSubfunction.user)
   userSubfunctions: UserSubfunction[];
+
+  @Column({ 
+    type: 'jsonb', 
+    nullable: true, 
+    default: () => "'[]'::jsonb",
+    name: 'technologies'
+  })
+  technologies: string[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

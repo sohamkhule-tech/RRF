@@ -9,9 +9,12 @@ import { useSmartFetch } from '@/lib/useSmartFetch'
 import { CACHE_TTL } from '@/lib/apiCache'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import toast from 'react-hot-toast'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function PMOSentToApproversPage() {
   const router = useRouter()
+  const { user } = useAuth()
+  const userId = user?.id
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedDepartment, setSelectedDepartment] = useState('all')
   
@@ -19,7 +22,7 @@ export default function PMOSentToApproversPage() {
   const departments = ['HR', 'Talent Acquisition', 'Accounts', 'Sales & Marketing', 'PMO', 'SGINTL', 'VR', 'Support']
 
   // Shared all-rrfs cache (also used by hr/page, pmo/closed, hr/closed)
-  const { data: allRrfs, loading } = useSmartFetch('all-rrfs', () => rrfApi.getAll({ limit: 1000 }), {
+  const { data: allRrfs, loading } = useSmartFetch(userId ? `all-rrfs-${userId}` : null, () => rrfApi.getAll({ limit: 1000 }), {
     ttl: CACHE_TTL.LIST,
     transform: (response) => response?.data?.data || response?.data || [],
   })

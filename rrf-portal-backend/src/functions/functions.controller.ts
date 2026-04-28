@@ -58,7 +58,7 @@ export class FunctionsController {
 
   // Get unassigned subfunctions
   @Get('subfunctions/unassigned')
-  @RequirePermission('RRF.UPDATE')
+  @RequirePermission('RRF.READ')
   async getUnassignedSubfunctions() {
     const subfunctions = await this.functionsService.getUnassignedSubfunctions();
     return {

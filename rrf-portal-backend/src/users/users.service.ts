@@ -146,6 +146,7 @@ export class UsersService {
       phone: data.phone || null,
       role: role,
       isActive: true,
+      technologies: data.technologies || [],
     });
 
     const saved = await this.usersRepository.save(user);
@@ -205,6 +206,7 @@ export class UsersService {
     if (data.fullName !== undefined) user.fullName = data.fullName;
     if (data.department !== undefined) user.department = data.department;
     if (data.phone !== undefined) user.phone = data.phone;
+    if (data.technologies !== undefined) user.technologies = data.technologies;
 
     const saved = await this.usersRepository.save(user);
 

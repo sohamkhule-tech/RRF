@@ -130,4 +130,31 @@ export class CreateRrfDto {
   @IsBoolean()
   @IsOptional()
   saveAsTemplate?: boolean;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  billingRate?: number;
+
+  @IsString()
+  @IsOptional()
+  billingCurrency?: string;
+
+  @IsString()
+  @IsOptional()
+  billingStartDate?: string;
+
+  @IsString()
+  @IsOptional()
+  expectedOnboardingDate?: string;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  subFunctionId?: number;
+
+  @IsArray()
+  @IsOptional()
+  @IsNumber({}, { each: true })
+  interviewPanel?: number[];
 }

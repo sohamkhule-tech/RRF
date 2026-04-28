@@ -192,6 +192,7 @@ export default function ApproverPendingPage() {
               <tr>
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">ID</th>
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Manager/Dept</th>
+                <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Created By</th>
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Role & Project</th>
                 <th className="px-3 py-3 text-center text-xs font-bold text-gray-700 uppercase">Positions</th>
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Priority</th>
@@ -207,6 +208,7 @@ export default function ApproverPendingPage() {
                     <div className="font-medium text-gray-900">{request.createdBy?.fullName || 'Unknown'}</div>
                     <div className="text-gray-500">{request.department || 'N/A'}</div>
                   </td>
+                  <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-700">{request.createdBy?.fullName || 'N/A'}</td>
                   <td className="px-3 py-3 text-xs">
                     <div className="font-medium text-gray-900">{request.positionTitle}</div>
                     <div className="text-gray-500">{request.projectName || 'N/A'}</div>

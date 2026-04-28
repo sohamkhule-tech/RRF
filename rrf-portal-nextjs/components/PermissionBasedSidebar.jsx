@@ -89,6 +89,15 @@ export default function PermissionBasedSidebar({ isCollapsed = false, isMobile =
         })
       }
 
+      if (isPMO) {
+        items.push({
+          key: '/pmo/requests',
+          icon: <FileTextOutlined className="text-xl" />,
+          label: 'Requests',
+          href: '/pmo/requests',
+        })
+      }
+
       // Drafts - Show for RRF creators (Hiring Managers only, not PMO)
       if (canCreateRRF && !isPMO) {
         items.push({

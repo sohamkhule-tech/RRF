@@ -68,7 +68,10 @@ export default function ApproverViewRRFPage() {
     customerName:     rrf.customerName,
     projectName:      rrf.projectName,
     jobTitle:         rrf.positionTitle,
-    billingStartDate: rrf.expectedStartDate ? new Date(rrf.expectedStartDate).toLocaleDateString('en-GB') : null,
+    billingStartDate: rrf.billingStartDate,
+    expectedOnboardingDate: rrf.expectedOnboardingDate,
+    billingRate: rrf.billingRate,
+    billingCurrency: rrf.billingCurrency,
     positionType:       rrf.positionType,
     employmentType:     rrf.employmentType,
     workMode:           rrf.workMode,
@@ -81,6 +84,9 @@ export default function ApproverViewRRFPage() {
     primaryTechnologies: rrf.technologies,
     jobDescription:  rrf.jobDescription,
     additionalNotes: rrf.urgencyReason,
+    budgetMin:       rrf.budgetMin,
+    budgetMax:       rrf.budgetMax,
+    interviewers:    rrf.interviewers || [],
   } : null
 
   const handleApprove = () => {
@@ -459,7 +465,20 @@ export default function ApproverViewRRFPage() {
                   <InfoField label="Requisition Type"    value={rrfData.requisitionType} />
                   <InfoField label="Customer Name"       value={rrfData.customerName} />
                   <InfoField label="Project Name"        value={rrfData.projectName} />
-                  <InfoField label="Billing Start Date"  value={rrfData.billingStartDate} />
+                  <InfoField 
+                    label="Billing Start Date"  
+                    value={rrfData.billingStartDate ? new Date(rrfData.billingStartDate).toLocaleDateString('en-GB') : null} 
+                  />
+                  <InfoField 
+                    label="Billing Rate" 
+                    value={rrfData.billingRate && rrfData.billingCurrency ? `${rrfData.billingCurrency} ${rrfData.billingRate}` : rrfData.billingRate} 
+                  />
+                   <InfoField 
+                    label="Expected Onboarding Date"  
+                    value={rrfData.expectedOnboardingDate ? new Date(rrfData.expectedOnboardingDate).toLocaleDateString('en-GB') : null} 
+                  />
+                  <InfoField label="Budget Min"          value={rrfData.budgetMin} />
+                  <InfoField label="Budget Max"          value={rrfData.budgetMax} />
                 </div>
               </div>
 
@@ -495,6 +514,32 @@ export default function ApproverViewRRFPage() {
                   <InfoField label="Must-Have Skills"     value={rrfData.requiredSkills}  rich />
                   <InfoField label="Nice-to-Have Skills"  value={rrfData.preferredSkills} rich />
                 </div>
+                {/* ── Interview Panel ───────────────────────────────────── */}
+                <h3 className="text-xl md:text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6 mt-8">
+                  Interview Panel
+                </h3>
+                {rrfData.interviewers && rrfData.interviewers.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {rrfData.interviewers.map((user) => (
+                      <div key={user.id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold">
+                            {user.fullName?.charAt(0) || <UserOutlined />}
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-slate-900 text-sm">{user.fullName}</h4>
+                            <p className="text-xs text-slate-500 font-medium">{user.role?.roleName || 'Interviewer'}</p>
+                            <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider">{user.email}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-8 text-center">
+                    <p className="text-slate-500 font-medium italic">No interviewers assigned to this request.</p>
+                  </div>
+                )}
               </div>
 
               {/* Job Description Section */}
