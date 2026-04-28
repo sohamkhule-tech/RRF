@@ -52,7 +52,7 @@ export default function DependentDropdown({
     } else {
       setSubfunctions([]);
     }
-  }, [functionValue]);
+  }, [functionValue, functions]);
 
   const loadFunctions = async () => {
     try {

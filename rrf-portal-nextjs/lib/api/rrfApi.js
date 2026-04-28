@@ -93,9 +93,14 @@ export const rrfApi = {
   create: async (rrfData) => {
     const sanitized = sanitizeRrfPayload(rrfData);
     
-    // Final safety check - ensure no arrays slipped through
+    // Ensure interviewPanel contains strictly numbers for backend validation
+    if (Array.isArray(sanitized.interviewPanel)) {
+      sanitized.interviewPanel = sanitized.interviewPanel.map(id => Number(id)).filter(id => !isNaN(id));
+    }
+
+    // Final safety check - ensure no arrays slipped through (except those intended to be arrays like interviewPanel)
     Object.keys(sanitized).forEach(key => {
-      if (Array.isArray(sanitized[key])) {
+      if (Array.isArray(sanitized[key]) && key !== 'interviewPanel') {
         console.error(`[RRF API] ERROR: ${key} is still an array!`, sanitized[key]);
         sanitized[key] = sanitized[key].join(', ');
       }
@@ -157,13 +162,6 @@ export const rrfApi = {
   },
 
   /**
-   * Fill position by bench resource (PMO action)
-   */
-  fillByBench: async (id, candidateName, joiningDate) => {
-    return api.post(`/rrf/${id}/fill-by-bench`, { candidateName, joiningDate });
-  },
-
-  /**
    * Close RRF (HR action)
    */
   close: async (id, payload) => {
@@ -181,6 +179,8 @@ export const rrfApi = {
     if (!Array.isArray(rrfs)) return [];
     return rrfs.map((rrf) => ({
       ...rrf,
+      // TODO 5: Expose reqId (the REQ-xxx stored in sub_id) alongside rrfNumber.
+      // displayId logic: show rrfNumber (RRF-xxx) once PMO acts, else show reqId (REQ-xxx).
       displayId: rrf.rrfNumber || rrf.subId,
     }));
   },
@@ -214,6 +214,15 @@ export const rrfApi = {
   delete: async (id) => {
     return api.delete(`/rrf/${id}`);
   },
+
+  /**
+   * Get suggested interviewers based on technologies
+   */
+  getSuggestedInterviewers: async (technologies = []) => {
+    const techQuery = Array.isArray(technologies) ? technologies.join(',') : technologies;
+    const response = await api.get(`/rrf/suggested-interviewers?technologies=${encodeURIComponent(techQuery)}`);
+    return response?.data || [];
+  },
 };
 
 /**
@@ -225,7 +234,9 @@ export const formatRrfForDisplay = (rrf) => {
   return {
     id: rrf.id,
     subId: rrf.subId,
+    reqId: rrf.subId,          // TODO 5: reqId is the REQ-xxx value stored in sub_id
     rrfNumber: rrf.rrfNumber,
+    // displayId: show final RRF-xxx once assigned by PMO, else the REQ-xxx request ID
     displayId: rrf.rrfNumber || rrf.subId,
     role: rrf.positionTitle,
     positionTitle: rrf.positionTitle,
@@ -260,6 +271,7 @@ export const formatRrfForDisplay = (rrf) => {
     preferredSkills: rrf.preferredSkills,
     mustHaveSkills: rrf.mustHaveSkills,
     niceToHaveSkills: rrf.niceToHaveSkills,
+    technologies: rrf.technologies,
     experienceMin: rrf.experienceMin,
     experienceMax: rrf.experienceMax,
     experience:
@@ -275,6 +287,10 @@ export const formatRrfForDisplay = (rrf) => {
     location: rrf.location,
     urgencyReason: rrf.urgencyReason,
     additionalNotes: rrf.additionalNotes,
+    billingRate: rrf.billingRate,
+    billingCurrency: rrf.billingCurrency,
+    billingStartDate: rrf.billingStartDate,
+    expectedOnboardingDate: rrf.expectedOnboardingDate,
     approvers: rrf.approvers || [],
     // ── Decision / workflow fields ─────────────────────────────────
     declineReason: rrf.declineReason || null,
@@ -285,7 +301,15 @@ export const formatRrfForDisplay = (rrf) => {
     candidateName: rrf.candidateName || null,
     joiningDate: rrf.joiningDate || null,
     closureStatus: rrf.closureStatus || null,
+    closeReason: rrf.closeReason || null,
     internalRrfNo: rrf.internalRrfNo || null,  // Auto-generated for bench-filled positions
+    interviewPanel: rrf.interviewPanel || [],
+    interviewers: rrf.interviewers || [],
+    // ── Audit / actor names ───────────────────────────────────────
+    createdByName: rrf.createdBy?.fullName || null,
+    approvedByName: rrf.approvedByName || null,
+    declinedByName: rrf.declinedByName || null,
+    onHoldByName: rrf.onHoldByName || null,
   };
 };
 

@@ -11,6 +11,7 @@ import { rrfApi, formatRrfListForDisplay } from '@/lib/api/rrfApi';
 import { useSmartFetch } from '@/lib/useSmartFetch';
 import { invalidateCachePattern, CACHE_TTL } from '@/lib/apiCache';
 import toast from 'react-hot-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Stable fetcher reference (outside component to avoid re-creation)
 const fetcherFn = () => rrfApi.getMyRequests();
@@ -27,12 +28,15 @@ const transformFn = (response) => {
 };
 
 export const useMyRequests = () => {
+  const { user } = useAuth();
+  const userId = user?.id;
+  const cacheKey = userId ? `my-requests-${userId}` : null;
   const {
     data,
     loading: smartLoading,
     error: smartError,
     refresh: smartRefresh,
-  } = useSmartFetch('my-requests', fetcherFn, {
+  } = useSmartFetch(cacheKey, fetcherFn, {
     ttl: CACHE_TTL.LIST,
     transform: transformFn,
   });

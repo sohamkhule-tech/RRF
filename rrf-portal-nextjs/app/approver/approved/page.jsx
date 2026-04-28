@@ -172,6 +172,7 @@ export default function ApproverApprovedPage() {
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Role & Project</th>
                 <th className="px-3 py-3 text-center text-xs font-bold text-gray-700 uppercase">Positions</th>
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Priority</th>
+
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Approved Date</th>
                 <th className="px-3 py-3 text-center text-xs font-bold text-gray-700 uppercase">Action</th>
               </tr>
@@ -196,6 +197,7 @@ export default function ApproverApprovedPage() {
                     </span>
                   </td>
                   <td className="px-3 py-3 text-xs">{getPriorityBadge(request.priority)}</td>
+
                   <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-600">{(request.approvedAt || request.updatedAt) ? new Date(request.approvedAt || request.updatedAt).toLocaleDateString('en-GB') : 'N/A'}</td>
                   <td className="px-3 py-3 text-center">
                     <Link href={`/approver/view-rrf/${request.id}`}>
@@ -251,7 +253,7 @@ export default function ApproverApprovedPage() {
             <div className="text-4xl mb-4">📋</div>
             <p className="text-lg font-medium text-gray-900">No approved requests found</p>
             <p className="text-sm text-gray-500 mt-2">
-              {searchTerm || selectedDepartment !== 'all' 
+              {searchTerm 
                 ? 'Try adjusting your search or filters' 
                 : 'Approved RRF requests will appear here'}
             </p>

@@ -72,6 +72,14 @@ export default function StatusWithDetails({ status, reason, actionBy, actionDate
     </div>
   );
 
+  // Only show reason popover for specific statuses (Declined/On Hold)
+  const showPopover = hasDetails && (
+    status?.toUpperCase() === 'DECLINED' || 
+    status?.toUpperCase() === 'REJECTED' || 
+    status?.toUpperCase() === 'ON HOLD' || 
+    status?.toUpperCase() === 'ON_HOLD'
+  );
+
   return (
     <div className="flex items-center gap-3">
       {/* Badge */}
@@ -81,7 +89,7 @@ export default function StatusWithDetails({ status, reason, actionBy, actionDate
       </span>
 
       {/* Popover */}
-      {hasDetails && (
+      {showPopover && (
         <Popover content={content} trigger="click" placement="bottomLeft">
           <button className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm">
             <InfoCircleOutlined />

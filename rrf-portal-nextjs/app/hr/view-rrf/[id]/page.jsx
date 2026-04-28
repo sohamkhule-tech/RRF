@@ -15,6 +15,7 @@ import {
   PauseCircleOutlined,
   EditOutlined,
   CheckCircleOutlined,
+  TeamOutlined,
 } from '@ant-design/icons'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
@@ -119,6 +120,7 @@ export default function HRViewRRFPage() {
     requiredSkills:  rrf.requiredSkills,
     preferredSkills: rrf.preferredSkills,
     primaryTechnologies: rrf.technologies,
+    interviewers:    rrf.interviewers || [],
     jobDescription:  rrf.jobDescription,
     additionalNotes: rrf.notes || rrf.urgencyReason,
     // ── Decision fields ─────────────────────────────────────────────
@@ -142,6 +144,10 @@ export default function HRViewRRFPage() {
                         ? new Date(ts).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
                         : null
                     })(),
+    billingStartDate: rrf.billingStartDate,
+    expectedOnboardingDate: rrf.expectedOnboardingDate,
+    billingRate: rrf.billingRate,
+    billingCurrency: rrf.billingCurrency,
     approvers:      rrf.approvers || [],
     statusHistory:  rrf.statusHistory || [],
   } : null
@@ -275,7 +281,7 @@ export default function HRViewRRFPage() {
               {isCloseable && (
                 <button 
                   onClick={() => setShowCloseModal(true)}
-                  className="px-4 py-2 bg-green-600 text-white hover:bg-green-700 font-bold rounded-lg transition-all flex items-center gap-2 shadow-md"
+                  className="px-4 py-2 bg-red-400 text-white hover:bg-red-500 font-medium rounded-lg transition-all flex items-center gap-2 shadow-md"
                 >
                   <CheckCircleOutlined /> <span className="hidden sm:inline">Close RRF</span>
                 </button>

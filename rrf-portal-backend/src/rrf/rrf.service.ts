@@ -5,14 +5,17 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
-import { Repository, DataSource, Not } from 'typeorm';
+import { Repository, DataSource, Not, In } from 'typeorm';
 import { Rrf, RrfStatus } from './entities/rrf.entity';
 import { RrfApprover, ApprovalStatus, ApprovalLevel } from './entities/rrf-approver.entity';
 import { User } from '../users/user.entity';
+import { UserSubfunction } from '../user-subfunctions/user-subfunction.entity';
+import { Subfunction } from '../subfunctions/subfunction.entity';
 import { CreateRrfDto } from './dto/create-rrf.dto';
 import { UpdateRrfDto } from './dto/update-rrf.dto';
 import { RrfQueryDto } from './dto/rrf-query.dto';
 import { JobDescriptionsService } from '../job-descriptions/job-descriptions.service';
+import { AuthUser } from '../common/interfaces/auth-user.interface';
 
 interface StatusCount {
   status: string;
@@ -28,89 +31,108 @@ export class RrfService {
     private rrfApproverRepository: Repository<RrfApprover>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(UserSubfunction)
+    private userSubfunctionRepository: Repository<UserSubfunction>,
+    @InjectRepository(Subfunction)
+    private subfunctionRepository: Repository<Subfunction>,
     @InjectDataSource()
     private dataSource: DataSource,
     private jobDescriptionsService: JobDescriptionsService,
   ) { }
 
-  // ============================================================
-  // ID GENERATION — uses PostgreSQL sequences to avoid race
-  // conditions that existed with MAX(id) + 1 pattern.
-  // Sequences are created on first use if they don't exist.
-  // ============================================================
+  /**
+   * Auto-Migration: Runs on startup to ensure backward compatibility
+   * Maps existing sub_function (string) to subfunction_id (relation)
+   */
+  async onModuleInit() {
+    // ── Sequence bootstrap (runs ONCE at startup) ──────────────────────────────
+    // Creates the sequences if they don't exist and syncs them to the highest
+    // value already stored in the table (covers legacy SUB- and current REQ-
+    // prefixes for sub_id, and RRF- for rrf_number).
+    // setval() is intentionally used here — this is a one-time migration step,
+    // NOT part of runtime ID generation.
+    try {
+      await this.dataSource.query(`
+        DO $$
+        DECLARE
+          max_sub  INTEGER;
+          max_rrf  INTEGER;
+        BEGIN
+          -- TODO 7: Create sequences if absent
+          CREATE SEQUENCE IF NOT EXISTS rrfs_sub_id_seq     START 1;
+          CREATE SEQUENCE IF NOT EXISTS rrfs_rrf_number_seq START 1;
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // SEQUENCE HELPERS
-  //
-  // Problem: CREATE SEQUENCE IF NOT EXISTS always starts at 1, even when the
-  // table already has rows with sub_id = 'SUB-001', 'SUB-002' etc.
-  // Calling nextval(1) then tries to insert 'SUB-001' again → unique constraint
-  // violation (UQ_1715e3cedc1cce8fb5c9e107c07 on rrfs.sub_id).
-  //
-  // Fix: After creating the sequence (if it didn't exist), SETVAL it to the
-  // highest numeric suffix already present in the table so the next nextval()
-  // call always produces a value higher than anything already stored.
-  // ──────────────────────────────────────────────────────────────────────────
+          -- Sync rrfs_sub_id_seq to the highest REQ-/SUB- number already stored
+          SELECT COALESCE(
+            MAX(CAST(REGEXP_REPLACE(sub_id, '[^0-9]', '', 'g') AS INTEGER)), 0
+          ) INTO max_sub
+          FROM rrfs
+          WHERE sub_id IS NOT NULL AND sub_id ~ '^(SUB|REQ)-[0-9]+$';
 
-  // ✅ PERFORMANCE FIX: Optimized ID generation - single query instead of 4
-  async generateSubId(): Promise<string> {
-    // Create sequence on first use (idempotent)
-    await this.dataSource.query(`
-      CREATE SEQUENCE IF NOT EXISTS rrf_sub_id_seq START 1 INCREMENT 1;
-    `);
+          IF max_sub > 0 AND max_sub >= nextval('rrfs_sub_id_seq') - 1 THEN
+            PERFORM setval('rrfs_sub_id_seq', max_sub);
+          END IF;
 
-    // Execute the sequence sync logic first
-    await this.dataSource.query(`
-      DO $$
-      DECLARE
-        max_val INTEGER;
-      BEGIN
-        SELECT COALESCE(
-          MAX(CAST(REGEXP_REPLACE(sub_id, '[^0-9]', '', 'g') AS INTEGER)), 0
-        ) INTO max_val
-        FROM rrfs
-        WHERE sub_id IS NOT NULL AND sub_id ~ '^SUB-[0-9]+$';
-        
-        IF max_val > 0 THEN
-          PERFORM setval('rrf_sub_id_seq', max_val, true);
-        END IF;
-      END $$;
-    `);
-    
-    // Fetch the next value
-    const result = await this.dataSource.query(`SELECT nextval('rrf_sub_id_seq') AS val;`);
-    
-    const num = parseInt(result[0].val, 10);
-    return `SUB-${num.toString().padStart(3, '0')}`;
+          -- Sync rrfs_rrf_number_seq to the highest RRF- number already stored
+          SELECT COALESCE(
+            MAX(CAST(REGEXP_REPLACE(rrf_number, '[^0-9]', '', 'g') AS INTEGER)), 0
+          ) INTO max_rrf
+          FROM rrfs
+          WHERE rrf_number IS NOT NULL AND rrf_number ~ '^RRF-[0-9]+$';
+
+          IF max_rrf > 0 AND max_rrf >= nextval('rrfs_rrf_number_seq') - 1 THEN
+            PERFORM setval('rrfs_rrf_number_seq', max_rrf);
+          END IF;
+        END $$;
+      `);
+      console.log('[RrfService] Sequences rrfs_sub_id_seq and rrfs_rrf_number_seq are ready.');
+    } catch (err) {
+      console.warn('[RrfService] Sequence bootstrap warning:', err.message);
+    }
+
+    // ── Subfunction link migration ─────────────────────────────────────────────
+    console.log('[RrfService] Initializing: Checking for missing subFunctionId links...');
+    try {
+      const pendingMigrate = await this.rrfRepository.find({
+        where: { subFunctionId: null },
+        take: 100, // Process in batches to avoid blocking startup
+      });
+
+      if (pendingMigrate.length > 0) {
+        const subfunctions = await this.subfunctionRepository.find();
+        for (const rrf of pendingMigrate) {
+          if (rrf.subFunction) {
+            const match = subfunctions.find(
+              (sf) => sf.name.trim().toLowerCase() === rrf.subFunction.trim().toLowerCase(),
+            );
+            if (match) {
+              await this.rrfRepository.update(rrf.id, { subFunctionId: match.id });
+            }
+          }
+        }
+        console.log(`[RrfService] Successfully migrated ${pendingMigrate.length} RRF subfunction links.`);
+      }
+    } catch (error) {
+      console.warn('[RrfService] Migration failed:', error.message);
+    }
   }
 
-  async generateRrfNumber(): Promise<string> {
-    // Same optimization as generateSubId
-    await this.dataSource.query(`
-      CREATE SEQUENCE IF NOT EXISTS rrf_number_seq START 1 INCREMENT 1;
-    `);
+  // ──────────────────────────────────────────────────────────────────────────
+  // ID GENERATION — pure nextval() only; no MAX(), no runtime setval().
+  // Sequences are created and synced once in onModuleInit (above).
+  // nextval() is atomic and concurrency-safe at the PostgreSQL level.
+  // ──────────────────────────────────────────────────────────────────────────
 
-    // Execute the sequence sync logic first
-    await this.dataSource.query(`
-      DO $$
-      DECLARE
-        max_val INTEGER;
-      BEGIN
-        SELECT COALESCE(
-          MAX(CAST(REGEXP_REPLACE(rrf_number, '[^0-9]', '', 'g') AS INTEGER)), 0
-        ) INTO max_val
-        FROM rrfs
-        WHERE rrf_number IS NOT NULL AND rrf_number ~ '^RRF-[0-9]+$';
-        
-        IF max_val > 0 THEN
-          PERFORM setval('rrf_number_seq', max_val, true);
-        END IF;
-      END $$;
-    `);
-      
-    // Fetch the next value
-    const result = await this.dataSource.query(`SELECT nextval('rrf_number_seq') AS val;`);
-    
+  // TODO 1-3: generateSubId — uses rrfs_sub_id_seq exclusively
+  async generateSubId(): Promise<string> {
+    const result = await this.dataSource.query(`SELECT nextval('rrfs_sub_id_seq') AS val;`);
+    const num = parseInt(result[0].val, 10);
+    return `REQ-${num.toString().padStart(3, '0')}`;
+  }
+
+  // TODO 4-6: generateRrfNumber — uses rrfs_rrf_number_seq exclusively
+  async generateRrfNumber(): Promise<string> {
+    const result = await this.dataSource.query(`SELECT nextval('rrfs_rrf_number_seq') AS val;`);
     const num = parseInt(result[0].val, 10);
     return `RRF-${num.toString().padStart(3, '0')}`;
   }
@@ -196,6 +218,7 @@ export class RrfService {
 
   async findAll(
     queryDto: RrfQueryDto,
+    user?: AuthUser,
   ): Promise<{ data: Rrf[]; total: number; page: number; limit: number }> {
     const { status, createdById, page = 1, limit = 10 } = queryDto;
 
@@ -218,6 +241,21 @@ export class RrfService {
       .orderBy('rrf.createdAt', 'DESC')
       .skip((page - 1) * limit)
       .take(limit);
+
+    // ── Subfunction-based visibility for Approvers ──────────────
+    // Approvers see only RRFs belonging to their assigned subfunctions.
+    if (user && user.role.roleCode === 'APPROVER') {
+      const userSubfunctions = await this.userSubfunctionRepository.find({
+        where: { userId: user.id },
+      });
+      const subIds = userSubfunctions.map((s) => s.subfunctionId);
+      if (subIds.length === 0) {
+        // No assigned subfunctions → no data access
+        return { data: [], total: 0, page, limit };
+      }
+      qb.andWhere('rrf.subFunctionId IN (:...approverSubIds)', { approverSubIds: subIds });
+    }
+    // ────────────────────────────────────────────────────────────
 
     if (status) {
       const statusList = status.split(',');
@@ -249,7 +287,7 @@ export class RrfService {
     });
   }
 
-  async findOne(id: number, includeRelations: boolean = true): Promise<Rrf> {
+  async findOne(id: number, includeRelations: boolean = true, user?: AuthUser): Promise<Rrf> {
     // ✅ PERFORMANCE FIX: Only load relations when absolutely needed
     // For RRF listing pages: includeRelations = false
     // For RRF detail pages: includeRelations = true
@@ -280,6 +318,21 @@ export class RrfService {
       throw new NotFoundException(`RRF with ID ${id} not found`);
     }
 
+    // ── Subfunction-based access control for Approvers ──────────────────
+    // Approvers may only view RRFs belonging to their assigned subfunctions.
+    if (user && user.role.roleCode === 'APPROVER') {
+      const userSubfunctions = await this.userSubfunctionRepository.find({
+        where: { userId: user.id },
+      });
+      const subIds = userSubfunctions.map((s) => s.subfunctionId);
+      // Deny access when either the Approver has no assignment or the RRF's
+      // subfunction is outside their scope.
+      if (subIds.length === 0 || (rrf.subFunctionId && !subIds.includes(rrf.subFunctionId))) {
+        throw new ForbiddenException('You do not have access to this RRF');
+      }
+    }
+    // ────────────────────────────────────────────────────────────────────
+
     // ✅ Lazy load approvers only if needed (on-demand loading)
     if (includeRelations && rrf.status !== RrfStatus.DRAFT) {
       rrf.approvers = await this.rrfApproverRepository.find({
@@ -293,6 +346,25 @@ export class RrfService {
           },
         },
         order: { approvalLevel: 'ASC' },
+      });
+    }
+
+    // ✅ Load interview panel members if present
+    if (includeRelations && rrf.interviewPanel && Array.isArray(rrf.interviewPanel) && rrf.interviewPanel.length > 0) {
+      const panelUserIds = rrf.interviewPanel as number[];
+      // @ts-ignore
+      rrf.interviewers = await this.userRepository.find({
+        where: { id: In(panelUserIds) },
+        relations: ['role'],
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          role: {
+            id: true,
+            roleName: true,
+          },
+        },
       });
     }
 
@@ -314,8 +386,24 @@ export class RrfService {
 
   async update(id: number, updateRrfDto: UpdateRrfDto, userId: number): Promise<Rrf> {
     const rrf = await this.findOne(id);
+    const numericUserId = Number(userId);
 
-    const allowedEditStatuses = [
+    // ─── Role-based edit permission matrix ──────────────────────────────────
+    // Determine if caller is the original creator (Hiring Manager)
+    const isCreator = rrf.createdById === numericUserId;
+
+    // Determine if caller is a registered approver for this RRF
+    const approverRecord = rrf.approvers?.find(
+      (a) => Number(a.userId) === numericUserId,
+    );
+    const isApprover = !!approverRecord;
+
+    if (!isCreator && !isApprover) {
+      throw new ForbiddenException('You are not authorized to edit this RRF');
+    }
+
+    // Statuses where each role is allowed to edit
+    const hmAllowedStatuses: RrfStatus[] = [
       RrfStatus.DRAFT,
       RrfStatus.PENDING,
       RrfStatus.SUBMITTED,
@@ -324,13 +412,24 @@ export class RrfService {
       RrfStatus.ON_HOLD,
     ];
 
-    if (!allowedEditStatuses.includes(rrf.status as RrfStatus)) {
-      throw new BadRequestException(`Cannot update RRF with status: ${rrf.status}. Editing is not allowed for approved or closed requests.`);
-    }
+    const approverAllowedStatuses: RrfStatus[] = [
+      RrfStatus.PENDING,
+      RrfStatus.SUBMITTED,
+      RrfStatus.DECLINED,
+      RrfStatus.REJECTED,
+    ];
 
-    if (rrf.createdById !== Number(userId)) {
-      throw new ForbiddenException('You can only update your own RRF requests');
+    const allowedStatuses = isCreator ? hmAllowedStatuses : approverAllowedStatuses;
+
+    if (!allowedStatuses.includes(rrf.status as RrfStatus)) {
+      throw new BadRequestException(
+        `Cannot update RRF with status: ${rrf.status}. ` +
+        (isCreator
+          ? 'Editing is only allowed for PENDING, DECLINED, and ON_HOLD requests.'
+          : 'Approvers can only edit PENDING or DECLINED requests.'),
+      );
     }
+    // ────────────────────────────────────────────────────────────────────────
 
     if (
       updateRrfDto.budgetMin !== undefined &&
@@ -354,6 +453,12 @@ export class RrfService {
       }
     }
 
+    // ─── Collaboration tracking fields ──────────────────────────────────────
+    rrf.lastEditedById = numericUserId;
+    rrf.lastEditedByRole = isCreator ? 'HIRING_MANAGER' : 'APPROVER';
+    rrf.lastEditedAt = new Date();
+    // ────────────────────────────────────────────────────────────────────────
+
     Object.assign(rrf, updateRrfDto);
     return await this.rrfRepository.save(rrf);
   }
@@ -362,37 +467,59 @@ export class RrfService {
   // APPROVER RESOLUTION — QueryBuilder replaces raw SQL
   // ============================================================
 
-  private async getApprovers(): Promise<User[]> {
-    // Raw SQL is used here intentionally — no user input involved (no injection risk),
-    // and the join across 4 tables through a many-to-many junction doesn't map cleanly
-    // to TypeORM QueryBuilder when using raw table joins (column name aliasing).
-    const result = await this.dataSource.query(`
-      SELECT DISTINCT u.*
-      FROM users u
-        INNER JOIN roles r       ON u.role_id = r.id
-        INNER JOIN role_permissions rp ON r.id = rp.role_id
-        INNER JOIN permissions p ON rp.permission_id = p.id
-        INNER JOIN modules m     ON p.module_id = m.id
-      WHERE u.is_active   = true
-        AND r.is_active   = true
-        AND p.is_active   = true
-        AND m.is_active   = true
-        AND m.module_code = 'APPROVALS'
-        AND p.permission_code = 'APPROVE'
-      ORDER BY u.full_name ASC
-    `);
+  /**
+   * Get eligible approvers for a given subfunction.
+   * Logic:
+   * 1. Find active users whose role.roleCode = 'APPROVER' AND assigned to subFunctionId.
+   * 2. Only if zero found → fallback to Admin users.
+   *
+   * NO permission-table lookup — direct role + subfunction join.
+   */
+  async getApprovers(subFunctionId?: number): Promise<User[]> {
+    if (subFunctionId) {
+      // Direct query: APPROVER role users assigned to this subfunction
+      const assignedApprovers = await this.userRepository
+        .createQueryBuilder('user')
+        .innerJoinAndSelect('user.role', 'role')
+        .innerJoin(
+          'user_subfunctions',
+          'us',
+          'us.user_id = user.id AND us.subfunction_id = :subFunctionId',
+          { subFunctionId },
+        )
+        .where('role.roleCode = :roleCode', { roleCode: 'APPROVER' })
+        .andWhere('user.isActive = true')
+        .orderBy('user.fullName', 'ASC')
+        .getMany();
 
-    // Re-hydrate as User entity instances so callers get strongly-typed objects
-    return result.map((row: any) => {
-      const user = new User();
-      user.id = row.id;
-      user.userId = row.user_id;
-      user.email = row.email;
-      user.fullName = row.full_name;
-      user.department = row.department;
-      user.isActive = row.is_active;
-      return user;
-    });
+      if (assignedApprovers.length > 0) {
+        return assignedApprovers;
+      }
+
+      console.warn(`[WARNING] No APPROVER assigned to subFunctionId ${subFunctionId}. Falling back to Admins.`);
+      return this.getAdminFallbacks();
+    }
+
+    // No subFunctionId — return all active APPROVERs
+    return this.userRepository
+      .createQueryBuilder('user')
+      .innerJoinAndSelect('user.role', 'role')
+      .where('role.roleCode = :roleCode', { roleCode: 'APPROVER' })
+      .andWhere('user.isActive = true')
+      .orderBy('user.fullName', 'ASC')
+      .getMany();
+  }
+
+  /**
+   * Internal helper for fallback to Admin role
+   */
+  private async getAdminFallbacks(): Promise<User[]> {
+    return this.userRepository.createQueryBuilder('user')
+      .innerJoinAndSelect('user.role', 'role')
+      .where('role.roleCode = :adminRole', { adminRole: 'ADMIN' })
+      .andWhere('user.isActive = true')
+      .orderBy('user.fullName', 'ASC')
+      .getMany();
   }
 
   // ============================================================
@@ -406,9 +533,18 @@ export class RrfService {
       throw new ForbiddenException('You can only submit your own RRFs');
     }
 
-    if (rrf.status !== RrfStatus.DRAFT) {
+    // Allow first submission (DRAFT) and resubmission after being declined/rejected
+    const submittableStatuses = [
+      RrfStatus.DRAFT,
+      RrfStatus.DECLINED,
+      RrfStatus.REJECTED,
+    ];
+
+    if (!submittableStatuses.includes(rrf.status as RrfStatus)) {
       throw new BadRequestException(`Cannot submit RRF with status: ${rrf.status}`);
     }
+
+    const isResubmission = rrf.status === RrfStatus.DECLINED || rrf.status === RrfStatus.REJECTED;
 
     // Fetch user to check role
     const user = await this.userRepository.findOne({
@@ -430,34 +566,65 @@ export class RrfService {
       return await this.rrfRepository.save(rrf);
     }
 
-    // HM Workflow: Assign Approvers
-    const approvers = await this.getApprovers();
+    // ─── Resubmission: reset approver records so approval chain restarts ────
+    if (isResubmission) {
+      const existingApprovers = await this.rrfApproverRepository.find({
+        where: { rrfId: id },
+      });
 
-    if (approvers.length === 0) {
-      throw new BadRequestException(
-        'No approvers available in the system. Please contact administrator.',
+      if (existingApprovers.length > 0) {
+        for (const approver of existingApprovers) {
+          approver.approvalStatus = ApprovalStatus.PENDING;
+          approver.approvedAt = null;
+          approver.rejectedAt = null;
+          approver.comments = null;
+        }
+        await this.rrfApproverRepository.save(existingApprovers);
+      }
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
+    // HM Workflow: Assign Approvers (only on first submission; resubmission reuses existing records)
+    if (!isResubmission) {
+      const approvers = await this.getApprovers(rrf.subFunctionId);
+
+      if (approvers.length === 0) {
+        throw new BadRequestException(
+          'No approvers available in the system. Please contact administrator.',
+        );
+      }
+
+      rrf.status = RrfStatus.PENDING;
+      rrf.submittedAt = new Date();
+      this.appendStatusHistory(rrf, this.buildStatusHistoryEntry(RrfStatus.PENDING, userId));
+
+      const savedRrf = await this.rrfRepository.save(rrf);
+
+      const approverRecords = approvers.map((approver, index) =>
+        this.rrfApproverRepository.create({
+          rrfId: savedRrf.id,
+          userId: approver.id,
+          approvalLevel: ApprovalLevel.L1,
+          approvalOrder: index + 1,
+          approvalStatus: ApprovalStatus.PENDING,
+          isMandatory: false,
+        }),
       );
+
+      await this.rrfApproverRepository.save(approverRecords);
+      return await this.findOne(id);
     }
 
+    // Resubmission path: transition DECLINED → PENDING
     rrf.status = RrfStatus.PENDING;
     rrf.submittedAt = new Date();
-    this.appendStatusHistory(rrf, this.buildStatusHistoryEntry(RrfStatus.PENDING, userId));
-
-    const savedRrf = await this.rrfRepository.save(rrf);
-
-    const approverRecords = approvers.map((approver, index) =>
-      this.rrfApproverRepository.create({
-        rrfId: savedRrf.id,
-        userId: approver.id,
-        approvalLevel: ApprovalLevel.L1,
-        approvalOrder: index + 1,
-        approvalStatus: ApprovalStatus.PENDING,
-        isMandatory: false,
-      }),
+    rrf.declineReason = null;
+    this.appendStatusHistory(
+      rrf,
+      this.buildStatusHistoryEntry(RrfStatus.PENDING, userId, 'Resubmitted after decline'),
     );
 
-    await this.rrfApproverRepository.save(approverRecords);
-
+    await this.rrfRepository.save(rrf);
     return await this.findOne(id);
   }
 
@@ -498,9 +665,12 @@ export class RrfService {
     rrf.approvedAt = new Date();
     rrf.approvedById = numericUserId;
 
-    if (!rrf.rrfNumber) {
-      rrf.rrfNumber = await this.generateRrfNumber();
-    }
+    const approverUser = await this.userRepository.findOne({ where: { id: numericUserId } });
+    rrf.approvedByName = approverUser?.fullName ?? null;
+
+    // TODO 3: RRF number is no longer generated at approval time.
+    // It is generated when PMO clicks "Open for Requisition" (openForHiring).
+    // Leaving rrfNumber unchanged here preserves the REQ-xxx display until PMO acts.
 
     this.appendStatusHistory(rrf, this.buildStatusHistoryEntry(RrfStatus.APPROVED, numericUserId, comments));
 
@@ -543,7 +713,7 @@ export class RrfService {
 
   async assignApproversToRrf(id: number): Promise<Rrf> {
     const rrf = await this.findOne(id);
-    const approvers = await this.getApprovers();
+    const approvers = await this.getApprovers(rrf.subFunctionId);
 
     if (approvers.length === 0) {
       throw new BadRequestException('No approvers available in the system.');
@@ -578,15 +748,32 @@ export class RrfService {
   // STATISTICS — single GROUP BY query instead of 8 COUNT queries
   // ============================================================
 
-  async getStatistics(userId?: number): Promise<object> {
+  // ✅ PRODUCTION-READY: Filter stats by Role and Subfunction (strict RBAC)
+  async getStatistics(user: AuthUser, viewAll: boolean = false): Promise<object> {
     const qb = this.rrfRepository
       .createQueryBuilder('rrf')
       .select('rrf.status', 'status')
       .addSelect('COUNT(*)', 'count')
       .groupBy('rrf.status');
 
-    if (userId) {
-      qb.where('rrf.createdById = :userId', { userId });
+    // ─── Filter Logic ──────────────────────────────────────────
+    // 1. APPROVER: Sees only their assigned subfunctions (always)
+    // 2. HIRING_MANAGER: Sees only their own submissions (always)
+    // 3. ADMIN: Sees all if viewAll is true, else only their own
+    // ──────────────────────────────────────────────────────────
+
+    if (user.role.roleCode === 'APPROVER') {
+      const userSubfunctions = await this.userSubfunctionRepository.find({
+        where: { userId: user.id },
+      });
+      const subIds = userSubfunctions.map((s) => s.subfunctionId);
+      if (subIds.length > 0) {
+        qb.where('rrf.subFunctionId IN (:...subIds)', { subIds });
+      } else {
+        qb.where('1=0'); // Security: If no subfunctions assigned, show zero
+      }
+    } else if (!viewAll || user.role.roleCode === 'HIRING_MANAGER') {
+      qb.where('rrf.createdById = :userId', { userId: user.id });
     }
 
     const rows: StatusCount[] = await qb.getRawMany();
@@ -600,23 +787,22 @@ export class RrfService {
       total += n;
     }
 
-    const get = (...keys: string[]) =>
+    const getCount = (...keys: string[]) =>
       keys.reduce((sum, k) => sum + (counts[k] || 0), 0);
 
     return {
       total,
       byStatus: {
-        draft: get(RrfStatus.DRAFT),
-        // Combine PENDING + SUBMITTED (alias) for backward-compat display
-        pending: get(RrfStatus.PENDING, RrfStatus.SUBMITTED),
-        submitted: get(RrfStatus.SUBMITTED),
-        approved: get(RrfStatus.APPROVED),
-        rejected: get(RrfStatus.REJECTED),
-        declined: get(RrfStatus.DECLINED),
-        onHold: get(RrfStatus.ON_HOLD),
-        openForHiring: get(RrfStatus.IN_PROGRESS, RrfStatus.OPEN_FOR_HIRING),
-        closedByBench: get(RrfStatus.CLOSED_BY_BENCH),
-        closed: get(RrfStatus.CLOSED),
+        draft: getCount(RrfStatus.DRAFT),
+        pending: getCount(RrfStatus.PENDING, RrfStatus.SUBMITTED),
+        submitted: getCount(RrfStatus.SUBMITTED),
+        approved: getCount(RrfStatus.APPROVED),
+        rejected: getCount(RrfStatus.REJECTED),
+        declined: getCount(RrfStatus.DECLINED),
+        onHold: getCount(RrfStatus.ON_HOLD),
+        openForHiring: getCount(RrfStatus.IN_PROGRESS, RrfStatus.OPEN_FOR_HIRING),
+        closedByBench: getCount(RrfStatus.CLOSED_BY_BENCH),
+        closed: getCount(RrfStatus.CLOSED),
       },
     };
   }
@@ -654,6 +840,10 @@ export class RrfService {
     rrf.declinedAt = new Date();
     rrf.declinedById = numericUserId;
     rrf.declineReason = reason;
+
+    const decliningUser = await this.userRepository.findOne({ where: { id: numericUserId } });
+    rrf.declinedByName = decliningUser?.fullName ?? null;
+
     this.appendStatusHistory(rrf, this.buildStatusHistoryEntry(RrfStatus.DECLINED, numericUserId, reason));
 
     return await this.rrfRepository.save(rrf);
@@ -686,6 +876,11 @@ export class RrfService {
     rrf.declineReason = reason;
     rrf.declinedAt = new Date();
     rrf.declinedById = numericUserId;
+
+    rrf.onHoldById = numericUserId;
+    const holdingUser = await this.userRepository.findOne({ where: { id: numericUserId } });
+    rrf.onHoldByName = holdingUser?.fullName ?? null;
+
     this.appendStatusHistory(rrf, this.buildStatusHistoryEntry(RrfStatus.ON_HOLD, numericUserId, reason));
 
     return await this.rrfRepository.save(rrf);
@@ -704,6 +899,10 @@ export class RrfService {
       );
     }
 
+    // TODO 4: Generate RRF number here (moved from approve())
+    // Only generate once — idempotent guard ensures re-runs are safe.
+    const rrfNumber = rrf.rrfNumber ?? await this.generateRrfNumber();
+
     console.log(`[openForHiring] Executing optimized UPDATE query...`);
 
     const now = new Date();
@@ -721,6 +920,7 @@ export class RrfService {
       .set({
         status: RrfStatus.IN_PROGRESS,
         sentToHrAt: now,
+        rrfNumber,
         // ✅ PostgreSQL JSONB append
         statusHistory: () => `COALESCE(status_history, '[]'::jsonb) || '${JSON.stringify(statusHistoryEntry)}'::jsonb`,
       })
@@ -879,13 +1079,32 @@ export class RrfService {
     return internalRrfNo;
   }
 
+  private static readonly CLOSURE_STATUS_TO_REASON: Record<string, string> = {
+    'Resource Hired (External Candidate)': 'RESOURCE_HIRED_EXTERNAL',
+    'Sourced Internally': 'SOURCED_INTERNALLY',
+    'Closed/Cancelled by Business': 'CLOSED_BY_BUSINESS',
+  };
+
   async closeRrf(id: number, userId: number, candidateName?: string, joiningDate?: string, closureStatus?: string, notes?: string): Promise<Rrf> {
     const rrf = await this.findOne(id);
 
-    if (rrf.status !== RrfStatus.IN_PROGRESS && rrf.status !== RrfStatus.OPEN_FOR_HIRING) {
+    if (
+      rrf.status !== RrfStatus.IN_PROGRESS && 
+      rrf.status !== RrfStatus.OPEN_FOR_HIRING && 
+      rrf.status !== RrfStatus.APPROVED
+    ) {
       throw new BadRequestException(
-        `Can only close RRFs that are open for hiring. Current status: ${rrf.status}`,
+        `Can only close RRFs that are approved or open for hiring. Current status: ${rrf.status}`,
       );
+    }
+
+    // Derive machine-readable key from the human-readable closureStatus label
+    const closeReason = RrfService.CLOSURE_STATUS_TO_REASON[closureStatus] ?? null;
+
+    // Auto-generate internal RRF number when fulfilled internally (replaces Fill From Bench)
+    let internalRrfNo = rrf.internalRrfNo;
+    if (closeReason === 'SOURCED_INTERNALLY' && !internalRrfNo) {
+      internalRrfNo = await this.generateInternalRrfNumber();
     }
 
     rrf.status = RrfStatus.CLOSED;
@@ -894,6 +1113,8 @@ export class RrfService {
     rrf.candidateName = candidateName;
     rrf.joiningDate = joiningDate ? new Date(joiningDate) : null;
     rrf.closureStatus = closureStatus;
+    rrf.closeReason = closeReason;
+    rrf.internalRrfNo = internalRrfNo;
     rrf.notes = notes;
     this.appendStatusHistory(rrf, this.buildStatusHistoryEntry(RrfStatus.CLOSED, userId, notes));
 
@@ -908,12 +1129,32 @@ export class RrfService {
     });
   }
 
-  async getPendingApprovals(): Promise<Rrf[]> {
-    return await this.rrfRepository.find({
+  /**
+   * Get pending approvals filtered by the approver's subfunctions (RBAC).
+   * High performance implementation using repository filtering and Subfunction ID mapping.
+   */
+  async getPendingApprovals(user: AuthUser): Promise<Rrf[]> {
+    const query: any = {
       where: { status: RrfStatus.PENDING },
-      relations: ['createdBy', 'approvers', 'approvers.user'],
+      relations: ['createdBy', 'approvers', 'approvers.user', 'subFunctionEntity'],
       order: { submittedAt: 'DESC' },
-    });
+    };
+
+    // Strict Filter: Approvers see only their assigned business areas
+    if (user.role.roleCode !== 'ADMIN') {
+      const userSubfunctions = await this.userSubfunctionRepository.find({
+        where: { userId: user.id },
+      });
+      const subIds = userSubfunctions.map((s) => s.subfunctionId);
+
+      if (subIds.length === 0) {
+        return []; // Security fallback: no assigned subfunctions = no data access
+      }
+
+      query.where.subFunctionId = In(subIds);
+    }
+
+    return await this.rrfRepository.find(query);
   }
 
   async getApprovedRrfs(): Promise<Rrf[]> {
@@ -977,11 +1218,57 @@ export class RrfService {
     const closed = counts[RrfStatus.CLOSED] || 0;
     const totalClosed = closedByBench + closed;
 
+    // Break down CLOSED records by closeReason
+    const reasonRows: { closeReason: string; count: string }[] = await this.rrfRepository
+      .createQueryBuilder('rrf')
+      .select('rrf.closeReason', 'closeReason')
+      .addSelect('COUNT(*)', 'count')
+      .where('rrf.status = :status AND rrf.closeReason IS NOT NULL', { status: RrfStatus.CLOSED })
+      .groupBy('rrf.closeReason')
+      .getRawMany();
+
+    const closedByReason: Record<string, number> = {};
+    for (const r of reasonRows) {
+      closedByReason[r.closeReason] = parseInt(r.count, 10);
+    }
+
     return {
       openedPositions,
       sentToHR,
       totalProcessed: openedPositions + sentToHR + totalClosed,
       closed: totalClosed,
+      closedByReason: {
+        RESOURCE_HIRED_EXTERNAL: closedByReason['RESOURCE_HIRED_EXTERNAL'] || 0,
+        // Legacy CLOSED_BY_BENCH records fold into SOURCED_INTERNALLY until data migration runs
+        SOURCED_INTERNALLY: (closedByReason['SOURCED_INTERNALLY'] || 0) + closedByBench,
+        CLOSED_BY_BUSINESS: closedByReason['CLOSED_BY_BUSINESS'] || 0,
+      },
     };
+  }
+
+  async getSuggestedInterviewers(techNames: string[]): Promise<User[]> {
+    if (!techNames || techNames.length === 0) {
+      return [];
+    }
+
+    const lowerTechs = techNames.map(t => t.toLowerCase());
+
+    // Match users whose technologies array contains any of the requested techs (case-insensitive)
+    return this.userRepository
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.role', 'role')
+      .where('user.isActive = :isActive', { isActive: true })
+      .andWhere(`EXISTS (
+        SELECT 1 FROM jsonb_array_elements_text(user.technologies) AS elem 
+        WHERE LOWER(elem) = ANY(:lowerTechs)
+      )`, { lowerTechs })
+      .select([
+        'user.id', 
+        'user.fullName', 
+        'user.email', 
+        'user.technologies',
+        'role.roleName'
+      ])
+      .getMany();
   }
 }

@@ -14,7 +14,6 @@ import {
   CheckCircleOutlined,
   SendOutlined
 } from '@ant-design/icons'
-import MaskedDateInput from '@/components/MaskedDateInput'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 import toast from 'react-hot-toast'
@@ -35,12 +34,12 @@ export default function PMOViewRRFPage() {
   // Section navigation state
   const [activeSection, setActiveSection] = useState('requisition')
   
-  // PMO Closure State
-  const [showCloseModal, setShowCloseModal] = useState(false)
-  const [internalRrfNumber, setInternalRrfNumber] = useState('')
-  const [candidateName, setCandidateName] = useState('')
-  const [dateOfJoining, setDateOfJoining] = useState('')
-  const [submittingClose, setSubmittingClose] = useState(false)  // ✅ FIX: Separate loading for close action
+  // Close RRF State
+  const [showHRCloseModal, setShowHRCloseModal] = useState(false)
+  const [hrCloseStatus, setHRCloseStatus] = useState('')
+  const [hrCandidateName, setHRCandidateName] = useState('')
+  const [hrJoiningDate, setHRJoiningDate] = useState('')
+  const [submittingHRClose, setSubmittingHRClose] = useState(false)
 
   // PMO Open for Requisition State
   const [showOpenModal, setShowOpenModal] = useState(false)
@@ -93,7 +92,7 @@ export default function PMOViewRRFPage() {
         // Format the data to match the UI expectations
         setRrfData({
           submissionId: rrf.id || submissionId,
-          displayId: rrf.rrfNumber || rrf.subId || `SUB-${rrf.id || submissionId}`,
+          displayId: rrf.rrfNumber || rrf.subId || `REQ-${rrf.id || submissionId}`,
           submittedDate: rrf.createdAt ? new Date(rrf.createdAt).toLocaleDateString('en-GB') : 'N/A',
           status: rrf.status || '',
           
@@ -108,8 +107,12 @@ export default function PMOViewRRFPage() {
           customerName: rrf.customerName || '',
           projectName: rrf.projectName || '',
           jobTitle: rrf.positionTitle || rrf.jobTitle || '',
-          expectedBillingStartDate: rrf.anticipatedBillingStartDate || rrf.billingStartDate || '',
+          billingStartDate: rrf.billingStartDate || '',
           billingRate: rrf.billingRate || '',
+          billingCurrency: rrf.billingCurrency || '',
+          expectedOnboardingDate: rrf.expectedOnboardingDate || '',
+          budgetMin: rrf.budgetMin || '',
+          budgetMax: rrf.budgetMax || '',
           
           // Position Details
           positionType: rrf.positionType || '',
@@ -133,7 +136,8 @@ export default function PMOViewRRFPage() {
             ? rrf.preferredSkills.join(', ')
             : rrf.preferredSkills || '',
           jobDescription: rrf.jobDescription || '',
-          additionalNotes: rrf.notes || ''
+          additionalNotes: rrf.notes || '',
+          interviewers: rrf.interviewers || []
         })
       } catch (error) {
         if (!isMounted) return  // ✅ Component unmounted, don't show error
@@ -152,71 +156,6 @@ export default function PMOViewRRFPage() {
       isMounted = false
     }
   }, [submissionId])  // ✅ Only re-run if submissionId changes
-
-  const handleCloseWithBench = async () => {
-    // Validate required fields
-    if (!candidateName.trim()) {
-      toast.error('Please enter candidate name')
-      return
-    }
-
-    if (!dateOfJoining) {
-      toast.error('Please select date of joining')
-      return
-    }
-
-    // ✅ Validate RRF status before submission
-    const validStatuses = ['approved', 'in-progress']
-    if (!validStatuses.includes(rrfData?.status)) {
-      toast.error(`Cannot fill from bench. RRF must be APPROVED or IN_PROGRESS. Current status: ${rrfData?.status || 'unknown'}`)
-      return
-    }
-
-    try {
-      setSubmittingClose(true)  // ✅ FIX: Use separate state, doesn't trigger full-page spinner
-      
-      // Convert DD/MM/YYYY to YYYY-MM-DD for backend
-      const [day, month, year] = dateOfJoining.split('/')
-      const formattedDate = `${year}-${month}-${day}`
-      
-      console.log('[DEBUG] Calling fillByBench API:', { submissionId, candidateName, formattedDate })  // ✅ Debug log
-      
-      const response = await rrfApi.fillByBench(submissionId, candidateName, formattedDate)
-      
-      console.log('[DEBUG] fillByBench API response:', response)  // ✅ Debug log
-      
-      // Show auto-generated Internal RRF Number in success message
-      const generatedRrfNo = response?.data?.internalRrfNo || 'Auto-Generated'
-      toast.success(`Position filled from bench and closed! Internal RRF: ${generatedRrfNo}`, {
-        duration: 4000,
-        style: {
-          fontWeight: '600',
-        },
-      })
-      
-      // Reset form
-      setShowCloseModal(false)
-      setCandidateName('')
-      setDateOfJoining('')
-      
-      // ✅ FIX: Redirect immediately, no setTimeout needed
-      router.push('/pmo/closed')
-    } catch (error) {
-      console.error('[ERROR] Failed to fill position:', error)  // ✅ Better logging
-      console.error('[ERROR] Error details:', error?.response?.data)  // ✅ Log backend error
-      
-      // ✅ Show detailed error message
-      const errorMsg = error?.response?.data?.message || error?.message || 'Failed to fill position from bench'
-      toast.error(errorMsg, {
-        duration: 5000,
-        style: {
-          maxWidth: '500px',
-        },
-      })
-    } finally {
-      setSubmittingClose(false)  // ✅ FIX: Use separate state
-    }
-  }
 
   const handleOpenForRequisition = async () => {
     try {
@@ -244,6 +183,45 @@ export default function PMOViewRRFPage() {
       toast.error(error?.response?.data?.message || 'Failed to open request for hiring');
     } finally {
       setSubmittingOpen(false)  // ✅ FIX: Always clear loading
+    }
+  }
+
+  const handleHRCloseRRF = async () => {
+    if (!hrCloseStatus) {
+      toast.error('Please select a close status')
+      return
+    }
+
+    if (hrCloseStatus === 'Resource Hired (External Candidate)' || hrCloseStatus === 'Sourced Internally') {
+      if (!hrCandidateName.trim()) {
+        toast.error('Please enter candidate name')
+        return
+      }
+      if (!hrJoiningDate) {
+        toast.error('Please select date')
+        return
+      }
+    }
+
+    try {
+      setSubmittingHRClose(true)
+      await rrfApi.close(submissionId, { 
+        candidateName: hrCandidateName, 
+        joiningDate: hrJoiningDate, 
+        closureStatus: hrCloseStatus, 
+        notes: 'Closed via PMO portal',
+      });
+      toast.success(`RRF ${submissionId} has been closed successfully!`, { duration: 4000, style: { fontWeight: '600' } })
+      setShowHRCloseModal(false)
+      setHRCandidateName('')
+      setHRJoiningDate('')
+      setHRCloseStatus('')
+      
+      router.push('/pmo/closed')
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to close RRF')
+    } finally {
+      setSubmittingHRClose(false)
     }
   }
 
@@ -296,7 +274,7 @@ export default function PMOViewRRFPage() {
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
     }
     
-    pdf.save(`SUB-${rrfData.submissionId}.pdf`)
+    pdf.save(`REQ-${rrfData.submissionId}.pdf`)
     toast.success('PDF exported successfully!')
   }
 
@@ -478,20 +456,20 @@ export default function PMOViewRRFPage() {
                     </button>
                   )}
                   
-                  {/* ✅ Show "Fill from Bench" if APPROVED or IN_PROGRESS */}
-                  {(rrfData?.status === 'approved' || rrfData?.status === 'in-progress') && (
+                  {/* ✅ Show standard "Close RRF" if APPROVED, IN_PROGRESS, or OPEN_FOR_HIRING just like HR, plus approved status */}
+                  {(rrfData?.status === 'approved' || rrfData?.status === 'in-progress' || rrfData?.status === 'open-for-hiring') && (
                     <button 
-                      onClick={() => setShowCloseModal(true)}
-                      className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 font-medium rounded-lg transition-all flex items-center gap-2 shadow-md"
-                      title="Fill this position from internal bench"
+                      onClick={() => setShowHRCloseModal(true)}
+                      className="px-4 py-2 bg-red-400 text-white hover:bg-red-500 font-medium rounded-lg transition-all flex items-center gap-2 shadow-md"
+                      title="Close RRF"
                     >
                       <CheckCircleOutlined />
-                      <span className="hidden sm:inline">Fill from Bench</span>
+                      <span className="hidden sm:inline">Close RRF</span>
                     </button>
                   )}
                   
                   {/* ✅ Show helpful message if neither button is available */}
-                  {rrfData?.status && !['approved', 'in-progress'].includes(rrfData.status) && (
+                  {rrfData?.status && !['approved', 'in-progress', 'open-for-hiring'].includes(rrfData.status) && (
                     <div className="px-4 py-2 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-sm">
                       ⚠️ Actions available only for approved or in-progress RRFs
                     </div>
@@ -528,12 +506,20 @@ export default function PMOViewRRFPage() {
                   <InfoField label="Requisition Type"    value={rrfData.requisitionType} />
                   <InfoField label="Customer Name"       value={rrfData.customerName} />
                   <InfoField label="Project Name"        value={rrfData.projectName} />
-                  {rrfData.requisitionType === 'Billable' && (
-                    <>
-                      <InfoField label="Billing Start Date" value={rrfData.expectedBillingStartDate} />
-                      <InfoField label="Billing Rate"       value={rrfData.billingRate ? `$${rrfData.billingRate}/day` : null} />
-                    </>
-                  )}
+                  <InfoField 
+                    label="Billing Start Date"  
+                    value={rrfData.billingStartDate ? new Date(rrfData.billingStartDate).toLocaleDateString('en-GB') : null} 
+                  />
+                  <InfoField 
+                    label="Expected Onboarding Date"  
+                    value={rrfData.expectedOnboardingDate ? new Date(rrfData.expectedOnboardingDate).toLocaleDateString('en-GB') : null} 
+                  />
+                  <InfoField 
+                    label="Billing Rate" 
+                    value={rrfData.billingRate && rrfData.billingCurrency ? `${rrfData.billingCurrency} ${rrfData.billingRate}` : rrfData.billingRate} 
+                  />
+                  <InfoField label="Budget Min"          value={rrfData.budgetMin} />
+                  <InfoField label="Budget Max"          value={rrfData.budgetMax} />
                 </div>
               </div>
 
@@ -569,6 +555,32 @@ export default function PMOViewRRFPage() {
                   <InfoField label="Must Have Skills"     value={rrfData.mustHaveSkills}      rich />
                   <InfoField label="Nice to Have Skills"  value={rrfData.niceToHaveSkills}    rich />
                 </div>
+                {/* ── Interview Panel ───────────────────────────────────── */}
+                <h3 className="text-xl md:text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6 mt-8">
+                  Interview Panel
+                </h3>
+                {rrfData.interviewers && rrfData.interviewers.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {rrfData.interviewers.map((user) => (
+                      <div key={user.id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold">
+                            {user.fullName?.charAt(0) || <UserOutlined />}
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-slate-900 text-sm">{user.fullName}</h4>
+                            <p className="text-xs text-slate-500 font-medium">{user.role?.roleName || 'Interviewer'}</p>
+                            <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider">{user.email}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-8 text-center">
+                    <p className="text-slate-500 font-medium italic">No interviewers assigned to this request.</p>
+                  </div>
+                )}
               </div>
 
               {/* Job Description */}
@@ -640,94 +652,112 @@ export default function PMOViewRRFPage() {
         </div>
       )}
 
-      {/* Position Filled by Bench Modal */}
-      {showCloseModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 no-print">
-          <div className="bg-white shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" style={{ borderRadius: '16px' }}>
-            {/* Modal Header */}
-            <div className="px-4 md:px-8 py-4 md:py-6 border-b-2 border-green-100" style={{ background: 'linear-gradient(135deg, rgb(220, 252, 231) 0%, rgb(187, 247, 208) 100%)' }}>
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-                  <CheckCircleOutlined style={{ fontSize: '24px', color: '#16a34a' }} />
+      {/* Standard HR-style Close RRF Modal */}
+      {showHRCloseModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div 
+            className="bg-white max-w-lg w-full shadow-2xl overflow-hidden" 
+            style={{ borderRadius: '24px' }}
+          >
+            {/* Header */}
+            <div className="bg-indigo-50 px-4 md:px-8 py-4 md:py-6 border-b border-indigo-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                  <CheckCircleOutlined className="text-xl text-indigo-600" />
                 </div>
-                <div className="flex-1">
-                  <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-1">Position Filled by Bench</h2>
-                  <p className="text-sm text-gray-600">Close this requisition with internal resource allocation</p>
+                <div>
+                  <h3 className="text-lg md:text-xl font-bold text-slate-800">Close RRF</h3>
+                  <p className="text-sm text-slate-500 font-medium mt-1">ID: {rrfData.displayId}</p>
                 </div>
               </div>
             </div>
-
-            {/* Modal Body */}
-            <div className="px-4 md:px-8 py-4 md:py-6 space-y-6">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Internal RRF Number
+            
+            {/* Body */}
+            <div className="p-4 md:p-8 pb-6">
+              <div className="mb-6">
+                <label className="block text-sm font-bold text-slate-700 mb-2">
+                  Closure Status *
                 </label>
-                <div className="w-full px-4 py-3 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl">
-                  <div className="flex items-center gap-2">
-                    <CheckCircleOutlined className="text-green-600" />
-                    <span className="text-sm font-semibold text-green-700">Auto Generated</span>
+                <select
+                  value={hrCloseStatus}
+                  onChange={(e) => setHRCloseStatus(e.target.value)}
+                  className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all duration-200"
+                >
+                  <option value="">Select status</option>
+                  <option value="Resource Hired (External Candidate)">Resource Hired (External Candidate)</option>
+                  <option value="Sourced Internally">Sourced Internally</option>
+                  <option value="Closed/Cancelled by Business">Closed/Cancelled by Business</option>
+                  {(rrfData.positionType?.toLowerCase() === 'replacement' || rrfData.requisitionType?.toLowerCase() === 'replacement') && (
+                    <option value="Replacement Dropped">Replacement Dropped</option>
+                  )}
+                </select>
+              </div>
+              
+              {(hrCloseStatus === 'Resource Hired (External Candidate)' || hrCloseStatus === 'Sourced Internally') && (
+                <div className="space-y-6 animate-fadeIn">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">
+                      Candidate Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={hrCandidateName}
+                      onChange={(e) => setHRCandidateName(e.target.value)}
+                      placeholder="Enter full name"
+                      className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all duration-200"
+                    />
                   </div>
-                  <p className="text-xs text-gray-600 mt-1">System will generate format: RRF-INT-XXX (e.g., RRF-INT-001)</p>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">
+                      {hrCloseStatus === 'Resource Hired (External Candidate)' ? 'Date of Joining' : 'Date of Fulfillment'} *
+                    </label>
+                    <input
+                      type="date"
+                      value={hrJoiningDate}
+                      onChange={(e) => setHRJoiningDate(e.target.value)}
+                      className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all duration-200"
+                    />
+                  </div>
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Candidate Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={candidateName}
-                  onChange={(e) => setCandidateName(e.target.value)}
-                  placeholder="Enter candidate name"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:ring-4 focus:ring-green-100 focus:outline-none transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Date of Joining <span className="text-red-500">*</span>
-                </label>
-                <MaskedDateInput
-                  value={dateOfJoining}
-                  onChange={setDateOfJoining}
-                  placeholder="DD/MM/YYYY"
-                />
-              </div>
+              )}
             </div>
-
-            {/* Modal Footer */}
-            <div className="px-4 md:px-8 py-4 md:py-6 bg-gray-50 flex items-center justify-end gap-3" style={{ borderRadius: '0 0 16px 16px' }}>
+            
+            {/* Footer */}
+            <div className="px-4 md:px-8 py-5 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
               <button
                 onClick={() => {
-                  setShowCloseModal(false)
-                  setCandidateName('')
-                  setDateOfJoining('')
+                  setShowHRCloseModal(false);
+                  setHRCloseStatus('');
+                  setHRCandidateName('');
+                  setHRJoiningDate('');
                 }}
-                disabled={submittingClose}  // ✅ FIX: Disable during submission
-                className="px-6 py-3 bg-white border-2 border-gray-300 text-gray-700 hover:bg-gray-100 font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ borderRadius: '10px' }}
+                disabled={submittingHRClose}
+                className="px-6 py-2.5 text-slate-600 font-semibold hover:bg-slate-200 bg-slate-100 rounded-xl transition-colors duration-200"
               >
                 Cancel
               </button>
               <button
-                onClick={handleCloseWithBench}
-                disabled={submittingClose}  // ✅ FIX: Disable during submission
-                className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 font-semibold transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ borderRadius: '10px' }}
+                onClick={handleHRCloseRRF}
+                disabled={
+                  submittingHRClose ||
+                  !hrCloseStatus || 
+                  ((hrCloseStatus === 'Resource Hired (External Candidate)' || hrCloseStatus === 'Sourced Internally') && 
+                  (!hrCandidateName || !hrJoiningDate))
+                }
+                className="px-6 py-2.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                {submittingClose ? (
-                  // ✅ FIX: Show loading spinner
+                {submittingHRClose ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                    <span>Closing...</span>
+                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Closing...
                   </>
                 ) : (
-                  // Normal state
                   <>
                     <CheckCircleOutlined />
-                    Confirm & Close
+                    Confirm Close
                   </>
                 )}
               </button>

@@ -12,8 +12,11 @@ import { useVisibilityRefresh } from '@/lib/useVisibilityRefresh'
 import { CACHE_TTL } from '@/lib/apiCache'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { ErrorMessage } from '@/components/ErrorMessage'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function ApproverDashboard() {
+  const { user } = useAuth()
+  const userId = user?.id
   const [searchTerm, setSearchTerm] = useState('')
 
   // Fetch pending approvals — cached + deduplicated
@@ -22,7 +25,7 @@ export default function ApproverDashboard() {
     loading: reqLoading,
     error: reqError,
     refresh: refreshRequests,
-  } = useSmartFetch('approver-pending-dash', () => rrfApi.getPendingApprovals(), {
+  } = useSmartFetch(userId ? `approver-pending-dash-${userId}` : null, () => rrfApi.getPendingApprovals(), {
     ttl: CACHE_TTL.LIST,
     transform: (data) => data || [],
   })
@@ -33,7 +36,7 @@ export default function ApproverDashboard() {
     loading: statsLoading,
     error: statsError,
     refresh: refreshStats,
-  } = useSmartFetch('statistics-true', () => rrfApi.getStatistics(true), {
+  } = useSmartFetch(userId ? `statistics-${userId}-true` : null, () => rrfApi.getStatistics(true), {
     ttl: CACHE_TTL.STATS,
     transform: (res) => (res?.success ? res.data : null),
   })

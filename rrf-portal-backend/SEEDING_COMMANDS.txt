@@ -1,0 +1,78 @@
+﻿# ====================================================================
+# Quick Command Reference - Database Migration & Seeding
+# ====================================================================
+
+Write-Host "`n" -NoNewline
+Write-Host "=========================================" -ForegroundColor Cyan
+Write-Host "  Quick Command Reference" -ForegroundColor Cyan
+Write-Host "=========================================`n" -ForegroundColor Cyan
+
+Write-Host "📌 MIGRATION COMMANDS" -ForegroundColor Yellow
+Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`n" -ForegroundColor Gray
+
+Write-Host "1️⃣  Run Migrations (Create Schema):" -ForegroundColor Cyan
+Write-Host "   docker exec -it rrf-backend-dev npm run migration:run`n" -ForegroundColor White
+
+Write-Host "2️⃣  Check Migration Status:" -ForegroundColor Cyan
+Write-Host "   docker exec -it rrf-backend-dev npm run migration:show`n" -ForegroundColor White
+
+Write-Host "3️⃣  Revert Last Migration:" -ForegroundColor Cyan
+Write-Host "   docker exec -it rrf-backend-dev npm run migration:revert`n" -ForegroundColor White
+
+Write-Host "`n📌 SEEDING COMMANDS" -ForegroundColor Yellow
+Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`n" -ForegroundColor Gray
+
+Write-Host "4️⃣  Seed from data/seed.sql:" -ForegroundColor Cyan
+Write-Host '   Get-Content "C:\Users\SohamKhule\Downloads\RRF_2\Data\seed.sql" | docker exec -i rrf-postgres-dev psql -U postgres -d rrf_portal' -ForegroundColor White
+Write-Host ""
+
+Write-Host "5️⃣  Seed from data/seed-admin.sql:" -ForegroundColor Cyan
+Write-Host '   Get-Content "C:\Users\SohamKhule\Downloads\RRF_2\Data\seed-admin.sql" | docker exec -i rrf-postgres-dev psql -U postgres -d rrf_portal' -ForegroundColor White
+Write-Host ""
+
+Write-Host "6️⃣  Seed from specific file:" -ForegroundColor Cyan
+Write-Host '   Get-Content "C:\Users\SohamKhule\Downloads\RRF_2\Data\YOUR_FILE.sql" | docker exec -i rrf-postgres-dev psql -U postgres -d rrf_portal' -ForegroundColor White
+Write-Host ""
+
+Write-Host "`n📌 VERIFICATION COMMANDS" -ForegroundColor Yellow
+Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`n" -ForegroundColor Gray
+
+Write-Host "7️⃣  List All Tables:" -ForegroundColor Cyan
+Write-Host '   docker exec -it rrf-postgres-dev psql -U postgres -d rrf_portal -c "\dt"' -ForegroundColor White
+Write-Host ""
+
+Write-Host "8️⃣  Count Records in Table:" -ForegroundColor Cyan
+Write-Host '   docker exec -it rrf-postgres-dev psql -U postgres -d rrf_portal -c "SELECT COUNT(*) FROM users"' -ForegroundColor White
+Write-Host ""
+
+Write-Host "9️⃣  View Table Data:" -ForegroundColor Cyan
+Write-Host '   docker exec -it rrf-postgres-dev psql -U postgres -d rrf_portal -c "SELECT * FROM users LIMIT 5"' -ForegroundColor White
+Write-Host ""
+
+Write-Host "🔟 Connect to Database (Interactive):" -ForegroundColor Cyan
+Write-Host '   docker exec -it rrf-postgres-dev psql -U postgres -d rrf_portal' -ForegroundColor White
+Write-Host ""
+
+Write-Host "`n📌 AUTOMATED SCRIPTS" -ForegroundColor Yellow
+Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`n" -ForegroundColor Gray
+
+Write-Host "Run Complete Workflow (Migrations + Seeding):" -ForegroundColor Cyan
+Write-Host '   .\scripts\run-migrations-and-seed.ps1' -ForegroundColor White
+Write-Host ""
+
+Write-Host "Seed Only (Skip Migrations):" -ForegroundColor Cyan
+Write-Host '   .\scripts\seed-database-only.ps1' -ForegroundColor White
+Write-Host ""
+
+Write-Host "`n📌 NPM SCRIPTS (Inside Container)" -ForegroundColor Yellow
+Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`n" -ForegroundColor Gray
+
+Write-Host "npm run migration:run      - Run pending migrations" -ForegroundColor White
+Write-Host "npm run migration:revert   - Revert last migration" -ForegroundColor White
+Write-Host "npm run migration:show     - Show migration status" -ForegroundColor White
+Write-Host "npm run migration:generate - Generate new migration" -ForegroundColor White
+Write-Host ""
+
+Write-Host "=========================================" -ForegroundColor Green
+Write-Host "  Copy any command above to use it!" -ForegroundColor Green
+Write-Host "=========================================`n" -ForegroundColor Green

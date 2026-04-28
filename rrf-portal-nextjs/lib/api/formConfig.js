@@ -25,6 +25,30 @@ export async function fetchFormConfig() {
 }
 
 /**
+ * Create new form configuration
+ * PMO-only endpoint
+ */
+export async function createFormConfig(requestData) {
+  try {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const response = await fetch(`${API_URL}/rrf/form-config`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify(requestData)
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Error creating form config');
+    return data.data;
+  } catch (error) {
+    console.error('Error creating form config:', error);
+    throw error;
+  }
+}
+
+/**
  * Update form configuration
  * PMO-only endpoint
  */
@@ -44,6 +68,28 @@ export async function updateFormConfig(fieldName, requestData) {
     return data.data;
   } catch (error) {
     console.error('Error updating form config:', error);
+    throw error;
+  }
+}
+
+/**
+ * Delete form configuration
+ * PMO-only endpoint
+ */
+export async function deleteFormConfig(fieldName) {
+  try {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const response = await fetch(`${API_URL}/rrf/form-config/${fieldName}`, {
+      method: 'DELETE',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      }
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Error deleting form config');
+    return data;
+  } catch (error) {
+    console.error('Error deleting form config:', error);
     throw error;
   }
 }

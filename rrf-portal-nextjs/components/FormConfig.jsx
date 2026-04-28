@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchFormConfig, updateFormConfig } from '@/lib/api/formConfig';
+import { fetchFormConfig, updateFormConfig, createFormConfig, deleteFormConfig } from '@/lib/api/formConfig';
 import { toast } from 'react-hot-toast';
 import { FormOutlined, PlusOutlined, DeleteOutlined, SaveOutlined, RightOutlined, CheckCircleOutlined, ArrowLeftOutlined, CloseOutlined } from '@ant-design/icons';
 import FunctionManager from './FunctionManager';
@@ -20,12 +20,13 @@ const generateFieldName = (label) => {
     .join('')
 }
 
-function FormConfigEditor({ config, onSave }) {
+function FormConfigEditor({ config, onSave, onDelete }) {
   const [label, setLabel] = useState(config.label);
   const [options, setOptions] = useState([...config.options]);
   const [currentOption, setCurrentOption] = useState('');
   const [isRequired, setIsRequired] = useState(config.isRequired || false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     setLabel(config.label);
@@ -68,7 +69,14 @@ function FormConfigEditor({ config, onSave }) {
 
     setSaving(true);
     try {
-      await updateFormConfig(config.fieldName, { label, options, isRequired });
+      await updateFormConfig(config.fieldName, { 
+        label, 
+        options, 
+        isRequired,
+        // Ensure step is preserved/updated correctly
+        step: (config.fieldName === 'primaryTechnologies' || config.fieldName === 'technologies') ? 3 : config.step,
+        section: (config.fieldName === 'primaryTechnologies' || config.fieldName === 'technologies') ? 'Technical Requirements' : config.section
+      });
       toast.success(`${config.label} updated successfully`);
       if (onSave) onSave();
     } catch (error) {
@@ -79,12 +87,42 @@ function FormConfigEditor({ config, onSave }) {
     }
   };
 
+  const handleDeleteField = async () => {
+    if (!window.confirm(`Are you sure you want to delete the configuration for "${config.label}"? This cannot be undone.`)) {
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      await deleteFormConfig(config.fieldName);
+      toast.success(`${config.label} deleted successfully`);
+      if (onDelete) onDelete();
+    } catch (error) {
+      toast.error('Failed to delete field');
+      console.error('Delete error:', error);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-5 hover:shadow-md transition-shadow">
       {/* Field Header */}
       <div className="flex items-center justify-between mb-4">
         <h4 className="font-semibold text-gray-800 text-sm">{config.label}</h4>
-        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{config.step === 1 ? 'Step 1' : 'Step 2'}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+            {config.step === 1 ? 'Step 1' : config.step === 2 ? 'Step 2' : 'Step 3'}
+          </span>
+          <button
+            onClick={handleDeleteField}
+            disabled={deleting}
+            className="text-red-400 hover:text-red-600 p-1 rounded transition-colors"
+            title="Delete this field"
+          >
+            <DeleteOutlined fontSize="small" />
+          </button>
+        </div>
       </div>
       
       <div className="mb-4">
@@ -225,8 +263,17 @@ export default function FormConfig() {
 
   // Group configs by step and section
   const groupedConfigs = configs.reduce((acc, config) => {
-    const stepKey = `step${config.step || 1}`;
-    const section = config.section || 'General';
+    // Determine the effective step and section for the field
+    let step = config.step || 1;
+    let section = config.section || 'General';
+    
+    // Explicitly force primaryTechnologies and technologies to Step 3
+    if (config.fieldName === 'primaryTechnologies' || config.fieldName === 'technologies') {
+      step = 3;
+      section = 'Technical Requirements';
+    }
+
+    const stepKey = `step${step}`;
     if (!acc[stepKey]) acc[stepKey] = {};
     if (!acc[stepKey][section]) acc[stepKey][section] = [];
     acc[stepKey][section].push(config);
@@ -236,6 +283,7 @@ export default function FormConfig() {
   const steps = [
     { number: 1, title: 'Requisition Details', key: 'step1' },
     { number: 2, title: 'Position Details', key: 'step2' },
+    { number: 3, title: 'Technical Requirements', key: 'step3' },
   ];
 
   const currentStepData = groupedConfigs[`step${currentStep}`] || {};
@@ -316,7 +364,14 @@ export default function FormConfig() {
                   if (fieldKey === 'function' || fieldKey === 'subFunction') {
                     return null;
                   }
-                  return <FormConfigEditor key={config.fieldName} config={config} onSave={loadConfigs} />;
+                  return (
+                    <FormConfigEditor 
+                      key={config.fieldName} 
+                      config={config} 
+                      onSave={loadConfigs} 
+                      onDelete={loadConfigs}
+                    />
+                  );
                 })}
                 
                 {/* Inject FunctionManager into Organization section grid */}
@@ -521,18 +576,14 @@ export default function FormConfig() {
                       return;
                     }
                     try {
-                      // Auto-generate fieldName from label
                       const fieldName = generateFieldName(newFieldData.label);
                       
-                      const fieldToCreate = {
+                      await createFormConfig({
                         ...newFieldData,
                         fieldName
-                      };
+                      });
                       
-                      // Here you would call an API to create the new field
-                      // For now, we'll just show a success message
-                      toast.success(`Field "${newFieldData.label}" will be added (backend support required)`);
-                      console.log('[Form Config] Field to create:', fieldToCreate);
+                      toast.success(`Field "${newFieldData.label}" added successfully`);
                       
                       setShowAddFieldModal(false);
                       setNewFieldData({
@@ -544,7 +595,7 @@ export default function FormConfig() {
                         section: 'General'
                       });
                       setCurrentNewOption('');
-                      await loadConfigs();
+                      loadConfigs();
                     } catch (error) {
                       toast.error('Failed to create field');
                     }

@@ -70,6 +70,9 @@ export class RrfFormConfigService {
         type: updateDto.type || 'dropdown',
         isRequired: updateDto.isRequired !== undefined ? updateDto.isRequired : false,
         isActive: updateDto.isActive !== undefined ? updateDto.isActive : true,
+        step: updateDto.step || 1,
+        section: updateDto.section || 'General',
+        displayOrder: updateDto.displayOrder || 0
       });
     } else {
       // Update fields
@@ -88,8 +91,29 @@ export class RrfFormConfigService {
       if (updateDto.isActive !== undefined) {
         config.isActive = updateDto.isActive;
       }
+      if (updateDto.step !== undefined) {
+        config.step = updateDto.step;
+      }
+      if (updateDto.section !== undefined) {
+        config.section = updateDto.section;
+      }
+      if (updateDto.displayOrder !== undefined) {
+        config.displayOrder = updateDto.displayOrder;
+      }
     }
 
     return this.rrfFormConfigRepository.save(config);
+  }
+
+  async remove(fieldName: string): Promise<void> {
+    const config = await this.rrfFormConfigRepository.findOne({
+      where: { fieldName },
+    });
+
+    if (!config) {
+      throw new NotFoundException(`Form config for field '${fieldName}' not found`);
+    }
+
+    await this.rrfFormConfigRepository.remove(config);
   }
 }

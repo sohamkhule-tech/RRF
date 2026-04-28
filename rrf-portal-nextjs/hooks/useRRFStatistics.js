@@ -9,6 +9,7 @@ import { useCallback, useMemo } from 'react';
 import { rrfApi } from '@/lib/api/rrfApi';
 import { useSmartFetch } from '@/lib/useSmartFetch';
 import { CACHE_TTL } from '@/lib/apiCache';
+import { useAuth } from '@/contexts/AuthContext';
 
 const EMPTY_STATS = {
   total: 0,
@@ -16,7 +17,9 @@ const EMPTY_STATS = {
 };
 
 export const useRRFStatistics = (includeAll = false) => {
-  const cacheKey = `statistics-${includeAll}`;
+  const { user } = useAuth();
+  const userId = user?.id;
+  const cacheKey = userId ? `statistics-${userId}-${includeAll}` : null;
 
   // Stable fetcher — captured `includeAll` is constant for the hook's lifetime
   const fetcher = useCallback(

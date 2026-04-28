@@ -270,7 +270,7 @@ export default function ApproverOnHoldPage() {
             <div className="text-4xl mb-4">📋</div>
             <p className="text-lg font-medium text-gray-900">No on-hold requests found</p>
             <p className="text-sm text-gray-500 mt-2">
-              {searchTerm || selectedDepartment !== 'all' 
+              {searchTerm 
                 ? 'Try adjusting your search or filters' 
                 : 'On-hold RRF requests will appear here'}
             </p>

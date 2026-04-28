@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SeedService } from './seed.service';
 import { SeedController } from './seed.controller';
@@ -15,9 +16,12 @@ import { RrfFormConfig } from '../rrf/entities/rrf-form-config.entity';
 import { Subfunction } from '../subfunctions/subfunction.entity';
 import { Function } from '../functions/function.entity';
 import { JobDescription } from '../job-descriptions/job-description.entity';
+import { typeOrmConfig } from '../config/typeorm.config';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
+    TypeOrmModule.forRoot(typeOrmConfig),
     TypeOrmModule.forFeature([
       Role,
       ModuleEntity,

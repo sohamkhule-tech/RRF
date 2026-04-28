@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNumber, IsBoolean, IsArray, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsBoolean, IsArray, MaxLength, IsNotEmpty } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class UpdateUserDto {
@@ -40,4 +40,15 @@ export class UpdateUserDto {
   @IsOptional()
   @IsNumber({}, { each: true })
   subfunctionIds?: number[];
+
+  @ApiProperty({
+    description: 'Array of technology strings (names from master list)',
+    example: ['Java', 'React'],
+    required: false,
+    type: [String],
+  })
+  @IsArray()
+  @IsOptional()
+  @IsString({ each: true })
+  technologies?: string[];
 }

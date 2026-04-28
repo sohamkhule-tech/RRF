@@ -9,17 +9,27 @@ import { useSmartFetch } from '@/lib/useSmartFetch'
 import { CACHE_TTL } from '@/lib/apiCache'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import toast from 'react-hot-toast'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function PMOClosedPage() {
   const router = useRouter()
+  const { user } = useAuth()
+  const userId = user?.id
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedDepartment, setSelectedDepartment] = useState('all')
+  const [selectedCloseReason, setSelectedCloseReason] = useState('all')
   
   // Departments from RRF form
   const departments = ['HR', 'Talent Acquisition', 'Accounts', 'Sales & Marketing', 'PMO', 'SGINTL', 'VR', 'Support']
 
+  const closeReasonLabels = {
+    RESOURCE_HIRED_EXTERNAL: 'Hired Externally',
+    SOURCED_INTERNALLY: 'Sourced Internally',
+    CLOSED_BY_BUSINESS: 'Closed by Business',
+  }
+
   // Shared all-rrfs cache (also used by hr/page, pmo/sent-to-approvers, hr/closed)
-  const { data: allRrfs, loading } = useSmartFetch('all-rrfs', () => rrfApi.getAll({ limit: 1000 }), {
+  const { data: allRrfs, loading } = useSmartFetch(userId ? `all-rrfs-${userId}` : null, () => rrfApi.getAll({ limit: 1000 }), {
     ttl: CACHE_TTL.LIST,
     transform: (response) => response?.data?.data || response?.data || [],
   })
@@ -44,6 +54,8 @@ export default function PMOClosedPage() {
           closedDate: rrf.closedAt ? new Date(rrf.closedAt).toLocaleDateString('en-GB') : new Date(rrf.updatedAt || rrf.createdAt || Date.now()).toLocaleDateString('en-GB'),
           status: 'Closed',
           closureStatus: rrf.closureStatus || 'Position Filled',
+          // Legacy closed-by-bench records have no closeReason yet; treat them as SOURCED_INTERNALLY
+          closeReason: rrf.closeReason || (rrf.status?.toLowerCase() === 'closed-by-bench' ? 'SOURCED_INTERNALLY' : null),
           candidateName: rrf.candidateName || rrf.notes || '—',
           internalRrfNo: formatted.internalRrfNo || null,  // Internal RRF No for bench fills
         }
@@ -81,7 +93,10 @@ export default function PMOClosedPage() {
     if (selectedDepartment !== 'all' && request.subFunction !== selectedDepartment) {
       return false
     }
-    
+    // Close reason filter
+    if (selectedCloseReason !== 'all' && request.closeReason !== selectedCloseReason) {
+      return false
+    }
     // Search filter
     if (!searchTerm) return true
     const searchLower = searchTerm.toLowerCase()
@@ -155,7 +170,7 @@ export default function PMOClosedPage() {
           </div>
           
           {/* Sub Function Filter */}
-          <div className="w-full md:w-72">
+          <div className="w-full md:w-56">
             <select
               value={selectedDepartment}
               onChange={(e) => setSelectedDepartment(e.target.value)}
@@ -168,13 +183,29 @@ export default function PMOClosedPage() {
               ))}
             </select>
           </div>
+
+          {/* Close Reason Filter */}
+          <div className="w-full md:w-56">
+            <select
+              value={selectedCloseReason}
+              onChange={(e) => setSelectedCloseReason(e.target.value)}
+              className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 focus:outline-none transition-all duration-300 bg-white hover:border-gray-300 hover:shadow-md cursor-pointer text-sm font-medium text-gray-700"
+              style={{ fontSize: '14px', appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none', backgroundImage: 'url("data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e")', backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem' }}
+            >
+              <option value="all">🔖 All Reasons</option>
+              <option value="RESOURCE_HIRED_EXTERNAL">Hired Externally</option>
+              <option value="SOURCED_INTERNALLY">Sourced Internally</option>
+              <option value="CLOSED_BY_BUSINESS">Closed by Business</option>
+            </select>
+          </div>
         </div>
         
-        {(searchTerm || selectedDepartment !== 'all') && (
+        {(searchTerm || selectedDepartment !== 'all' || selectedCloseReason !== 'all') && (
           <p className="text-sm text-gray-600">
             Found {filteredRequests.length} result{filteredRequests.length !== 1 ? 's' : ''}
             {searchTerm && ` for "${searchTerm}"`}
             {selectedDepartment !== 'all' && ` in ${selectedDepartment}`}
+            {selectedCloseReason !== 'all' && ` — ${closeReasonLabels[selectedCloseReason]}`}
           </p>
         )}
       </div>
@@ -195,6 +226,7 @@ export default function PMOClosedPage() {
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Sub Function</th>
                 <th className="px-3 py-3 text-center text-xs font-bold text-gray-700 uppercase">Pos</th>
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Priority</th>
+                <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Close Reason</th>
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Closure Info</th>
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Candidate</th>
                 <th className="px-3 py-3 text-center text-xs font-bold text-gray-700 uppercase">Action</th>
@@ -221,6 +253,17 @@ export default function PMOClosedPage() {
                       <span className="inline-flex items-center justify-center w-7 h-7 bg-gray-100 text-gray-700 rounded-full font-bold text-xs">{request.positions}</span>
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap">{getPriorityBadge(request.priority)}</td>
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      {request.closeReason ? (
+                        <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                          request.closeReason === 'RESOURCE_HIRED_EXTERNAL' ? 'bg-blue-100 text-blue-700' :
+                          request.closeReason === 'SOURCED_INTERNALLY' ? 'bg-purple-100 text-purple-700' :
+                          'bg-orange-100 text-orange-700'
+                        }`}>{closeReasonLabels[request.closeReason] || request.closeReason}</span>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
+                    </td>
                     <td className="px-3 py-3 whitespace-nowrap">
                       <span className="text-xs font-medium bg-green-100 text-green-700 px-2 py-1 rounded-full">{request.closureStatus}</span>
                       <div className="text-xs text-gray-500 mt-1">Closed: {request.closedDate}</div>

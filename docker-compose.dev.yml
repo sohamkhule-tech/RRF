@@ -54,6 +54,8 @@ services:
       - JWT_SECRET=RRF_PORTAL_SECRET_KEY_2026
       - JWT_EXPIRES_IN=24h
       - ALLOWED_ORIGINS=http://localhost:3000
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
     depends_on:
       postgres:
         condition: service_healthy

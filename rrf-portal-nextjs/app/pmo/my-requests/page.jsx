@@ -7,8 +7,11 @@ import { rrfApi } from '@/lib/api/rrfApi'
 import { useSmartFetch } from '@/lib/useSmartFetch'
 import { useVisibilityRefresh } from '@/lib/useVisibilityRefresh'
 import { CACHE_TTL } from '@/lib/apiCache'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function PMOMyRequests() {
+  const { user } = useAuth()
+  const userId = user?.id
   const [searchTerm, setSearchTerm] = useState('')
 
   // Fetch all RRFs created by current PMO user — cached + deduplicated
@@ -16,7 +19,7 @@ export default function PMOMyRequests() {
     data: requests,
     loading,
     refresh: refreshRequests,
-  } = useSmartFetch('pmo-my-requests', () => rrfApi.getMyRequests(), {
+  } = useSmartFetch(userId ? `pmo-my-requests-${userId}` : null, () => rrfApi.getMyRequests(), {
     ttl: CACHE_TTL.LIST,
     transform: (response) => {
       const rrfs = response?.data || response || []
