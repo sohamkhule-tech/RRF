@@ -7,6 +7,7 @@ import PermissionBasedSidebar from '@/components/PermissionBasedSidebar'
 import Header from '@/components/Header'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
+import { NotificationProvider } from '@/contexts/NotificationContext'
 
 const { Content } = Layout
 
@@ -133,6 +134,7 @@ function LayoutContent({ children }) {
 export default function ClientLayout({ children }) {
   return (
     <AuthProvider>
+      <NotificationProvider>
       <Toaster
         position="top-right"
         toastOptions={{
@@ -164,6 +166,7 @@ export default function ClientLayout({ children }) {
         }}
       />
       <LayoutContent>{children}</LayoutContent>
+      </NotificationProvider>
     </AuthProvider>
   )
 }

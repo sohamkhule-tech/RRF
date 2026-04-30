@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
 import { Modal } from 'antd'
 import { useAuth } from '@/contexts/AuthContext'
+import NotificationBell from '@/components/NotificationBell'
 
 export default function Header({ initialRole = 'hiring-manager', onToggleSidebar, isSidebarCollapsed = false, isMobile = false }) {
   const router = useRouter()
@@ -136,6 +137,9 @@ export default function Header({ initialRole = 'hiring-manager', onToggleSidebar
               </div>
             </div>
           </div>
+
+          {/* Notification Bell */}
+          <NotificationBell />
 
           {/* Logout Button */}
           <button

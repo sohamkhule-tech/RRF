@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { User } from './user.entity';
 import { Role } from '../roles/role.entity';
 import { UserSubfunction } from '../user-subfunctions/user-subfunction.entity';
@@ -22,6 +23,7 @@ export class UsersService {
     private rolesRepository: Repository<Role>,
     @InjectRepository(UserSubfunction)
     private userSubfunctionRepository: Repository<UserSubfunction>,
+    private eventEmitter: EventEmitter2,
   ) {}
 
   // ============================================================
@@ -163,10 +165,25 @@ export class UsersService {
     });
 
     const { passwordHash: _, userSubfunctions, ...result } = userWithSubfunctions;
-    return {
+    const createdResult = {
       ...result,
       subfunctions: userSubfunctions?.map(us => us.subfunction) || [],
     };
+
+    // Emit notification after successful user creation
+    this.eventEmitter.emit('user.created', {
+      type: 'USER_CREATED',
+      priority: 'MEDIUM',
+      entityType: 'USER',
+      entityId: saved.id,
+      actorId: saved.id,
+      targetUserId: saved.id,
+      targetUserName: saved.fullName,
+      roleName: role.roleName,
+      metadata: { roleName: role.roleName },
+    });
+
+    return createdResult;
   }
 
   /**
@@ -177,6 +194,10 @@ export class UsersService {
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
+
+    // Capture previous state for notification detection
+    const previousRoleId = user.role?.id;
+    const previousIsActive = user.isActive;
 
     let role = user.role;
 
@@ -222,10 +243,72 @@ export class UsersService {
     });
 
     const { passwordHash, userSubfunctions, ...result } = userWithSubfunctions;
-    return {
+    const updatedResult = {
       ...result,
       subfunctions: userSubfunctions?.map(us => us.subfunction) || [],
     };
+
+    // Emit notification events based on what changed
+    const roleChanged = data.roleId !== undefined && data.roleId !== previousRoleId;
+    const activated = data.isActive === true && previousIsActive === false;
+    const deactivated = data.isActive === false && previousIsActive === true;
+    const subfunctionsChanged = data.subfunctionIds !== undefined;
+
+    if (roleChanged) {
+      this.eventEmitter.emit('user.role-changed', {
+        type: 'USER_ROLE_CHANGED',
+        priority: 'MEDIUM',
+        entityType: 'USER',
+        entityId: id,
+        actorId: id,
+        targetUserId: id,
+        targetUserName: saved.fullName,
+        roleName: role.roleName,
+        metadata: { roleName: role.roleName },
+      });
+    } else if (activated) {
+      this.eventEmitter.emit('user.activated', {
+        type: 'USER_ACTIVATED',
+        priority: 'MEDIUM',
+        entityType: 'USER',
+        entityId: id,
+        actorId: id,
+        targetUserId: id,
+        targetUserName: saved.fullName,
+      });
+    } else if (deactivated) {
+      this.eventEmitter.emit('user.deactivated', {
+        type: 'USER_DEACTIVATED',
+        priority: 'MEDIUM',
+        entityType: 'USER',
+        entityId: id,
+        actorId: id,
+        targetUserId: id,
+        targetUserName: saved.fullName,
+      });
+    } else if (subfunctionsChanged) {
+      this.eventEmitter.emit('user.subfunctions-changed', {
+        type: 'USER_SUBFUNCTIONS_CHANGED',
+        priority: 'MEDIUM',
+        entityType: 'USER',
+        entityId: id,
+        actorId: id,
+        targetUserId: id,
+        targetUserName: saved.fullName,
+      });
+    } else {
+      this.eventEmitter.emit('user.updated', {
+        type: 'USER_UPDATED',
+        priority: 'LOW',
+        entityType: 'USER',
+        entityId: id,
+        actorId: id,
+        targetUserId: id,
+        targetUserName: saved.fullName,
+      });
+    }
+
+    return updatedResult;
   }
 
   /**
