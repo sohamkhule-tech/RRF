@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, DataSource, Not, In } from 'typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Rrf, RrfStatus } from './entities/rrf.entity';
 import { RrfApprover, ApprovalStatus, ApprovalLevel } from './entities/rrf-approver.entity';
 import { User } from '../users/user.entity';
@@ -38,6 +39,7 @@ export class RrfService {
     @InjectDataSource()
     private dataSource: DataSource,
     private jobDescriptionsService: JobDescriptionsService,
+    private eventEmitter: EventEmitter2,
   ) { }
 
   /**
@@ -212,6 +214,19 @@ export class RrfService {
         subFunction: createRrfDto.subFunction,
       }, userId);
     }
+
+    // Emit notification event after successful creation
+    this.eventEmitter.emit('rrf.created', {
+      type: 'RRF_CREATED',
+      priority: 'LOW',
+      entityType: 'RRF',
+      entityId: savedRrf.id,
+      actorId: userId,
+      rrfId: savedRrf.id,
+      subId: savedRrf.subId,
+      positionTitle: savedRrf.positionTitle,
+      metadata: { subId: savedRrf.subId },
+    });
 
     return savedRrf;
   }
@@ -460,7 +475,26 @@ export class RrfService {
     // ────────────────────────────────────────────────────────────────────────
 
     Object.assign(rrf, updateRrfDto);
-    return await this.rrfRepository.save(rrf);
+    const updatedRrf = await this.rrfRepository.save(rrf);
+
+    // Emit notification after successful update
+    this.eventEmitter.emit('rrf.updated', {
+      type: 'RRF_UPDATED',
+      priority: 'LOW',
+      entityType: 'RRF',
+      entityId: updatedRrf.id,
+      actorId: numericUserId,
+      rrfId: updatedRrf.id,
+      subId: updatedRrf.subId,
+      positionTitle: updatedRrf.positionTitle,
+      metadata: {
+        subId: updatedRrf.subId,
+        notifyApprovers: !isCreator,
+        notifyCreator: !isCreator,
+      },
+    });
+
+    return updatedRrf;
   }
 
   // ============================================================
@@ -563,7 +597,24 @@ export class RrfService {
       }
 
       this.appendStatusHistory(rrf, this.buildStatusHistoryEntry(RrfStatus.IN_PROGRESS, userId, 'PMO Direct Submission'));
-      return await this.rrfRepository.save(rrf);
+      const pmoSavedRrf = await this.rrfRepository.save(rrf);
+
+      // Emit notification: PMO direct submission (opened for hiring directly)
+      this.eventEmitter.emit('rrf.opened-for-hiring', {
+        type: 'RRF_OPENED_FOR_HIRING',
+        priority: 'HIGH',
+        entityType: 'RRF',
+        entityId: pmoSavedRrf.id,
+        actorId: userId,
+        actorName: user?.fullName,
+        rrfId: pmoSavedRrf.id,
+        subId: pmoSavedRrf.subId,
+        rrfNumber: pmoSavedRrf.rrfNumber,
+        positionTitle: pmoSavedRrf.positionTitle,
+        metadata: { subId: pmoSavedRrf.subId, rrfNumber: pmoSavedRrf.rrfNumber },
+      });
+
+      return pmoSavedRrf;
     }
 
     // ─── Resubmission: reset approver records so approval chain restarts ────
@@ -612,6 +663,21 @@ export class RrfService {
       );
 
       await this.rrfApproverRepository.save(approverRecords);
+
+      // Emit notification: first submission
+      this.eventEmitter.emit('rrf.submitted', {
+        type: 'RRF_SUBMITTED',
+        priority: 'HIGH',
+        entityType: 'RRF',
+        entityId: savedRrf.id,
+        actorId: userId,
+        actorName: user?.fullName,
+        rrfId: savedRrf.id,
+        subId: savedRrf.subId,
+        positionTitle: savedRrf.positionTitle,
+        metadata: { subId: savedRrf.subId },
+      });
+
       return await this.findOne(id);
     }
 
@@ -625,6 +691,21 @@ export class RrfService {
     );
 
     await this.rrfRepository.save(rrf);
+
+    // Emit notification: resubmission
+    this.eventEmitter.emit('rrf.resubmitted', {
+      type: 'RRF_RESUBMITTED',
+      priority: 'HIGH',
+      entityType: 'RRF',
+      entityId: rrf.id,
+      actorId: userId,
+      actorName: user?.fullName,
+      rrfId: rrf.id,
+      subId: rrf.subId,
+      positionTitle: rrf.positionTitle,
+      metadata: { subId: rrf.subId },
+    });
+
     return await this.findOne(id);
   }
 
@@ -674,7 +755,24 @@ export class RrfService {
 
     this.appendStatusHistory(rrf, this.buildStatusHistoryEntry(RrfStatus.APPROVED, numericUserId, comments));
 
-    return await this.rrfRepository.save(rrf);
+    const approvedRrf = await this.rrfRepository.save(rrf);
+
+    // Emit notification after successful approval
+    this.eventEmitter.emit('rrf.approved', {
+      type: 'RRF_APPROVED',
+      priority: 'HIGH',
+      entityType: 'RRF',
+      entityId: approvedRrf.id,
+      actorId: numericUserId,
+      actorName: approverUser?.fullName,
+      rrfId: approvedRrf.id,
+      subId: approvedRrf.subId,
+      rrfNumber: approvedRrf.rrfNumber,
+      positionTitle: approvedRrf.positionTitle,
+      metadata: { subId: approvedRrf.subId, rrfNumber: approvedRrf.rrfNumber },
+    });
+
+    return approvedRrf;
   }
 
   async reject(id: number, userId: number, comments: string): Promise<Rrf> {
@@ -698,7 +796,23 @@ export class RrfService {
     rrf.rejectedAt = new Date();
     this.appendStatusHistory(rrf, this.buildStatusHistoryEntry(RrfStatus.REJECTED, numericUserId, comments));
 
-    return await this.rrfRepository.save(rrf);
+    const rejectedRrf = await this.rrfRepository.save(rrf);
+
+    // Emit notification after successful rejection
+    this.eventEmitter.emit('rrf.rejected', {
+      type: 'RRF_REJECTED',
+      priority: 'HIGH',
+      entityType: 'RRF',
+      entityId: rejectedRrf.id,
+      actorId: numericUserId,
+      rrfId: rejectedRrf.id,
+      subId: rejectedRrf.subId,
+      positionTitle: rejectedRrf.positionTitle,
+      reason: comments,
+      metadata: { subId: rejectedRrf.subId },
+    });
+
+    return rejectedRrf;
   }
 
   async remove(id: number): Promise<void> {
@@ -709,6 +823,19 @@ export class RrfService {
     }
 
     await this.rrfRepository.delete(id);
+
+    // Emit notification after successful deletion
+    this.eventEmitter.emit('rrf.deleted', {
+      type: 'RRF_DELETED',
+      priority: 'LOW',
+      entityType: 'RRF',
+      entityId: id,
+      actorId: rrf.createdById,
+      rrfId: id,
+      subId: rrf.subId,
+      positionTitle: rrf.positionTitle,
+      metadata: { subId: rrf.subId },
+    });
   }
 
   async assignApproversToRrf(id: number): Promise<Rrf> {
@@ -846,7 +973,24 @@ export class RrfService {
 
     this.appendStatusHistory(rrf, this.buildStatusHistoryEntry(RrfStatus.DECLINED, numericUserId, reason));
 
-    return await this.rrfRepository.save(rrf);
+    const declinedRrf = await this.rrfRepository.save(rrf);
+
+    // Emit notification after successful decline
+    this.eventEmitter.emit('rrf.declined', {
+      type: 'RRF_DECLINED',
+      priority: 'HIGH',
+      entityType: 'RRF',
+      entityId: declinedRrf.id,
+      actorId: numericUserId,
+      actorName: decliningUser?.fullName,
+      rrfId: declinedRrf.id,
+      subId: declinedRrf.subId,
+      positionTitle: declinedRrf.positionTitle,
+      reason,
+      metadata: { subId: declinedRrf.subId },
+    });
+
+    return declinedRrf;
   }
 
   async putOnHold(id: number, userId: number, reason: string): Promise<Rrf> {
@@ -883,7 +1027,24 @@ export class RrfService {
 
     this.appendStatusHistory(rrf, this.buildStatusHistoryEntry(RrfStatus.ON_HOLD, numericUserId, reason));
 
-    return await this.rrfRepository.save(rrf);
+    const onHoldRrf = await this.rrfRepository.save(rrf);
+
+    // Emit notification after successful hold
+    this.eventEmitter.emit('rrf.on-hold', {
+      type: 'RRF_ON_HOLD',
+      priority: 'MEDIUM',
+      entityType: 'RRF',
+      entityId: onHoldRrf.id,
+      actorId: numericUserId,
+      actorName: holdingUser?.fullName,
+      rrfId: onHoldRrf.id,
+      subId: onHoldRrf.subId,
+      positionTitle: onHoldRrf.positionTitle,
+      reason,
+      metadata: { subId: onHoldRrf.subId },
+    });
+
+    return onHoldRrf;
   }
 
   async openForHiring(id: number, userId: number): Promise<Rrf> {
@@ -935,6 +1096,21 @@ export class RrfService {
     }
 
     console.log(`[openForHiring] SUCCESS - RRF ${id} opened for hiring in ${Date.now() - now.getTime()}ms`);
+
+    // Emit notification after successfully opening for hiring
+    this.eventEmitter.emit('rrf.opened-for-hiring', {
+      type: 'RRF_OPENED_FOR_HIRING',
+      priority: 'HIGH',
+      entityType: 'RRF',
+      entityId: id,
+      actorId: userId,
+      rrfId: id,
+      subId: rrf.subId,
+      rrfNumber,
+      positionTitle: rrf.positionTitle,
+      metadata: { subId: rrf.subId, rrfNumber },
+    });
+
     return updatedRrf as Rrf;
   }
 
@@ -1012,6 +1188,19 @@ export class RrfService {
 
       console.log(`[fillByBench] SUCCESS - RRF ${id} closed with internal RRF: ${internalRrfNo} in ${Date.now() - now.getTime()}ms`);
       
+      // Emit notification after successfully filling from bench
+      this.eventEmitter.emit('rrf.filled-by-bench', {
+        type: 'RRF_FILLED_BY_BENCH',
+        priority: 'MEDIUM',
+        entityType: 'RRF',
+        entityId: id,
+        actorId: userId,
+        rrfId: id,
+        subId: rrf.subId,
+        positionTitle: rrf.positionTitle,
+        metadata: { subId: rrf.subId, internalRrfNo },
+      });
+
       // ✅ Return plain object (no need to reload entity)
       return updatedRrf as Rrf;
       
@@ -1118,7 +1307,23 @@ export class RrfService {
     rrf.notes = notes;
     this.appendStatusHistory(rrf, this.buildStatusHistoryEntry(RrfStatus.CLOSED, userId, notes));
 
-    return await this.rrfRepository.save(rrf);
+    const closedRrf = await this.rrfRepository.save(rrf);
+
+    // Emit notification after successful close
+    this.eventEmitter.emit('rrf.closed', {
+      type: 'RRF_CLOSED',
+      priority: 'MEDIUM',
+      entityType: 'RRF',
+      entityId: closedRrf.id,
+      actorId: userId,
+      rrfId: closedRrf.id,
+      subId: closedRrf.subId,
+      rrfNumber: closedRrf.rrfNumber,
+      positionTitle: closedRrf.positionTitle,
+      metadata: { subId: closedRrf.subId, rrfNumber: closedRrf.rrfNumber, closureStatus },
+    });
+
+    return closedRrf;
   }
 
   async getMySubmissions(userId: number): Promise<Rrf[]> {

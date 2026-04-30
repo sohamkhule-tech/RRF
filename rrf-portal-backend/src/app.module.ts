@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { RolesModule } from './roles/roles.module';
@@ -15,6 +16,7 @@ import { JobDescriptionsModule } from './job-descriptions/job-descriptions.modul
 import { SeedModule } from './database/seed.module';
 import { RrfModule } from './rrf/rrf.module';
 import { ReportsModule } from './reports/reports.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { typeOrmConfig } from './config/typeorm.config';
 
 @Module({
@@ -46,6 +48,8 @@ import { typeOrmConfig } from './config/typeorm.config';
     SeedModule,
     RrfModule,
     ReportsModule,
+    EventEmitterModule.forRoot(),
+    NotificationsModule,
   ],
 })
 export class AppModule {}
