@@ -96,7 +96,7 @@ export class FunctionsController {
 
   // Soft delete function
   @Delete(':id')
-  @RequirePermission('RRF.DELETE')
+  @RequirePermission('FORM_CONFIG.DELETE')
   async remove(@Param('id', ParseIntPipe) id: number) {
     await this.functionsService.remove(id);
     return {
@@ -107,7 +107,7 @@ export class FunctionsController {
 
   // Hard delete function (admin only)
   @Delete(':id/hard')
-  @RequirePermission('RRF.DELETE')
+  @RequirePermission('FORM_CONFIG.DELETE')
   @HttpCode(HttpStatus.NO_CONTENT)
   async hardDelete(@Param('id', ParseIntPipe) id: number) {
     await this.functionsService.hardDelete(id);

@@ -217,7 +217,7 @@ export default function PMOViewRRFPage() {
       setHRJoiningDate('')
       setHRCloseStatus('')
       
-      router.push('/pmo/closed')
+      router.push('/pmo/requests?status=closed')
     } catch (err) {
       toast.error(err?.response?.data?.message || 'Failed to close RRF')
     } finally {

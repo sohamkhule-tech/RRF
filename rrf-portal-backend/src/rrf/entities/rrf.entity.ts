@@ -319,6 +319,16 @@ export class Rrf {
 
   // ========== WORKFLOW SYSTEM UPDATE END ==========
 
+  // Edit audit fields
+  @Column({ name: 'last_edited_by_id', nullable: true })
+  lastEditedById?: number;
+
+  @Column({ name: 'last_edited_by_role', nullable: true })
+  lastEditedByRole?: string;
+
+  @Column({ name: 'last_edited_at', type: 'timestamp', nullable: true })
+  lastEditedAt?: Date;
+
   // Relations
   @OneToMany(() => RrfApprover, (approver) => approver.rrf)
   approvers: RrfApprover[];

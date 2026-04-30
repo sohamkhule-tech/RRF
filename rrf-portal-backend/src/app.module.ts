@@ -14,6 +14,7 @@ import { UserSubfunctionsModule } from './user-subfunctions/user-subfunctions.mo
 import { JobDescriptionsModule } from './job-descriptions/job-descriptions.module';
 import { SeedModule } from './database/seed.module';
 import { RrfModule } from './rrf/rrf.module';
+import { ReportsModule } from './reports/reports.module';
 import { typeOrmConfig } from './config/typeorm.config';
 
 @Module({
@@ -44,6 +45,7 @@ import { typeOrmConfig } from './config/typeorm.config';
     JobDescriptionsModule,
     SeedModule,
     RrfModule,
+    ReportsModule,
   ],
 })
 export class AppModule {}

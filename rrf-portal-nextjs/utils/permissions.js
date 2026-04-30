@@ -119,6 +119,14 @@ export const PERMISSIONS = {
     READ: 'SETTINGS.READ',
     UPDATE: 'SETTINGS.UPDATE',
   },
+
+  // Form Configuration
+  FORM_CONFIG: {
+    READ: 'FORM_CONFIG.READ',
+    CREATE: 'FORM_CONFIG.CREATE',
+    UPDATE: 'FORM_CONFIG.UPDATE',
+    DELETE: 'FORM_CONFIG.DELETE',
+  },
 }
 
 /**
@@ -139,47 +147,6 @@ export const getHomePageByRole = (role) => {
     'ADMIN': '/admin',
   }
   return roleMap[role] || '/hiring-manager/dashboard'
-}
-
-/**
- * Get home page based on permissions
- * Determines the best landing page based on user's permissions
- */
-export const getHomePageByPermissions = (permissions = []) => {
-  // Check for specific role-based permissions and route accordingly
-  // Use unique permission combinations to identify role
-  
-  // Admin role - has USERS.CREATE (unique to admin)
-  if (hasPermission('USERS.CREATE', permissions)) {
-    return '/admin'
-  }
-  
-  // HR role - has REPORTS.EXPORT but NOT RRF.CREATE
-  if (hasPermission('REPORTS.EXPORT', permissions) && !hasPermission('RRF.CREATE', permissions)) {
-    return '/hr'
-  }
-  
-  // Approver role - has APPROVALS.APPROVE or APPROVALS.REJECT
-  if (hasPermission('APPROVALS.APPROVE', permissions) || hasPermission('APPROVALS.REJECT', permissions)) {
-    return '/approver'
-  }
-  
-  // PMO role - has RRF.DELETE (only PMO and Admin have this, but Admin has USERS.CREATE)
-  if (hasPermission('RRF.DELETE', permissions) && !hasPermission('USERS.CREATE', permissions)) {
-    return '/pmo'
-  }
-  
-  // Hiring Manager or default - can create/manage RRFs
-  if (hasPermission(PERMISSIONS.RRF.CREATE, permissions)) {
-    return '/hiring-manager/dashboard'
-  }
-  
-  // Default fallback
-  if (hasPermission(PERMISSIONS.DASHBOARD.READ, permissions)) {
-    return '/hiring-manager/dashboard'
-  }
-  
-  return '/hiring-manager/dashboard'
 }
 
 /**

@@ -51,7 +51,7 @@ export default function PMODashboard() {
       return Array.isArray(rrfs)
         ? rrfs.slice(0, 5).map(rrf => ({
             id: rrf.id,
-            rrfNumber: rrf.rrfNumber,
+            rrfNumber: rrf.rrfNumber || rrf.subId,
             role: rrf.positionTitle || '-',
             manager: rrf.createdBy?.fullName || rrf.createdBy?.name || '-',
             project: rrf.projectName || '-',
@@ -130,14 +130,6 @@ export default function PMODashboard() {
           href="/pmo/requests?status=closed"
         />
         <StatCard 
-          title="Hired Externally" 
-          value={effectiveStats.closedByReason.RESOURCE_HIRED_EXTERNAL.toString()} 
-          subtitle="External candidate" 
-          icon={<TeamOutlined />} 
-          color="purple" 
-          href="/pmo/requests?status=hired-externally"
-        />
-        <StatCard 
           title="Sourced Internally" 
           value={effectiveStats.closedByReason.SOURCED_INTERNALLY.toString()} 
           subtitle="Internal fulfillment" 
@@ -152,6 +144,14 @@ export default function PMODashboard() {
           icon={<StopOutlined />} 
           color="cyan" 
           href="/pmo/requests?status=closed-by-business"
+        />
+        <StatCard 
+          title="Processed Requests" 
+          value={effectiveStats.totalProcessed.toString()} 
+          subtitle="All processed requests" 
+          icon={<CheckCircleOutlined />} 
+          color="green" 
+          href="/pmo/requests" 
         />
       </div>
 

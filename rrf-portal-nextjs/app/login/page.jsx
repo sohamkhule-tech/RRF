@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { UserOutlined, LockOutlined, LoginOutlined } from '@ant-design/icons'
 import toast from 'react-hot-toast'
 import { useAuth } from '@/contexts/AuthContext'
-import { getHomePageByPermissions, getHomePageByRole } from '@/utils/permissions'
+import { getHomePageByRole } from '@/utils/permissions'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -49,11 +49,9 @@ export default function LoginPage() {
 
       toast.success(`Welcome back, ${data.user.name}!`)
 
-      // HYBRID ROUTING: Try permission-based, fallback to role-based
-      // Redirect based on user's permissions instead of role
-      const homePage = data.user.permissions && data.user.permissions.length > 0
-        ? getHomePageByPermissions(data.user.permissions)
-        : getHomePageByRole(data.user.role?.code || data.user.role) // Fallback to role
+      // Route based on role code — never infer role from permissions
+      const roleCode = data.user.role?.code || data.user.role
+      const homePage = getHomePageByRole(roleCode)
       
       router.push(homePage)
     } catch (error) {
