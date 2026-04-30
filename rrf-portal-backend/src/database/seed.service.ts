@@ -345,6 +345,16 @@ export class SeedService {
         displayOrder: 6,
         isActive: true,
       },
+      {
+        moduleName: 'Form Configuration',
+        moduleCode: 'FORM_CONFIG',
+        description: 'Form fields and dropdown configuration management',
+        parentModuleId: null,
+        routePath: '/admin/form-config',
+        icon: 'form',
+        displayOrder: 7,
+        isActive: true,
+      },
     ];
 
     for (const moduleData of modules) {
@@ -422,6 +432,16 @@ export class SeedService {
           { code: 'UPDATE', name: 'Update Settings', description: 'Modify system configuration' },
         ],
       },
+      // Form Configuration Permissions
+      {
+        moduleCode: 'FORM_CONFIG',
+        permissions: [
+          { code: 'READ', name: 'View Form Config', description: 'View form field configurations' },
+          { code: 'CREATE', name: 'Create Form Config', description: 'Add new form fields and options' },
+          { code: 'UPDATE', name: 'Update Form Config', description: 'Edit form fields and options' },
+          { code: 'DELETE', name: 'Delete Form Config', description: 'Delete functions, subfunctions, and form options' },
+        ],
+      },
     ];
 
     for (const modulePermissions of permissionsData) {
@@ -475,6 +495,10 @@ export class SeedService {
         'REPORTS.EXPORT',
         'SETTINGS.READ',
         'SETTINGS.UPDATE',
+        'FORM_CONFIG.READ',
+        'FORM_CONFIG.CREATE',
+        'FORM_CONFIG.UPDATE',
+        'FORM_CONFIG.DELETE',
       ],
       PMO: [
         // PMO: Manage RRF workflow, view approvals, read-only users
@@ -490,6 +514,10 @@ export class SeedService {
         'USERS.READ',
         'REPORTS.READ',
         'REPORTS.EXPORT',
+        'FORM_CONFIG.READ',
+        'FORM_CONFIG.CREATE',
+        'FORM_CONFIG.UPDATE',
+        'FORM_CONFIG.DELETE',
       ],
       APPROVER: [
         // Approver: View and approve/reject RRFs

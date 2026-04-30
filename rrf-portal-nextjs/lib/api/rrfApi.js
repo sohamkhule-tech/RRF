@@ -44,6 +44,12 @@ const sanitizeRrfPayload = (payload) => {
       delete sanitized[key];
     }
   });
+
+  // Remove raw frontend skill field names that backend DTO rejects.
+  // UI state uses mustHaveSkills/niceToHaveSkills; the API only accepts
+  // requiredSkills and preferredSkills (already mapped by the form before this point).
+  delete sanitized.mustHaveSkills;
+  delete sanitized.niceToHaveSkills;
   
   // Log what we're about to send
   console.log('[Sanitize] Final payload types:', {
@@ -51,6 +57,7 @@ const sanitizeRrfPayload = (payload) => {
     requiredSkills: sanitized.requiredSkills ? typeof sanitized.requiredSkills : 'undefined',
     preferredSkills: sanitized.preferredSkills ? typeof sanitized.preferredSkills : 'undefined',
   });
+  console.log('FINAL RRF PAYLOAD', sanitized);
   
   return sanitized;
 };
@@ -116,7 +123,7 @@ export const rrfApi = {
   update: async (id, rrfData) => {
     const sanitized = sanitizeRrfPayload(rrfData);
     console.log('[RRF API] Sanitized update payload:', sanitized);
-    return api.patch(`/rrf/${id}`, sanitized);
+    return api.put(`/rrf/${id}`, sanitized);
   },
 
   /**

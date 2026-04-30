@@ -299,7 +299,7 @@ export default function ModernRRFForm({
   // SubFunction options based on selected Function
   const subfunctionOptions = {
     'Delivery': ['SGINTL', 'VR', 'PMO'],
-    'Sales': ['BDE', 'Sales', 'MR', 'Marketing'],
+    'Sales & Marketing': ['BDE', 'Sales', 'MR', 'Marketing'],
     'Support': ['Human Resources', 'Talent Acquisition', 'Accounts', 'IT Networking']
   }
 
@@ -336,8 +336,8 @@ export default function ModernRRFForm({
     // Auto-set requisition type based on function
     let updatedFormData = { ...formData, function: value, subFunction: '' }
     
-    if (value === 'Support' || value === 'Sales') {
-      // Support and Sales are always Non-Billable
+    if (value === 'Support' || value === 'Sales & Marketing') {
+      // Support and Sales & Marketing are always Non-Billable
       updatedFormData.requisitionType = 'Non-Billable'
       setRequisitionType('Non-Billable')
     } else if (value === 'Delivery') {
@@ -558,9 +558,12 @@ export default function ModernRRFForm({
       }
       
       // Add all dynamic fields from config
+      // Skip UI-only skill field names that must not reach the backend DTO
+      const _submitSkipFields = ['mustHaveSkills', 'niceToHaveSkills'];
       if (configs && typeof configs === 'object') {
         Object.values(configs).forEach(config => {
-          if (config?.fieldName && formData.hasOwnProperty(config.fieldName) && 
+          if (config?.fieldName && !_submitSkipFields.includes(config.fieldName) &&
+              formData.hasOwnProperty(config.fieldName) && 
               !backendData.hasOwnProperty(config.fieldName)) {
             backendData[config.fieldName] = formData[config.fieldName] || undefined
           }
@@ -586,6 +589,13 @@ export default function ModernRRFForm({
           delete backendData[key]
         }
       })
+
+      // Remove raw skill field names that backend DTO rejects (UI uses mustHaveSkills/niceToHaveSkills,
+      // API expects requiredSkills/preferredSkills only)
+      delete backendData.mustHaveSkills;
+      delete backendData.niceToHaveSkills;
+
+      console.log('FINAL RRF PAYLOAD', backendData);
       
       // DEBUG: Log exact payload being sent (remove when no longer needed)
       console.log('[RRF Submit] Final validated payload to POST /rrf:', JSON.stringify(backendData, null, 2))
@@ -722,8 +732,11 @@ export default function ModernRRFForm({
       
       // Add all dynamic fields from config
       if (configs && typeof configs === 'object') {
+        // Skip UI-only skill field names that must not reach the backend DTO
+        const _draftSkipFields = ['mustHaveSkills', 'niceToHaveSkills'];
         Object.values(configs).forEach(config => {
-          if (config?.fieldName && formData.hasOwnProperty(config.fieldName) && 
+          if (config?.fieldName && !_draftSkipFields.includes(config.fieldName) &&
+              formData.hasOwnProperty(config.fieldName) && 
               !backendData.hasOwnProperty(config.fieldName)) {
             // ✅ FIX: Convert array fields to strings if needed
             let fieldValue = formData[config.fieldName]
@@ -742,6 +755,11 @@ export default function ModernRRFForm({
         }
       })
 
+      // Remove raw skill field names that backend DTO rejects
+      delete backendData.mustHaveSkills;
+      delete backendData.niceToHaveSkills;
+
+      console.log('FINAL RRF PAYLOAD', backendData);
       console.log('[RRF Draft] Final validated payload to POST /rrf:', JSON.stringify(backendData, null, 2))
       
       // DEBUG: Log specific fields that might cause validation errors

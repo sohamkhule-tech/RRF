@@ -31,7 +31,8 @@ export default function PermissionBasedSidebar({ isCollapsed = false, isMobile =
     canViewReports,
     canManageUsers,
     canManageSettings,
-    permissions
+    permissions,
+    user
   } = usePermission()
 
   /**
@@ -41,23 +42,20 @@ export default function PermissionBasedSidebar({ isCollapsed = false, isMobile =
   const getAllMenuItems = () => {
     const items = []
 
-    // Determine the correct dashboard route based on role/permissions
+    // Role identity comes from user.role — never inferred from permissions
+    const roleCode        = user?.role?.code || user?.role
+    const isAdmin         = roleCode === 'ADMIN'
+    const isHR            = roleCode === 'HR'
+    const isApprover      = roleCode === 'APPROVER'
+    const isPMO           = roleCode === 'PMO'
+    const isHiringManager = roleCode === 'HIRING_MANAGER'
+
+    // Determine the correct dashboard route based on actual role
     let dashboardRoute = '/hiring-manager/dashboard'
-    
-    // HR role - has REPORTS.EXPORT but NOT RRF.CREATE
-    if (hasPermission('REPORTS.EXPORT') && !canCreateRRF) {
-      dashboardRoute = '/hr'
-    }
-    // Approver role - has APPROVALS.APPROVE or APPROVALS.REJECT
-    else if (hasPermission('APPROVALS.APPROVE') || hasPermission('APPROVALS.REJECT')) {
-      dashboardRoute = '/approver'
-    }
-    // PMO role - has RRF.DELETE but NOT USERS.CREATE
-    else if (hasPermission('RRF.DELETE') && !hasPermission('USERS.CREATE')) {
-      dashboardRoute = '/pmo'
-    }
-    // Hiring Manager or Admin - default to /hiring-manager/dashboard
-    // (includes anyone with RRF.CREATE or USERS.CREATE)
+    if (isHR)            dashboardRoute = '/hr'
+    else if (isApprover) dashboardRoute = '/approver'
+    else if (isPMO)      dashboardRoute = '/pmo'
+    else if (isAdmin)    dashboardRoute = '/admin'
 
     // Dashboard - Show if user has dashboard read permission
     if (hasPermission(PERMISSIONS.DASHBOARD.READ)) {
@@ -71,16 +69,8 @@ export default function PermissionBasedSidebar({ isCollapsed = false, isMobile =
 
     // RRF Management Section
     if (canAccessModule('RRF')) {
-      // Identify role types
-      const isApprover = hasPermission('APPROVALS.APPROVE') || hasPermission('APPROVALS.REJECT')
-      const isPMO = hasPermission('RRF.DELETE') && !hasPermission('USERS.CREATE')
-      
-      // My Requests / All RRFs - Show if user can read RRFs
-      // Exclude approvers, PMO, and HR from seeing this link
-      const isHR = hasPermission('REPORTS.EXPORT') && !hasPermission('RRF.CREATE')
-      
+      // My Requests - Only Hiring Managers see this
       if (hasPermission(PERMISSIONS.RRF.READ) && !isApprover && !isPMO && !isHR) {
-        // Only Hiring Managers see this
         items.push({
           key: '/hiring-manager/my-requests',
           icon: <FileTextOutlined className="text-xl" />,
@@ -109,27 +99,16 @@ export default function PermissionBasedSidebar({ isCollapsed = false, isMobile =
       }
     }
 
-    // Approvals Section - Removed per user request
-    // Approvers only see Dashboard and Reports
-
-    // HR Section - Removed per user request
-    // HR only sees Dashboard (all features are on the dashboard via cards)
-
     // Reports Section
-    // Only show reports for PMO and Approver (explicitly exclude HR)
-    const isHR = hasPermission('REPORTS.EXPORT') && !canCreateRRF
-    const isPMORole = hasPermission('RRF.DELETE') && !hasPermission('USERS.CREATE')
-    const isApproverRole = hasPermission('APPROVALS.APPROVE') || hasPermission('APPROVALS.REJECT')
-    
-    if (canViewReports && !isHR && (isPMORole || isApproverRole)) {
-      // Determine the correct reports route based on role
+    // Show for PMO and Approver if they have the permission (HR sees reports on their dashboard directly)
+    if (canViewReports && !isHR && (isPMO || isApprover)) {
       let reportsRoute = '/reports'
-      if (isApproverRole) {
+      if (isApprover) {
         reportsRoute = '/approver/reports'
-      } else if (isPMORole) {
+      } else if (isPMO) {
         reportsRoute = '/pmo/reports'
       }
-      
+
       items.push({
         key: reportsRoute,
         icon: <BarChartOutlined className="text-xl" />,
@@ -139,7 +118,7 @@ export default function PermissionBasedSidebar({ isCollapsed = false, isMobile =
     }
 
     // Edit Form - PMO Only
-    if (isPMORole) {
+    if (isPMO) {
       items.push({
         key: '/pmo/form-config',
         icon: <FormOutlined className="text-xl" />,

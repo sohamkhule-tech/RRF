@@ -72,6 +72,11 @@ export const usePermission = () => {
     permissions,
 
     /**
+     * Raw user object — use user.role for identity checks, permissions for capability checks
+     */
+    user,
+
+    /**
      * Convenient permission flags (most commonly used)
      */
     canCreateRRF: hasPermission('RRF.CREATE', permissions),

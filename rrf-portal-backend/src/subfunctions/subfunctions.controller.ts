@@ -67,7 +67,7 @@ export class SubfunctionsController {
   }
 
   @Delete(':id')
-  @RequirePermission('RRF.DELETE')
+  @RequirePermission('FORM_CONFIG.DELETE')
   @ApiOperation({ summary: 'Soft delete subfunction' })
   async remove(@Param('id', ParseIntPipe) id: number) {
     await this.subfunctionsService.remove(id);
