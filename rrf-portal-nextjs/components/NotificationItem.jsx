@@ -2,6 +2,8 @@
 
 import { useRouter } from 'next/navigation'
 import { useNotifications } from '@/contexts/NotificationContext'
+import { useAuth } from '@/contexts/AuthContext'
+import { resolveNotificationRoute } from '@/utils/notificationRoutes'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 
@@ -32,13 +34,15 @@ const typeIcons = {
 export default function NotificationItem({ notification, onClose, showFull = false }) {
   const router = useRouter()
   const { markAsRead } = useNotifications()
+  const { user } = useAuth()
 
   const handleClick = async () => {
     if (!notification.isRead) {
       await markAsRead(notification.id)
     }
-    if (notification.actionUrl) {
-      router.push(notification.actionUrl)
+    const route = resolveNotificationRoute(notification, user)
+    if (route) {
+      router.push(route)
       if (onClose) onClose()
     }
   }
