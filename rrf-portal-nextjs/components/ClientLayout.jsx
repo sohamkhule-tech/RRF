@@ -51,7 +51,7 @@ function LayoutContent({ children }) {
 
   // Redirect to login if not authenticated - must be in useEffect to avoid React warning
   useEffect(() => {
-    if (!user && !loading && pathname !== '/login') {
+    if (!user && !loading && pathname !== '/login' && pathname !== '/auth/callback') {
       router.push('/login')
     }
   }, [user, loading, pathname, router])
@@ -59,6 +59,11 @@ function LayoutContent({ children }) {
   // NOW we can do conditional returns
   // Skip layout for login page
   if (pathname === '/login') {
+    return <>{children}</>
+  }
+
+  // Skip layout for Microsoft SSO callback
+  if (pathname === '/auth/callback') {
     return <>{children}</>
   }
 
