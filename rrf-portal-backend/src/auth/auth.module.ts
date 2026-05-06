@@ -3,7 +3,9 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthController } from './auth.controller';
+import { MicrosoftAuthController } from './microsoft-auth.controller';
 import { AuthService } from './auth.service';
+import { MicrosoftAuthService } from './microsoft-auth.service';
 import { JwtStrategy } from './jwt.strategy';
 import { LocalStrategy } from './local.strategy';
 import { UsersModule } from '../users/users.module';
@@ -14,6 +16,7 @@ import { PermissionsModule } from '../permissions/permissions.module';
     UsersModule,
     PermissionsModule,
     PassportModule,
+    ConfigModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -24,8 +27,8 @@ import { PermissionsModule } from '../permissions/permissions.module';
       }),
     }),
   ],
-  controllers: [AuthController],
-  providers: [AuthService, LocalStrategy, JwtStrategy],
+  controllers: [AuthController, MicrosoftAuthController],
+  providers: [AuthService, MicrosoftAuthService, LocalStrategy, JwtStrategy],
   exports: [AuthService],
 })
 export class AuthModule {}
