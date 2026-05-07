@@ -31,7 +31,7 @@ jobs:
       - name: Build Frontend
         working-directory: rrf-portal-nextjs
         env:
-          NEXT_PUBLIC_API_URL: "http://13.126.110.36:4000/api"
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
         run: |
           npm ci --legacy-peer-deps
           npm run build
@@ -61,8 +61,11 @@ jobs:
       - name: Sync Frontend to Server
         run: |
           rsync -az --delete \
+            --exclude='.env' \
             rrf-portal-nextjs/.next \
             rrf-portal-nextjs/package.json \
+            rrf-portal-nextjs/next.config.js \
+            rrf-portal-nextjs/jsconfig.json \
             ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:${{ secrets.EC2_APP_DIR }}/rrf-portal-nextjs/
 
       # 🔥 LIGHTWEIGHT deploy (NO BUILD HERE)
@@ -75,13 +78,13 @@ jobs:
 
             export PATH=$PATH:/usr/bin:/usr/local/bin
 
-            # install ONLY runtime deps (lighter)
             npm install --omit=dev --legacy-peer-deps
 
             pm2 delete frontend || true
 
-            pm2 start npm --name frontend -- start
+            pm2 start node_modules/next/dist/bin/next --name frontend -- start
 
             pm2 save
 
           EOF
+#hh@S
