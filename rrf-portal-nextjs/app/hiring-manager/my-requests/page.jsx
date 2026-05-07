@@ -518,7 +518,7 @@ function MyRequestsContent() {
                       <ActionButton 
                         role="HM"
                         status={request.status}
-                        href={`/hiring-manager/view-rrf/${request.id}`}
+                        href={`/requests/${request.id}`}
                       />
                     </td>
                   </tr>
@@ -571,7 +571,7 @@ function MyRequestsContent() {
                   <span className="text-xs text-gray-500">{request.date}</span>
                 </div>
                 <div className="flex justify-end pt-2 border-t border-gray-100">
-                  <ActionButton role="HM" status={request.status} href={`/hiring-manager/view-rrf/${request.id}`} />
+                  <ActionButton role="HM" status={request.status} href={`/requests/${request.id}`} />
                 </div>
               </div>
             ))

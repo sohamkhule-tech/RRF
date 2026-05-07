@@ -287,7 +287,7 @@ export default function DashboardPage() {
                     <ActionButton 
                       role="HM"
                       status={request.status}
-                      href={`/hiring-manager/view-rrf/${request.id}`}
+                      href={`/requests/${request.id}`}
                     />
                   </td>
                 </tr>
@@ -334,7 +334,7 @@ export default function DashboardPage() {
                   <ActionButton 
                     role="HM"
                     status={request.status}
-                    href={`/hiring-manager/view-rrf/${request.id}`}
+                    href={`/requests/${request.id}`}
                   />
                 </div>
               </div>

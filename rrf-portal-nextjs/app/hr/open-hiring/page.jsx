@@ -451,7 +451,7 @@ export default function OpenHiringPage() {
                     <div className="text-gray-500">Exp: {position.expectedDate}</div>
                   </td>
                   <td className="px-3 py-3 text-center">
-                    <Link href={`/hr/view-rrf/${position.id}`}>
+                    <Link href={`/requests/${position.id}`}>
                       <button className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-200 text-xs" style={{ borderRadius: '6px' }}>
                         View
                       </button>
@@ -519,7 +519,7 @@ export default function OpenHiringPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <Link href={`/hr/view-rrf/${position.id}`}>
+                      <Link href={`/requests/${position.id}`}>
                         <button className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-300 hover:scale-105 text-xs" style={{ borderRadius: '8px' }}>
                           View
                         </button>
@@ -573,7 +573,7 @@ export default function OpenHiringPage() {
                 </div>
               )}
               <div className="flex justify-end pt-2 border-t border-gray-100">
-                <Link href={`/hr/view-rrf/${position.id}`}>
+                <Link href={`/requests/${position.id}`}>
                   <button className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-200 text-xs" style={{ borderRadius: '6px' }}>
                     View
                   </button>

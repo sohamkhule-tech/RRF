@@ -38,7 +38,7 @@ export default function AdminViewRRFPage() {
   const { hasPermission } = usePermission()
 
   const { rrf, loading, error, refresh } = useRRFDetail(rrfId)
-  const { approveRequest, rejectRequest, putOnHold } = useApproverRequests()
+  const { approveRequest, declineRequest, putOnHold } = useApproverRequests()
   
   const [activeSection, setActiveSection] = useState('requisition')
   
@@ -236,7 +236,7 @@ export default function AdminViewRRFPage() {
         result = await approveRequest(rrfId, reason || 'Approved')
         toast.success('RRF approved successfully!')
       } else if (modalType === 'decline') {
-        result = await rejectRequest(rrfId, reason)
+        result = await declineRequest(rrfId, reason)
         toast.success('RRF declined successfully!')
       } else if (modalType === 'onhold') {
         result = await putOnHold(rrfId, reason)
@@ -272,7 +272,7 @@ export default function AdminViewRRFPage() {
 
   // Permission checks for all actions
   const canApprove = hasPermission(PERMISSIONS.APPROVALS.APPROVE)
-  const canReject = hasPermission(PERMISSIONS.APPROVALS.REJECT)
+  const canDecline = hasPermission(PERMISSIONS.APPROVALS.REJECT)
   const canOnHold = hasPermission(PERMISSIONS.APPROVALS.ON_HOLD)
   const canUpdate = hasPermission(PERMISSIONS.RRF.UPDATE)
   const canOpenForHiring = hasPermission(PERMISSIONS.RRF.OPEN_FOR_HIRING)
@@ -286,12 +286,12 @@ export default function AdminViewRRFPage() {
   
   // Combined permission + status checks
   const showEditButton = canUpdate && ['draft', 'pending', 'declined', 'rejected', 'on-hold'].includes(rrf?.status)
-  const showApprovalButtons = isPending && (canApprove || canReject || canOnHold)
+  const showApprovalButtons = isPending && (canApprove || canDecline || canOnHold)
   const showPMOButtons = isApproved && (canOpenForHiring || canFillFromBench)
   const showCloseButton = isInProgress && canClose
   
   // Determine read-only state
-  const canTakeAction = canApprove || canReject || canOnHold || canUpdate || canOpenForHiring || canFillFromBench || canClose
+  const canTakeAction = canApprove || canDecline || canOnHold || canUpdate || canOpenForHiring || canFillFromBench || canClose
   const isReadOnly = !canTakeAction
 
   return (
@@ -376,7 +376,7 @@ export default function AdminViewRRFPage() {
                   )}
 
                   {/* Approval Actions - for pending RRFs */}
-                  {canReject && isPending && (
+                  {canDecline && isPending && (
                     <button
                       onClick={handleDecline}
                       className="px-4 py-2 bg-white border border-red-300 text-red-600 hover:bg-red-50 font-semibold rounded-lg transition-all"

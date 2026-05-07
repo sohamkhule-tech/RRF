@@ -221,7 +221,7 @@ export default function ApproverPendingPage() {
                   <td className="px-3 py-3 text-xs">{getPriorityBadge(request.priority)}</td>
                   <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-600">{(request.submittedAt || request.createdAt) ? new Date(request.submittedAt || request.createdAt).toLocaleDateString('en-GB') : 'N/A'}</td>
                   <td className="px-3 py-3 text-center">
-                    <Link href={`/approver/view-rrf/${request.id}`}>
+                    <Link href={`/requests/${request.id}`}>
                       <button className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-200 text-xs flex items-center gap-1 mx-auto" style={{ borderRadius: '6px' }}>
                         <EyeOutlined />
                         View
@@ -253,7 +253,7 @@ export default function ApproverPendingPage() {
                   {getPriorityBadge(request.priority)}
                 </div>
                 <div className="flex justify-end pt-2 border-t border-gray-100">
-                  <Link href={`/approver/view-rrf/${request.id}`}>
+                  <Link href={`/requests/${request.id}`}>
                     <button className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 font-medium text-xs flex items-center gap-1 rounded-md">
                       <EyeOutlined /> View
                     </button>

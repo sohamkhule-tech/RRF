@@ -189,7 +189,7 @@ function OpenForHiringPage() {
                     </td>
                     <td className="px-6 py-5 whitespace-nowrap text-left">
                       <button
-                        onClick={() => router.push(`/hr/view-rrf/${rrf.id}`)}
+                        onClick={() => router.push(`/requests/${rrf.id}`)}
                         className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all text-xs font-bold flex items-center gap-2"
                       >
                         <EyeOutlined /> View Details
@@ -250,7 +250,7 @@ function OpenForHiringPage() {
                 </div>
                 <div className="flex justify-end pt-2 border-t border-gray-100">
                   <button
-                    onClick={() => router.push(`/hr/view-rrf/${rrf.id}`)}
+                    onClick={() => router.push(`/requests/${rrf.id}`)}
                     className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all text-xs font-bold flex items-center gap-2"
                   >
                     <EyeOutlined /> View Details

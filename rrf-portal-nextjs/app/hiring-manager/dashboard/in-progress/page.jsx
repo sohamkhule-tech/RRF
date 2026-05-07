@@ -157,7 +157,7 @@ export default function InProgressPage() {
                 </div>
                 <div className="flex items-center justify-between">
                   {getStatusBadge(request.status)}
-                  <Link href={`/hiring-manager/view-rrf/${request.id}`}>
+                  <Link href={`/requests/${request.id}`}>
                     <button className="px-4 py-2 text-xs font-medium text-white bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 rounded-lg transition-all duration-200 hover:shadow-md">
                       View Details
                     </button>
@@ -226,7 +226,7 @@ export default function InProgressPage() {
                       <span className="text-sm text-gray-600">{request.date}</span>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <Link href={`/hiring-manager/view-rrf/${request.id}`}>
+                      <Link href={`/requests/${request.id}`}>
                         <button className="px-4 py-2 text-xs font-medium text-white bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 rounded-lg transition-all duration-200 hover:shadow-md">
                           View Details
                         </button>

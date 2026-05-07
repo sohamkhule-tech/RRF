@@ -222,7 +222,7 @@ export default function PMOSentToApproversPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{request.sentDate}</td>
                     <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(request.status)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <Link href={`/pmo/view-rrf/${request.submissionId}?from=sent`}>
+                      <Link href={`/requests/${request.submissionId}`}>
                         <button className="px-3 py-2 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-300 flex items-center gap-1" style={{ borderRadius: '8px' }}>
                           <EyeOutlined />
                           View
@@ -270,7 +270,7 @@ export default function PMOSentToApproversPage() {
                 </div>
                 <div className="text-xs text-gray-500 mb-3">Sent: {request.sentDate} · {request.subFunction}</div>
                 <div className="flex justify-end pt-2 border-t border-gray-100">
-                  <Link href={`/pmo/view-rrf/${request.submissionId}?from=sent`}>
+                  <Link href={`/requests/${request.submissionId}`}>
                     <button className="px-3 py-2 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-300 flex items-center gap-1 text-sm" style={{ borderRadius: '8px' }}>
                       <EyeOutlined />
                       View

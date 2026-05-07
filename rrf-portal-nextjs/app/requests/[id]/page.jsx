@@ -355,16 +355,13 @@ export default function UnifiedViewRRFPage() {
 
           {/* Top action bar */}
           <div className="bg-white border-b border-slate-200 px-4 md:px-8 py-3 md:py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 no-print">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => router.back()}
-                className="flex items-center gap-2 px-4 py-2 text-slate-700 hover:bg-slate-100 rounded-lg transition-all duration-200 border border-slate-300"
-              >
-                <ArrowLeftOutlined className="text-lg" />
-                <span className="font-medium">Back</span>
-              </button>
-              <h2 className="text-xl font-bold text-slate-800">RRF Details</h2>
-            </div>
+            <button
+              onClick={() => router.back()}
+              className="flex items-center gap-2 px-4 py-2 text-slate-700 hover:bg-slate-100 rounded-lg transition-all duration-200 border border-slate-300"
+            >
+              <ArrowLeftOutlined className="text-lg" />
+              <span className="font-medium">Back</span>
+            </button>
 
             {/* Dynamic action buttons — visibility driven by resolveActions() */}
             <ActionButtonBar actions={actions} onAction={handleAction} />

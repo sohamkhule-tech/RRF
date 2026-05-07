@@ -236,7 +236,7 @@ export default function PMODashboard() {
                     <td className="px-6 py-5 whitespace-nowrap text-sm">{getPriorityBadge(request.priority)}</td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-600">{request.date}</td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm">
-                      <ActionButton role="PMO" status={request.status} href={`/pmo/view-rrf/${request.id}`} />
+                      <ActionButton role="PMO" status={request.status} href={`/requests/${request.id}`} />
                     </td>
                   </tr>
                 ))
@@ -274,7 +274,7 @@ export default function PMODashboard() {
                   <span className="text-xs text-gray-500">{request.date}</span>
                 </div>
                 <div className="flex justify-end pt-2 border-t border-gray-100">
-                  <ActionButton role="PMO" status={request.status} href={`/pmo/view-rrf/${request.id}`} />
+                  <ActionButton role="PMO" status={request.status} href={`/requests/${request.id}`} />
                 </div>
               </div>
             ))

@@ -440,7 +440,7 @@ function PMORequestsContent() {
                           ) : '—'}
                         </td>
                         <td className="px-6 py-5 whitespace-nowrap text-sm">
-                          <ActionButton role="PMO" status={request.status} href={`/pmo/view-rrf/${request.id}`} />
+                          <ActionButton role="PMO" status={request.status} href={`/requests/${request.id}`} />
                         </td>
                       </tr>
                     ))
@@ -487,7 +487,7 @@ function PMORequestsContent() {
                       </div>
                     )}
                     <div className="flex justify-end pt-2 border-t border-gray-100">
-                      <ActionButton role="PMO" status={request.status} href={`/pmo/view-rrf/${request.id}`} />
+                      <ActionButton role="PMO" status={request.status} href={`/requests/${request.id}`} />
                     </div>
                   </div>
                 ))

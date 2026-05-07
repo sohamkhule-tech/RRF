@@ -116,7 +116,7 @@ export default function ApproverEditRRF() {
       const response = await rrfApi.update(rrfId, payload)
       if (response && (response.success || response.id || response.data)) {
         toast.success('RRF updated successfully!')
-        router.push(`/approver/view-rrf/${rrfId}`)
+        router.push(`/requests/${rrfId}`)
       } else {
         throw new Error('Update failed')
       }
@@ -144,7 +144,7 @@ export default function ApproverEditRRF() {
       onSubmitOverride={handleUpdate}
       isSavingOverride={saving}
       titleOverride="Edit RRF"
-      cancelPath={`/approver/view-rrf/${rrfId}`}
+      cancelPath={`/requests/${rrfId}`}
     />
   )
 }

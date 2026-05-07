@@ -199,7 +199,7 @@ export default function HRDashboard() {
                     <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-700">{request.approvedByName || 'N/A'}</td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-600">{request.date}</td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm">
-                      <ActionButton role="HR" status={request.status} href={`/hr/view-rrf/${request.id}`} />
+                      <ActionButton role="HR" status={request.status} href={`/requests/${request.id}`} />
                     </td>
                   </tr>
                 ))
@@ -236,7 +236,7 @@ export default function HRDashboard() {
                   <span className="text-xs text-gray-500">{request.date}</span>
                 </div>
                 <div className="flex justify-end pt-2 border-t border-gray-100">
-                  <ActionButton role="HR" status={request.status} href={`/hr/view-rrf/${request.id}`} />
+                  <ActionButton role="HR" status={request.status} href={`/requests/${request.id}`} />
                 </div>
               </div>
             ))

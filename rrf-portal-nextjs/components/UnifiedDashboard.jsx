@@ -304,7 +304,7 @@ export default function UnifiedDashboard() {
                 <td className="px-6 py-4 text-sm">
                   <div className="flex flex-wrap gap-2">
                     {canReadRRF && (
-                      <Link href="/hiring-manager/view-rrf/1">
+                      <Link href="/requests/1">
                         <button className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all duration-300">
                           View
                         </button>
@@ -347,7 +347,7 @@ export default function UnifiedDashboard() {
             <p className="text-xs text-gray-500 mt-1">March 20, 2026</p>
             <div className="flex flex-wrap gap-2 mt-3">
               {canReadRRF && (
-                <Link href="/hiring-manager/view-rrf/1">
+                <Link href="/requests/1">
                   <button className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all text-xs">View</button>
                 </Link>
               )}
