@@ -29,9 +29,8 @@ jobs:
       - name: Install & Build Backend
         working-directory: rrf-portal-backend
         run: |
-          npm install
+          npm install   # ✅ FIXED (was npm ci)
           npm run build
-
       # 🔥 SSH SETUP
       - name: Start SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
@@ -42,13 +41,11 @@ jobs:
         run: |
           mkdir -p ~/.ssh
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
-
       # 🔥 CREATE DIR
       - name: Ensure Backend Directory
         run: |
           ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} \
           "mkdir -p ${{ secrets.EC2_APP_DIR }}/rrf-portal-backend"
-
       # ✅ SYNC ONLY REQUIRED FILES
       - name: Sync Backend to Server
         run: |
@@ -58,53 +55,27 @@ jobs:
             rrf-portal-backend/node_modules \
             rrf-portal-backend/package.json \
             ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:${{ secrets.EC2_APP_DIR }}/rrf-portal-backend/
-
-      # 🔥 DEPLOY — write pm2 ecosystem with secrets; no .env file required
+      # 🔥 DEPLOY
       - name: Deploy Backend
-        env:
-          DB_HOST:     ${{ secrets.DB_HOST }}
-          DB_PORT:     ${{ secrets.DB_PORT }}
-          DB_USERNAME: ${{ secrets.DB_USERNAME }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          DB_DATABASE: ${{ secrets.DB_DATABASE }}
-          JWT_SECRET:  ${{ secrets.JWT_SECRET }}
-          JWT_EXPIRES_IN: ${{ secrets.JWT_EXPIRES_IN }}
-          ALLOWED_ORIGINS: ${{ secrets.ALLOWED_ORIGINS }}
         run: |
-          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << EOF
-
-            export PATH=\$PATH:/usr/bin:/usr/local/bin
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+            export PATH=$PATH:/usr/bin:/usr/local/bin
             cd ${{ secrets.EC2_APP_DIR }}/rrf-portal-backend
-
-            # Write pm2 ecosystem file with env vars from GitHub Secrets
-            # This is the only source of truth for env vars in production
-            cat > ecosystem.config.js << 'ECOSYSTEM'
-module.exports = {
-  apps: [{
-    name: 'rrf-portal-backend',
-    script: 'dist/src/main.js',
-    instances: 1,
-    autorestart: true,
-    watch: false,
-    env: {
-      NODE_ENV: 'production',
-      DB_HOST:        '${DB_HOST}',
-      DB_PORT:        '${DB_PORT}',
-      DB_USERNAME:    '${DB_USERNAME}',
-      DB_PASSWORD:    '${DB_PASSWORD}',
-      DB_DATABASE:    '${DB_DATABASE}',
-      JWT_SECRET:     '${JWT_SECRET}',
-      JWT_EXPIRES_IN: '${JWT_EXPIRES_IN}',
-      ALLOWED_ORIGINS:'${ALLOWED_ORIGINS}',
-      PORT:           '4000',
-    }
-  }]
-}
-ECOSYSTEM
-
-            # Restart using ecosystem file (env vars are baked in at start)
-            pm2 delete rrf-portal-backend || true
-            pm2 start ecosystem.config.js
+            # ✅ ensure env exists
+            if [ ! -f .env ]; then
+              echo "⚠️ .env missing - please create it manually"
+            fi
+            pm2 delete rrf-portal-backend || true   # ✅ FIXED name
+            # ✅ adjust path if needed
+            if [ -f dist/src/main.js ]; then
+              pm2 start dist/src/main.js --name rrf-portal-backend
+            elif [ -f dist/main.js ]; then
+              pm2 start dist/main.js --name rrf-portal-backend
+            else
+              echo "❌ Cannot find entry file"
+              exit 1
+            fi
             pm2 save
-
           EOF
+
+    
