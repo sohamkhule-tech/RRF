@@ -126,7 +126,7 @@ export const useApproverRequests = (status = null, options = {}) => {
     error,
     refresh,
     approveRequest,
-    rejectRequest,
+    declineRequest,
     putOnHold,
   };
 };

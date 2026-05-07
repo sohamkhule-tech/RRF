@@ -57,7 +57,7 @@ export function resolveActions(rrf, user, permissions) {
   // Permission flags — use PERMISSIONS constants to avoid magic strings
   const canUpdate     = hasPermission(PERMISSIONS.RRF.UPDATE,           permissions)
   const canApproveRRF = hasPermission(PERMISSIONS.APPROVALS.APPROVE,    permissions)
-  const canRejectRRF  = hasPermission(PERMISSIONS.APPROVALS.REJECT,     permissions)
+  const canDeclineRRF = hasPermission(PERMISSIONS.APPROVALS.REJECT,     permissions)
   const canHoldRRF    = hasPermission(PERMISSIONS.APPROVALS.ON_HOLD,    permissions)
   const canOpenHiring = hasPermission(PERMISSIONS.RRF.OPEN_FOR_HIRING,  permissions)
   const canCloseRRF   = hasPermission(PERMISSIONS.RRF.CLOSE,            permissions)
@@ -91,7 +91,7 @@ export function resolveActions(rrf, user, permissions) {
     canDecline:
       (isAssignedApprover || isAdmin) &&
       APPROVER_ACTION_STATUSES.includes(status) &&
-      canRejectRRF,
+      canDeclineRRF,
 
     // Hold: assigned approver or Admin, when pending/submitted — but NOT when already on-hold
     canHold:

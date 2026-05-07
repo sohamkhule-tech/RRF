@@ -243,7 +243,7 @@ export default function HRClosedPositionsPage() {
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-600 max-w-[150px] truncate" title={request.candidateName}>{request.candidateName}</td>
                     <td className="px-3 py-3 text-center whitespace-nowrap text-sm">
-                      <Link href={`/hr/view-rrf/${request.submissionId}`}>
+                      <Link href={`/requests/${request.submissionId}`}>
                         <button className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-200 text-xs flex items-center gap-1 mx-auto" style={{ borderRadius: '6px' }}>
                           <EyeOutlined /> View RRF
                         </button>
@@ -300,7 +300,7 @@ export default function HRClosedPositionsPage() {
                   <div>Closed: {request.closedDate}</div>
                 </div>
                 <div className="flex justify-end pt-2 border-t border-gray-100">
-                  <Link href={`/hr/view-rrf/${request.submissionId}`}>
+                  <Link href={`/requests/${request.submissionId}`}>
                     <button className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-200 text-xs flex items-center gap-1" style={{ borderRadius: '6px' }}>
                       <EyeOutlined /> View RRF
                     </button>

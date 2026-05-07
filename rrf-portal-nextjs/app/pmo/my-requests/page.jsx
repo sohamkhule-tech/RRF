@@ -185,7 +185,7 @@ export default function PMOMyRequests() {
                     <td className="px-6 py-5 whitespace-nowrap text-sm">{getStatusBadge(request.status)}</td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-600">{request.date}</td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm">
-                      <Link href={`/pmo/view-rrf/${request.id}`}>
+                      <Link href={`/requests/${request.id}`}>
                         <button className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 font-medium transition-all duration-300" style={{ borderRadius: '10px' }}>
                           View
                         </button>
@@ -232,7 +232,7 @@ export default function PMOMyRequests() {
                 </div>
                 <div className="text-xs text-gray-500 mb-3">Created: {request.date}</div>
                 <div className="flex justify-end pt-2 border-t border-gray-100">
-                  <Link href={`/pmo/view-rrf/${request.id}`}>
+                  <Link href={`/requests/${request.id}`}>
                     <button className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 font-medium transition-all duration-300 text-sm" style={{ borderRadius: '10px' }}>
                       View
                     </button>

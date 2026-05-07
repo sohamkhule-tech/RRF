@@ -210,7 +210,7 @@ export default function ApproverDashboard() {
                         <ActionButton
                           role="APPROVER"
                           status={request.status}
-                          href={`/approver/view-rrf/${request.id}`}
+                          href={`/requests/${request.id}`}
                         />
                       </td>
                     </tr>
@@ -249,7 +249,7 @@ export default function ApproverDashboard() {
                     {getStatusBadge(request.status)}
                   </div>
                   <div className="flex justify-end pt-2 border-t border-gray-100">
-                    <ActionButton role="APPROVER" status={request.status} href={`/approver/view-rrf/${request.id}`} />
+                    <ActionButton role="APPROVER" status={request.status} href={`/requests/${request.id}`} />
                   </div>
                 </div>
               ))

@@ -39,7 +39,7 @@ export default function HMEditRRFPage() {
         const status = String(rrf.status || '').toLowerCase()
         if (!HM_EDITABLE_STATUSES.includes(status)) {
           toast.error(`This RRF (status: ${rrf.status}) cannot be edited.`)
-          router.replace(`/hiring-manager/view-rrf/${rrfId}`)
+          router.replace(`/requests/${rrfId}`)
           return
         }
 
@@ -145,7 +145,7 @@ export default function HMEditRRFPage() {
         toast.success('RRF updated successfully!')
       }
 
-      router.push(`/hiring-manager/view-rrf/${rrfId}`)
+      router.push(`/requests/${rrfId}`)
     } catch (err) {
       console.error('Error updating RRF:', err)
       toast.error(err.message || 'Failed to update RRF')
@@ -170,7 +170,7 @@ export default function HMEditRRFPage() {
       onSubmitOverride={handleUpdate}
       isSavingOverride={saving}
       titleOverride="Edit Request"
-      cancelPath={`/hiring-manager/view-rrf/${rrfId}`}
+      cancelPath={`/requests/${rrfId}`}
     />
   )
 }

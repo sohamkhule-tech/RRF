@@ -2,32 +2,29 @@
  * Centralized Notification Route Resolver
  *
  * Resolves the correct frontend route for a notification click
- * based on the CURRENT user's role — not the hardcoded actionUrl
+ * based on the CURRENT user’s role — not the hardcoded actionUrl
  * stored in the notification record.
  *
  * Why this exists:
  *   The backend stores one actionUrl per notification TYPE (e.g. RRF_APPROVED
- *   always stores "/pmo/view-rrf/:id"). But the same notification is sent to
- *   multiple roles (e.g. both the HM creator AND PMO users). The HM would be
- *   routed to the PMO page which shows wrong actions. This resolver maps the
- *   notification to the correct role-specific view-rrf page for the logged-in user.
+ *   stores a role-prefixed path). All roles now navigate to the unified
+ *   /requests/[id] route, but the backend may still emit old-style URLs.
+ *   This resolver normalises any role-prefixed view-rrf path into /requests/[id].
  */
 
-// Role code → view-rrf route prefix mapping
-// Must match actual Next.js app/ folder structure
+// All roles now use the unified /requests/[id] route (except ADMIN)
 const ROLE_RRF_VIEW_PREFIX = {
-  HIRING_MANAGER: '/hiring-manager/view-rrf',
-  APPROVER: '/approver/view-rrf',
-  PMO: '/pmo/view-rrf',
-  HR: '/hr/view-rrf',
+  HIRING_MANAGER: '/requests',
+  APPROVER: '/requests',
+  PMO: '/requests',
+  HR: '/requests',
   ADMIN: '/admin/rrf-management',
 }
 
-// Regex to detect any role-prefixed RRF view/review route and extract the ID
-// Matches: /pmo/view-rrf/42, /approver/review/42, /hr/view-rrf/42,
-//          /hiring-manager/view-rrf/42, /admin/rrf-management/42
+// Regex to detect any RRF route and extract the ID
+// Matches: /requests/42, /admin/rrf-management/42, and legacy role-prefixed paths
 const RRF_ROUTE_PATTERN =
-  /^\/(hiring-manager|approver|pmo|hr|admin)\/(?:view-rrf|review|rrf-management)\/(\d+)\/?$/
+  /^\/(?:(?:hiring-manager|approver|pmo|hr)\/(?:view-rrf|review)|admin\/rrf-management|requests)\/([^/]+)\/?$/
 
 /**
  * Resolve the correct navigation route for a notification click.
@@ -48,7 +45,7 @@ export function resolveNotificationRoute(notification, user) {
   // If it's an RRF-related route, remap to the current user's role prefix
   const match = actionUrl.match(RRF_ROUTE_PATTERN)
   if (match) {
-    const rrfId = match[2]
+    const rrfId = match[1]
     const prefix = ROLE_RRF_VIEW_PREFIX[roleCode]
     if (prefix) {
       return `${prefix}/${rrfId}`

@@ -6,12 +6,9 @@ import { Module } from '../modules/module.entity';
 import { Permission } from '../permissions/permission.entity';
 import { RolePermission } from '../role-permissions/role-permission.entity';
 import { User } from '../users/user.entity';
-import { Rrf, RrfStatus, Priority, EmploymentType } from '../rrf/entities/rrf.entity';
-import { RrfApprover, ApprovalLevel, ApprovalStatus } from '../rrf/entities/rrf-approver.entity';
 import { RrfFormConfig } from '../rrf/entities/rrf-form-config.entity';
 import { Subfunction } from '../subfunctions/subfunction.entity';
 import { Function } from '../functions/function.entity';
-import { JobDescription } from '../job-descriptions/job-description.entity';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -29,53 +26,26 @@ export class SeedService {
     private rolePermissionRepository: Repository<RolePermission>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
-    @InjectRepository(Rrf)
-    private rrfRepository: Repository<Rrf>,
-    @InjectRepository(RrfApprover)
-    private rrfApproverRepository: Repository<RrfApprover>,
     @InjectRepository(RrfFormConfig)
     private rrfFormConfigRepository: Repository<RrfFormConfig>,
     @InjectRepository(Subfunction)
     private subfunctionRepository: Repository<Subfunction>,
     @InjectRepository(Function)
     private functionRepository: Repository<Function>,
-    @InjectRepository(JobDescription)
-    private jobDescriptionRepository: Repository<JobDescription>,
   ) {}
 
   async seedAll() {
     try {
       this.logger.log('🌱 Starting database seed...');
 
-      // 1. Seed Roles
       await this.seedRoles();
-
-      // 2. Seed Functions
       await this.seedFunctions();
-
-      // 3. Seed Subfunctions
       await this.seedSubfunctions();
-
-      // 4. Seed Modules
       await this.seedModules();
-
-      // 4. Seed Permissions
       await this.seedPermissions();
-
-      // 5. Map Role-Permissions
       await this.seedRolePermissions();
-
-      // 6. Seed Demo Users
-      await this.seedUsers();
-
-      // 7. Seed Sample RRFs
-      await this.seedRrfs();
-
-      // 8. Seed Form Configurations
+      await this.seedAdminUser();
       await this.seedFormConfigs();
-
-      // 9. Seed Job Descriptions
-      await this.seedJobDescriptions();
 
       this.logger.log('✅ Database seed completed successfully!');
     } catch (error) {
@@ -316,13 +286,23 @@ export class SeedService {
         isActive: true,
       },
       {
+        moduleName: 'Roles',
+        moduleCode: 'ROLES',
+        description: 'Role and permission management',
+        parentModuleId: null,
+        routePath: '/admin/roles',
+        icon: 'shield',
+        displayOrder: 4,
+        isActive: true,
+      },
+      {
         moduleName: 'Users',
         moduleCode: 'USERS',
         description: 'User management and administration',
         parentModuleId: null,
         routePath: '/users',
         icon: 'users',
-        displayOrder: 4,
+        displayOrder: 5,
         isActive: true,
       },
       {
@@ -332,7 +312,7 @@ export class SeedService {
         parentModuleId: null,
         routePath: '/reports',
         icon: 'bar-chart',
-        displayOrder: 5,
+        displayOrder: 6,
         isActive: true,
       },
       {
@@ -342,7 +322,7 @@ export class SeedService {
         parentModuleId: null,
         routePath: '/settings',
         icon: 'settings',
-        displayOrder: 6,
+        displayOrder: 7,
         isActive: true,
       },
       {
@@ -352,7 +332,7 @@ export class SeedService {
         parentModuleId: null,
         routePath: '/admin/form-config',
         icon: 'form',
-        displayOrder: 7,
+        displayOrder: 8,
         isActive: true,
       },
     ];
@@ -373,7 +353,6 @@ export class SeedService {
   }
 
   private async seedPermissions() {
-    // Get all modules
     const modules = await this.moduleRepository.find();
 
     const permissionsData = [
@@ -405,6 +384,14 @@ export class SeedService {
           { code: 'APPROVE', name: 'Approve RRF', description: 'Approve resource requisitions' },
           { code: 'REJECT', name: 'Reject RRF', description: 'Reject resource requisitions' },
           { code: 'ON_HOLD', name: 'Put RRF On Hold', description: 'Temporarily pause approval workflow with reason' },
+        ],
+      },
+      // Roles Permissions
+      {
+        moduleCode: 'ROLES',
+        permissions: [
+          { code: 'READ', name: 'View Roles', description: 'View roles and permissions' },
+          { code: 'UPDATE', name: 'Update Roles', description: 'Modify role permissions' },
         ],
       },
       // Users Permissions
@@ -476,25 +463,24 @@ export class SeedService {
 
   private async seedRolePermissions() {
     const roles = await this.roleRepository.find();
-    const modules = await this.moduleRepository.find();
     const permissions = await this.permissionRepository.find({ relations: ['module'] });
 
-    // Define role-permission mappings
     const roleMappings = {
       ADMIN: [
-        // Admin: Full access to Users, Settings, Dashboard, Reports + Read RRF for statistics
         'DASHBOARD.READ',
         'RRF.READ',
         'RRF.CREATE',
         'RRF.UPDATE',
         'RRF.DELETE',
+        'RRF.OPEN_FOR_HIRING',
+        'RRF.FILL_FROM_BENCH',
+        'RRF.CLOSE',
         'APPROVALS.READ',
         'APPROVALS.APPROVE',
         'APPROVALS.REJECT',
         'APPROVALS.ON_HOLD',
-        'RRF.OPEN_FOR_HIRING',
-        'RRF.FILL_FROM_BENCH',
-        'RRF.CLOSE',
+        'ROLES.READ',
+        'ROLES.UPDATE',
         'USERS.CREATE',
         'USERS.READ',
         'USERS.UPDATE',
@@ -509,7 +495,6 @@ export class SeedService {
         'FORM_CONFIG.DELETE',
       ],
       PMO: [
-        // PMO: Manage RRF workflow, view approvals, read-only users
         'DASHBOARD.READ',
         'RRF.CREATE',
         'RRF.READ',
@@ -528,9 +513,9 @@ export class SeedService {
         'FORM_CONFIG.DELETE',
       ],
       APPROVER: [
-        // Approver: View and approve/reject RRFs
         'DASHBOARD.READ',
         'RRF.READ',
+        'RRF.UPDATE',
         'APPROVALS.READ',
         'APPROVALS.APPROVE',
         'APPROVALS.REJECT',
@@ -538,7 +523,6 @@ export class SeedService {
         'REPORTS.READ',
       ],
       HR: [
-        // HR: View approved RRFs, basic dashboard, close completed positions
         'DASHBOARD.READ',
         'RRF.READ',
         'RRF.CLOSE',
@@ -547,7 +531,6 @@ export class SeedService {
         'REPORTS.EXPORT',
       ],
       HIRING_MANAGER: [
-        // Hiring Manager: Create and view their own RRFs
         'DASHBOARD.READ',
         'RRF.CREATE',
         'RRF.READ',
@@ -591,262 +574,42 @@ export class SeedService {
     }
   }
 
-  private async seedUsers() {
-    const roles = await this.roleRepository.find();
+  private async seedAdminUser() {
+    const adminUserId = process.env.ADMIN_USER_ID || 'admin';
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
+    const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 
-    const users = [
-      {
-        userId: 'admin001',
-        email: 'admin@company.com',
-        password: 'admin123',
-        fullName: 'System Admin',
-        roleCode: 'ADMIN',
-        department: 'IT',
-        phone: '+91-9876543210',
-      },
-      {
-        userId: 'pmo001',
-        email: 'priya.sharma@company.com',
-        password: 'pmo123',
-        fullName: 'Priya Sharma',
-        roleCode: 'PMO',
-        department: 'PMO',
-        phone: '+91-9876543211',
-      },
-      {
-        userId: 'app001',
-        email: 'sarah.miller@company.com',
-        password: 'app123',
-        fullName: 'Sarah Miller',
-        roleCode: 'APPROVER',
-        department: 'Engineering',
-        phone: '+91-9876543212',
-      },
-      {
-        userId: 'hr001',
-        email: 'mike.johnson@company.com',
-        password: 'hr123',
-        fullName: 'Mike Johnson',
-        roleCode: 'HR',
-        department: 'Human Resources',
-        phone: '+91-9876543213',
-      },
-      {
-        userId: 'hm001',
-        email: 'john.doe@company.com',
-        password: 'hm123',
-        fullName: 'John Doe',
-        roleCode: 'HIRING_MANAGER',
-        department: 'Engineering',
-        phone: '+91-9876543214',
-      },
-    ];
+    const adminRole = await this.roleRepository.findOne({
+      where: { roleCode: 'ADMIN' },
+    });
 
-    for (const userData of users) {
-      const role = roles.find((r) => r.roleCode === userData.roleCode);
-      if (!role) continue;
-
-      const existingUser = await this.userRepository.findOne({
-        where: { userId: userData.userId },
-      });
-
-      if (!existingUser) {
-        const hashedPassword = await bcrypt.hash(userData.password, 10);
-
-        const user = this.userRepository.create({
-          userId: userData.userId,
-          email: userData.email,
-          passwordHash: hashedPassword,
-          fullName: userData.fullName,
-          role: role,
-          department: userData.department,
-          phone: userData.phone,
-          isActive: true,
-        });
-
-        await this.userRepository.save(user);
-        this.logger.log(
-          `✓ Created user: ${userData.userId} (${userData.fullName}) - ${userData.roleCode}`,
-        );
-      } else {
-        this.logger.log(`⊙ User already exists: ${userData.userId}`);
-      }
-    }
-
-    this.logger.log('\n📋 Demo Users Created:');
-    this.logger.log('   Admin:          admin001 / admin123');
-    this.logger.log('   PMO:            pmo001 / pmo123');
-    this.logger.log('   Approver:       app001 / app123');
-    this.logger.log('   HR:             hr001 / hr123');
-    this.logger.log('   Hiring Manager: hm001 / hm123');
-  }
-
-  private async seedRrfs() {
-    this.logger.log('\n🌱 Seeding sample RRFs...');
-
-    // Get users for relationships
-    const hiringManager = await this.userRepository.findOne({ where: { userId: 'hm001' } });
-    const approver = await this.userRepository.findOne({ where: { userId: 'app001' } });
-    const pmo = await this.userRepository.findOne({ where: { userId: 'pmo001' } });
-    const hr = await this.userRepository.findOne({ where: { userId: 'hr001' } });
-
-    if (!hiringManager || !approver) {
-      this.logger.warn('⚠ Cannot seed RRFs: Required users not found');
+    if (!adminRole) {
+      this.logger.error('❌ ADMIN role not found. Cannot create admin user.');
       return;
     }
 
-    const rrfsData = [
-      {
-        rrfNumber: 'RRF-001',
-        positionTitle: 'Senior Backend Developer',
-        department: 'Engineering',
-        projectName: 'Banking Platform',
-        headcount: 2,
-        priority: Priority.HIGH,
-        status: RrfStatus.PENDING,
-        jobDescription: 'Develop and maintain backend services for our banking platform. Work with microservices architecture and cloud infrastructure.',
-        requiredSkills: 'Node.js, NestJS, TypeScript, PostgreSQL, Docker, Kubernetes',
-        preferredSkills: 'AWS, Redis, Kafka, GraphQL',
-        experienceMin: 5,
-        experienceMax: 8,
-        budgetMin: 1500000,
-        budgetMax: 2000000,
-        employmentType: EmploymentType.FULL_TIME,
-        location: 'Bangalore, India',
-        urgencyReason: 'Critical project deadline - Q2 2026 launch',
-        createdById: hiringManager.id,
-        submittedAt: new Date('2024-03-15'),
-      },
-      {
-        rrfNumber: 'RRF-002',
-        positionTitle: 'Frontend React Developer',
-        department: 'Engineering',
-        projectName: 'Customer Portal',
-        headcount: 1,
-        priority: Priority.MEDIUM,
-        status: RrfStatus.APPROVED,
-        jobDescription: 'Build responsive and user-friendly frontend interfaces using React.js and modern UI frameworks.',
-        requiredSkills: 'React, TypeScript, Redux, CSS, HTML5',
-        preferredSkills: 'Next.js, Tailwind CSS, Jest, Cypress',
-        experienceMin: 3,
-        experienceMax: 6,
-        budgetMin: 1000000,
-        budgetMax: 1500000,
-        employmentType: EmploymentType.FULL_TIME,
-        location: 'Bangalore, India',
-        createdById: hiringManager.id,
-        submittedAt: new Date('2024-03-10'),
-        approvedAt: new Date('2024-03-12'),
-        assignedToHrId: hr?.id,
-      },
-      {
-        rrfNumber: 'RRF-003',
-        positionTitle: 'DevOps Engineer',
-        department: 'Infrastructure',
-        projectName: 'Cloud Migration',
-        headcount: 1,
-        priority: Priority.HIGH,
-        status: RrfStatus.DRAFT,
-        jobDescription: 'Manage and optimize cloud infrastructure, CI/CD pipelines, and deployment automation.',
-        requiredSkills: 'AWS, Docker, Kubernetes, Terraform, Jenkins',
-        preferredSkills: 'GitLab CI, Ansible, Monitoring tools',
-        experienceMin: 4,
-        experienceMax: 7,
-        budgetMin: 1200000,
-        budgetMax: 1800000,
-        employmentType: EmploymentType.FULL_TIME,
-        location: 'Bangalore, India',
-        createdById: hiringManager.id,
-      },
-      {
-        rrfNumber: 'RRF-004',
-        positionTitle: 'QA Automation Engineer',
-        department: 'Quality Assurance',
-        projectName: 'Testing Framework',
-        headcount: 2,
-        priority: Priority.MEDIUM,
-        status: RrfStatus.ON_HOLD,
-        jobDescription: 'Design and implement automated testing frameworks for web and mobile applications.',
-        requiredSkills: 'Selenium, Cypress, Jest, API Testing, CI/CD',
-        preferredSkills: 'Playwright, K6, Performance testing',
-        experienceMin: 3,
-        experienceMax: 5,
-        budgetMin: 800000,
-        budgetMax: 1200000,
-        employmentType: EmploymentType.FULL_TIME,
-        location: 'Remote',
-        createdById: hiringManager.id,
-        submittedAt: new Date('2024-03-08'),
-      },
-      {
-        rrfNumber: 'RRF-005',
-        positionTitle: 'UI/UX Designer',
-        department: 'Design',
-        projectName: 'Product Redesign',
-        headcount: 1,
-        priority: Priority.LOW,
-        status: RrfStatus.CLOSED,
-        jobDescription: 'Create intuitive and visually appealing user interfaces. Conduct user research and usability testing.',
-        requiredSkills: 'Figma, Adobe XD, User Research, Prototyping',
-        preferredSkills: 'Sketch, InVision, Animation',
-        experienceMin: 2,
-        experienceMax: 5,
-        budgetMin: 700000,
-        budgetMax: 1100000,
-        employmentType: EmploymentType.CONTRACT,
-        location: 'Bangalore, India',
-        createdById: hiringManager.id,
-        submittedAt: new Date('2024-02-20'),
-        approvedAt: new Date('2024-02-25'),
-        closedAt: new Date('2024-03-10'),
-        assignedToHrId: hr?.id,
-      },
-    ];
+    const existingAdmin = await this.userRepository.findOne({
+      where: { userId: adminUserId },
+    });
 
-    for (const rrfData of rrfsData) {
-      const existingRrf = await this.rrfRepository.findOne({
-        where: { rrfNumber: rrfData.rrfNumber },
+    if (!existingAdmin) {
+      const hashedPassword = await bcrypt.hash(adminPassword, 10);
+
+      const adminUser = this.userRepository.create({
+        userId: adminUserId,
+        email: adminEmail,
+        passwordHash: hashedPassword,
+        fullName: 'System Administrator',
+        role: adminRole,
+        department: 'IT',
+        isActive: true,
       });
 
-      if (!existingRrf) {
-        const rrf = this.rrfRepository.create(rrfData);
-        const savedRrf = await this.rrfRepository.save(rrf);
-
-        // Add approvers for non-draft RRFs
-        if (rrfData.status !== RrfStatus.DRAFT) {
-          const approverData = this.rrfApproverRepository.create({
-            rrfId: savedRrf.id,
-            userId: approver.id,
-            approvalLevel: ApprovalLevel.L1,
-            approvalOrder: 1,
-            approvalStatus:
-              rrfData.status === RrfStatus.APPROVED
-                ? ApprovalStatus.APPROVED
-                : rrfData.status === RrfStatus.PENDING
-                ? ApprovalStatus.PENDING
-                : ApprovalStatus.REJECTED,
-            isMandatory: true,
-            approvedAt: rrfData.status === RrfStatus.APPROVED ? rrfData.approvedAt : null,
-            comments:
-              rrfData.status === RrfStatus.APPROVED ? 'Approved - Good candidate profile needed' : null,
-          });
-          await this.rrfApproverRepository.save(approverData);
-        }
-
-        this.logger.log(
-          `✓ Created RRF: ${rrfData.rrfNumber} - ${rrfData.positionTitle} (${rrfData.status})`,
-        );
-      } else {
-        this.logger.log(`⊙ RRF already exists: ${rrfData.rrfNumber}`);
-      }
+      await this.userRepository.save(adminUser);
+      this.logger.log(`✓ Created admin user: ${adminUserId} (${adminEmail})`);
+    } else {
+      this.logger.log(`⊙ Admin user already exists: ${adminUserId}`);
     }
-
-    this.logger.log('\n📋 Sample RRFs Created:');
-    this.logger.log('   RRF-001: Senior Backend Developer (Pending)');
-    this.logger.log('   RRF-002: Frontend React Developer (Approved)');
-    this.logger.log('   RRF-003: DevOps Engineer (Draft)');
-    this.logger.log('   RRF-004: QA Automation Engineer (On Hold)');
-    this.logger.log('   RRF-005: UI/UX Designer (Closed)');
   }
 
   private async seedFormConfigs() {
@@ -1030,100 +793,5 @@ export class SeedService {
     this.logger.log('   Step 2 - Position Details:');
     this.logger.log('     • Position Type, Employment Type, Priority');
     this.logger.log('     • Work Mode, Location');
-  }
-
-  /**
-   * Seed initial job description templates
-   */
-  private async seedJobDescriptions() {
-    const existing = await this.jobDescriptionRepository.count();
-
-    if (existing > 0) {
-      this.logger.log('⊙ Job Descriptions already seeded');
-      return;
-    }
-
-    // Use a default user ID for seeded JDs (Admin or PMO)
-    const adminUser = await this.userRepository.findOne({ where: { userId: 'admin001' } });
-    const creatorId = adminUser ? adminUser.id : 1;
-
-    const jds = [
-      {
-        title: 'Senior Backend Developer',
-        description: `
-          <p><strong>Responsibilities:</strong></p>
-          <ul>
-            <li>Design and develop scalable RESTful APIs using Node.js and NestJS.</li>
-            <li>Maintain and optimize PostgreSQL databases and TypeORM entities.</li>
-            <li>Implement security and data protection measures.</li>
-            <li>Collaborate with frontend developers to integrate user-facing elements.</li>
-          </ul>
-          <p><strong>Requirements:</strong></p>
-          <ul>
-            <li>Proven experience as a Backend Developer.</li>
-            <li>In-depth knowledge of Node.js engine and asynchronous programming.</li>
-            <li>Experience with cloud services (AWS/Azure) and Docker containers.</li>
-          </ul>`,
-        createdById: creatorId
-      },
-      {
-        title: 'Senior Frontend Developer',
-        description: `
-          <p><strong>Responsibilities:</strong></p>
-          <ul>
-            <li>Build reusable components and frontend libraries for future use.</li>
-            <li>Translate designs and wireframes into high-quality code using React.js.</li>
-            <li>Optimize components for maximum performance across various web-capable devices and browsers.</li>
-          </ul>
-          <p><strong>Requirements:</strong></p>
-          <ul>
-            <li>Expertise in React.js, Next.js, and modern CSS frameworks (Tailwind/Sass).</li>
-            <li>Strong understanding of state management (Redux/Context API).</li>
-            <li>Experience with responsive and adaptive design principles.</li>
-          </ul>`,
-        createdById: creatorId
-      },
-      {
-        title: 'DevOps Engineer',
-        description: `
-          <p><strong>Responsibilities:</strong></p>
-          <ul>
-            <li>Manage CI/CD pipelines and deployment automation tools.</li>
-            <li>Monitor system performance and ensure high availability.</li>
-            <li>Implement infrastructure as code using Terraform or CloudFormation.</li>
-          </ul>
-          <p><strong>Requirements:</strong></p>
-          <ul>
-            <li>Hands-on experience with Docker, Kubernetes, and cloud platforms like AWS.</li>
-            <li>Proficiency in scripting languages (Bash, Python).</li>
-            <li>Knowledge of networking, security, and storage in cloud environments.</li>
-          </ul>`,
-        createdById: creatorId
-      },
-      {
-        title: 'QA Lead',
-        description: `
-          <p><strong>Responsibilities:</strong></p>
-          <ul>
-            <li>Establish and maintain automation testing frameworks.</li>
-            <li>Lead the QA team in creating comprehensive test strategies and plans.</li>
-            <li>Analyze bug reports and highlight potential risks in the project life cycle.</li>
-          </ul>
-          <p><strong>Requirements:</strong></p>
-          <ul>
-            <li>Extensive experience with Selenium, Cypress, or Playwright.</li>
-            <li>Strong knowledge of software QA methodologies, tools, and processes.</li>
-            <li>Excellent leadership and communication skills.</li>
-          </ul>`,
-        createdById: creatorId
-      }
-    ];
-
-    for (const jdData of jds) {
-      const jd = this.jobDescriptionRepository.create(jdData);
-      await this.jobDescriptionRepository.save(jd);
-    }
-
-    this.logger.log('✓ Job Descriptions seeded successfully');
   }
 }

@@ -33,7 +33,6 @@ export default function Header({ initialRole = 'hiring-manager', onToggleSidebar
     if (pathname === '/hiring-manager/create-rrf') return 'Create RRF Request'
     if (pathname === '/hiring-manager/drafts') return 'Saved Drafts'
     if (pathname === '/hiring-manager/my-requests') return 'RRF Requests'
-    if (pathname.includes('/hiring-manager/view-rrf/')) return 'View RRF Details'
     if (pathname === '/approver') return 'Dashboard'
     if (pathname === '/approver/pending') return 'Pending RRF Approvals'
     if (pathname === '/approver/on-hold') return 'On-hold Requests'
@@ -50,7 +49,7 @@ export default function Header({ initialRole = 'hiring-manager', onToggleSidebar
     if (pathname === '/pmo/pending') return 'Opened Positions'
     if (pathname === '/pmo/opened-positions') return 'Opened Positions'
     if (pathname === '/pmo/sent-to-approvers') return 'Sent to Talent Acquisition'
-    if (pathname.includes('/pmo/view-rrf/')) return 'View RRF'
+    if (pathname.includes('/requests/')) return 'View RRF'
     return 'RRF Portal'
   }
 

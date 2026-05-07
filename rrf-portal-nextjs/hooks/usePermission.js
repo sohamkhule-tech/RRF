@@ -85,7 +85,7 @@ export const usePermission = () => {
     canDeleteRRF: hasPermission('RRF.DELETE', permissions),
     
     canApprove: hasPermission('APPROVALS.APPROVE', permissions),
-    canReject: hasPermission('APPROVALS.REJECT', permissions),
+    canDecline: hasPermission('APPROVALS.REJECT', permissions),
     canViewApprovals: hasPermission('APPROVALS.READ', permissions),
     
     canViewDashboard: hasPermission('DASHBOARD.READ', permissions),

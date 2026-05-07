@@ -270,7 +270,7 @@ export default function PMOClosedPage() {
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-600 max-w-[150px] truncate" title={request.candidateName}>{request.candidateName}</td>
                     <td className="px-3 py-3 text-center whitespace-nowrap text-sm">
-                      <Link href={`/pmo/view-rrf/${request.submissionId}?from=closed`}>
+                      <Link href={`/requests/${request.submissionId}`}>
                         <button className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-200 text-xs flex items-center gap-1 mx-auto" style={{ borderRadius: '6px' }}>
                           <EyeOutlined /> View
                         </button>
@@ -317,7 +317,7 @@ export default function PMOClosedPage() {
                 </div>
                 <div className="text-xs text-gray-500 mb-3">Closed: {request.closedDate} · Candidate: {request.candidateName}</div>
                 <div className="flex justify-end pt-2 border-t border-gray-100">
-                  <Link href={`/pmo/view-rrf/${request.submissionId}?from=closed`}>
+                  <Link href={`/requests/${request.submissionId}`}>
                     <button className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-200 text-xs flex items-center gap-1" style={{ borderRadius: '6px' }}>
                       <EyeOutlined /> View
                     </button>

@@ -198,7 +198,7 @@ function OpenPositionsPage() {
                       <ActionButton
                         role="PMO"
                         status={rrf.status}
-                        href={`/pmo/view-rrf/${rrf.id}`}
+                        href={`/requests/${rrf.id}`}
                       />
                     </td>
                   </tr>
@@ -247,7 +247,7 @@ function OpenPositionsPage() {
                 </div>
                 <div className="text-xs text-gray-500 mb-3">Approved: {(rrf.approvedAt || rrf.createdAt) ? new Date(rrf.approvedAt || rrf.createdAt).toLocaleDateString('en-GB') : 'N/A'}</div>
                 <div className="flex justify-end pt-2 border-t border-gray-100">
-                  <ActionButton role="PMO" status={rrf.status} href={`/pmo/view-rrf/${rrf.id}`} />
+                  <ActionButton role="PMO" status={rrf.status} href={`/requests/${rrf.id}`} />
                 </div>
               </div>
             ))
