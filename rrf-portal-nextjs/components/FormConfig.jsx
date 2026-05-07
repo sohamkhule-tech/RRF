@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchFormConfig, updateFormConfig, createFormConfig, deleteFormConfig } from '@/lib/api/formConfig';
 import { toast } from 'react-hot-toast';
-import { FormOutlined, PlusOutlined, DeleteOutlined, SaveOutlined, RightOutlined, CheckCircleOutlined, ArrowLeftOutlined, CloseOutlined } from '@ant-design/icons';
+import { FormOutlined, PlusOutlined, DeleteOutlined, SaveOutlined, RightOutlined, CheckCircleOutlined, ArrowLeftOutlined, CloseOutlined, EditOutlined } from '@ant-design/icons';
 import FunctionManager from './FunctionManager';
 
 // Auto-generate field name from label
@@ -27,13 +27,42 @@ function FormConfigEditor({ config, onSave, onDelete }) {
   const [isRequired, setIsRequired] = useState(config.isRequired || false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [editingValue, setEditingValue] = useState('');
 
   useEffect(() => {
     setLabel(config.label);
     setOptions([...config.options]);
     setIsRequired(config.isRequired || false);
     setCurrentOption('');
+    setEditingIndex(null);
+    setEditingValue('');
   }, [config]);
+
+  const handleStartEdit = (index) => {
+    setEditingIndex(index);
+    setEditingValue(options[index]);
+  };
+
+  const handleSaveEdit = (index) => {
+    const trimmed = editingValue.trim();
+    if (!trimmed) {
+      toast.error('Option cannot be empty');
+      return;
+    }
+    if (options.some((o, i) => i !== index && o === trimmed)) {
+      toast.error('Option already exists');
+      return;
+    }
+    setOptions(options.map((o, i) => (i === index ? trimmed : o)));
+    setEditingIndex(null);
+    setEditingValue('');
+  };
+
+  const handleCancelEdit = () => {
+    setEditingIndex(null);
+    setEditingValue('');
+  };
 
   const handleAddOption = () => {
     const trimmed = currentOption.trim();
@@ -146,14 +175,53 @@ function FormConfigEditor({ config, onSave, onDelete }) {
           ) : (
             options.map((option, index) => (
               <div key={index} className="flex items-center justify-between gap-2 p-2 bg-white rounded border border-gray-200 hover:border-indigo-300 transition-colors">
-                <span className="flex-1 text-sm text-gray-700">{option}</span>
-                <button
-                  onClick={() => handleDeleteOption(index)}
-                  className="text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors p-1.5 rounded"
-                  title="Delete option"
-                >
-                  <CloseOutlined className="text-xs" />
-                </button>
+                {editingIndex === index ? (
+                  <>
+                    <input
+                      autoFocus
+                      type="text"
+                      value={editingValue}
+                      onChange={(e) => setEditingValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveEdit(index);
+                        if (e.key === 'Escape') handleCancelEdit();
+                      }}
+                      className="flex-1 px-2 py-1 text-sm border border-indigo-400 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                    <button
+                      onClick={() => handleSaveEdit(index)}
+                      className="text-green-600 hover:text-green-800 hover:bg-green-50 transition-colors p-1.5 rounded"
+                      title="Save"
+                    >
+                      <CheckCircleOutlined className="text-xs" />
+                    </button>
+                    <button
+                      onClick={handleCancelEdit}
+                      className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors p-1.5 rounded"
+                      title="Cancel"
+                    >
+                      <CloseOutlined className="text-xs" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 text-sm text-gray-700">{option}</span>
+                    <button
+                      onClick={() => handleStartEdit(index)}
+                      className="text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors p-1.5 rounded"
+                      title="Edit option"
+                    >
+                      <EditOutlined className="text-xs" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteOption(index)}
+                      className="text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors p-1.5 rounded"
+                      title="Delete option"
+                    >
+                      <CloseOutlined className="text-xs" />
+                    </button>
+                  </>
+                )}
               </div>
             ))
           )}

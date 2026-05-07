@@ -73,7 +73,7 @@ export const useApproverRequests = (status = null, options = {}) => {
     }
   }, [requests]);
 
-  const rejectRequest = useCallback(async (id, comments) => {
+  const declineRequest = useCallback(async (id, comments) => {
     if (!comments || comments.trim() === '') {
       toast.error('Please provide a reason for declining');
       return { success: false, error: 'Comments required' };

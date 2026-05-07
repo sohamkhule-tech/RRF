@@ -131,6 +131,7 @@ export default function HRDashboard() {
           subtitle="Computed total filled positions"
           icon={<CheckCircleOutlined />}
           color="cyan"
+          href="/hr/closed"
         />
       </div>
 

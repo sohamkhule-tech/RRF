@@ -74,24 +74,28 @@ export default function AdminDashboard() {
             value={byStatus.pending || 0}
             icon={<ClockCircleOutlined />}
             color="orange"
+            href="/admin/rrf-management?status=pending"
           />
           <StatCard
             title="Approved"
             value={byStatus.approved || 0}
             icon={<CheckCircleOutlined />}
             color="green"
+            href="/admin/rrf-management?status=approved"
           />
           <StatCard
             title="In Progress"
             value={inProgressCount}
             icon={<SyncOutlined />}
             color="cyan"
+            href="/admin/rrf-management?status=in-progress"
           />
           <StatCard
             title="Closed"
             value={byStatus.closed || 0}
             icon={<RiseOutlined />}
             color="purple"
+            href="/admin/rrf-management?status=closed"
           />
           <StatCard
             title="Total Users"

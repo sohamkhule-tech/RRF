@@ -5,6 +5,7 @@ import { Table, Modal, Form, Input, Select, Switch, Tag, Button, Space, Tooltip,
 import {
   PlusOutlined,
   EditOutlined,
+  DeleteOutlined,
   SearchOutlined,
   UserOutlined,
   ReloadOutlined,
@@ -124,9 +125,34 @@ export default function AdminUsersPage() {
     }
   }
 
+  // ─── Delete User with Confirmation ────────────────────────
+  const handleDelete = (user) => {
+    Modal.confirm({
+      title: 'Delete User',
+      icon: <ExclamationCircleOutlined />,
+      content: (
+        <div>
+          <p>Are you sure you want to permanently delete <strong>{user.fullName}</strong>?</p>
+          <p className="text-red-500 text-sm mt-2">This action cannot be undone.</p>
+        </div>
+      ),
+      okText: 'Yes, Delete',
+      cancelText: 'Cancel',
+      okButtonProps: { danger: true },
+      async onOk() {
+        try {
+          await usersApi.delete(user.id)
+          toast.success(`${user.fullName} deleted successfully`)
+          await loadData()
+        } catch (error) {
+          toast.error(error.message || 'Failed to delete user')
+        }
+      },
+    })
+  }
+
   // ─── Toggle Active with Confirmation ────────────────────────
-  const handleToggleActive = (user) => {
-    const newStatus = !user.isActive
+  const handleToggleActive = (user) => {    const newStatus = !user.isActive
     Modal.confirm({
       title: `${newStatus ? 'Activate' : 'Deactivate'} User`,
       icon: <ExclamationCircleOutlined />,
@@ -232,6 +258,14 @@ export default function AdminUsersPage() {
               size="small"
               checked={record.isActive}
               onChange={() => handleToggleActive(record)}
+            />
+          </Tooltip>
+          <Tooltip title="Delete User">
+            <Button
+              type="text"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => handleDelete(record)}
             />
           </Tooltip>
         </Space>
@@ -375,10 +409,6 @@ export default function AdminUsersPage() {
               </Form.Item>
             </div>
 
-            <Form.Item name="phone" label="Phone">
-              <Input placeholder="+91 9876543210" />
-            </Form.Item>
-
             <Form.Item
               name="technologies"
               label="Technical Expertise"
@@ -507,10 +537,6 @@ export default function AdminUsersPage() {
                 <Input />
               </Form.Item>
             </div>
-
-            <Form.Item name="phone" label="Phone">
-              <Input />
-            </Form.Item>
 
             <Form.Item
               name="technologies"
