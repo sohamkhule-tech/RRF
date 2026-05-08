@@ -16,12 +16,14 @@ import { SeedModule } from './database/seed.module';
 import { RrfModule } from './rrf/rrf.module';
 import { typeOrmConfig } from './config/typeorm.config';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    EventEmitterModule.forRoot(),
     TypeOrmModule.forRootAsync({
         inject: [ConfigService],
         useFactory: (config: ConfigService) => ({
