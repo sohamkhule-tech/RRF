@@ -17,6 +17,7 @@ import { RrfModule } from './rrf/rrf.module';
 import { typeOrmConfig } from './config/typeorm.config';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import * as path from 'path';
 
 @Module({
   imports: [
