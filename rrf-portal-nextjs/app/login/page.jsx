@@ -236,6 +236,9 @@ export default function LoginPage() {
   const [msLoading,    setMsLoading]    = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
+  // Environment-based API URL with localhost fallback for development
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'
+
   useEffect(() => {
     router.prefetch('/hiring-manager/dashboard')
   }, [router])
@@ -246,9 +249,7 @@ export default function LoginPage() {
     setMsLoading(true)
 
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/auth/microsoft`
-      )
+      const res = await fetch(`${API_BASE}/auth/microsoft`)
       const data = await res.json()
 
       if (!res.ok || !data.authUrl) {
@@ -274,7 +275,7 @@ export default function LoginPage() {
 
     setLoading(true)
     try {
-      const response = await fetch('http://localhost:4000/auth/login', {
+      const response = await fetch(`${API_BASE}/auth/login`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ userId, password }),
