@@ -14,6 +14,8 @@ import { UserSubfunctionsModule } from './user-subfunctions/user-subfunctions.mo
 import { JobDescriptionsModule } from './job-descriptions/job-descriptions.module';
 import { SeedModule } from './database/seed.module';
 import { RrfModule } from './rrf/rrf.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { ReportsModule } from './reports/reports.module';
 import { typeOrmConfig } from './config/typeorm.config';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
@@ -64,6 +66,8 @@ import * as path from 'path';
     JobDescriptionsModule,
     SeedModule,
     RrfModule,
+    NotificationsModule,
+    ReportsModule,
   ],
 })
 export class AppModule {}

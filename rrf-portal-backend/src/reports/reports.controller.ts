@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../guards/permission.guard';
-import { RequirePermission } from '../decorators/require-permission.decorator';
+import { RequirePermission } from '../decorators/permissions.decorator';
 import { ReportsService } from './reports.service';
 import { ReportsQueryDto } from './dto/reports-query.dto';
 
@@ -20,7 +20,7 @@ export class ReportsController {
    * Returns KPI aggregation cards data
    */
   @Get('kpis')
-  @RequirePermission('RRF.READ')
+  @RequirePermission('REPORTS.READ')
   async getKpis() {
     const kpis = await this.reportsService.getKpis();
     return { success: true, data: kpis };
@@ -31,7 +31,7 @@ export class ReportsController {
    * Returns paginated dataset based on selected KPI / filters
    */
   @Get('dataset')
-  @RequirePermission('RRF.READ')
+  @RequirePermission('REPORTS.READ')
   async getDataset(@Query() query: ReportsQueryDto) {
     const result = await this.reportsService.getDataset(query);
     return { success: true, ...result };
@@ -42,7 +42,7 @@ export class ReportsController {
    * Export current filtered view (no pagination)
    */
   @Get('export/current')
-  @RequirePermission('RRF.READ')
+  @RequirePermission('REPORTS.EXPORT')
   async exportCurrentView(@Query() query: ReportsQueryDto) {
     const data = await this.reportsService.getExportData(query);
     return { success: true, data };
@@ -53,7 +53,7 @@ export class ReportsController {
    * Export full report of all reportable RRFs
    */
   @Get('export/full')
-  @RequirePermission('RRF.READ')
+  @RequirePermission('REPORTS.EXPORT')
   async exportFullReport() {
     const data = await this.reportsService.getFullReportExport();
     return { success: true, data };
