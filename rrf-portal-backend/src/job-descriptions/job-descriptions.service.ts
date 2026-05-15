@@ -13,39 +13,17 @@ export class JobDescriptionsService {
   ) {}
 
   /**
-   * Get all job descriptions with fallback logic:
-   * 1. Try specific subFunction
-   * 2. If none, return global templates (subFunction is null)
+   * Get job descriptions:
+   * - If subFunction is provided: returns templates matching subFunction OR global templates (null)
+   * - If no subFunction: returns all latest templates
    */
   async findAll(subFunction?: string): Promise<JobDescription[]> {
-    if (subFunction) {
-      const templates = await this.jobDescriptionRepository.find({
-        where: { subFunction },
-        relations: ['createdBy'],
-        order: { createdAt: 'DESC' },
-        take: 20,
-      });
+    const where = subFunction 
+      ? [{ subFunction }, { subFunction: null }] // Match specific OR global
+      : {}; // All if none specified
 
-      if (templates.length > 0) {
-        return templates;
-      }
-    }
-
-    // Fallback: Show global templates (where subFunction is null)
-    // or all if no global exist
-    const globalTemplates = await this.jobDescriptionRepository.find({
-      where: { subFunction: null },
-      relations: ['createdBy'],
-      order: { createdAt: 'DESC' },
-      take: 20,
-    });
-
-    if (globalTemplates.length > 0) {
-      return globalTemplates;
-    }
-
-    // Ultimate fallback: just return latest 20
     return this.jobDescriptionRepository.find({
+      where,
       relations: ['createdBy'],
       order: { createdAt: 'DESC' },
       take: 20,

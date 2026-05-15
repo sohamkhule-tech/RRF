@@ -1,5 +1,16 @@
 'use client'
 
+/**
+ * PHASE 6 — Legacy compatibility redirect.
+ * This route now delegates to the unified workflow page.
+ * Original implementation preserved below (non-exported) for rollback.
+ * Rollback: remove the redirect and restore `export default` on LegacyMyRequestsPage.
+ */
+import { redirect } from 'next/navigation'
+export default function Page() { redirect('/workflow?view=all') }
+
+// ── Original implementation (preserved for rollback) ────────────────────────
+
 import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import ActionButton from '@/components/ActionButton'
@@ -481,6 +492,9 @@ function MyRequestsContent() {
                 <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">Positions</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Priority</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
+                {activeTab === 'approved' && <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Approved By</th>}
+                {activeTab === 'declined' && <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Declined By</th>}
+                {activeTab === 'on-hold' && <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">On Hold By</th>}
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Created Date</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
               </tr>
@@ -507,19 +521,22 @@ function MyRequestsContent() {
                     </td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm">{getPriorityBadge(request.priority)}</td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm">{getStatusBadge(request.status)}</td>
+                    {activeTab === 'approved' && <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-700">{request.approvedByName || 'N/A'}</td>}
+                    {activeTab === 'declined' && <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-700">{request.declinedByName || 'N/A'}</td>}
+                    {activeTab === 'on-hold' && <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-700">{request.onHoldByName || 'N/A'}</td>}
                     <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-600">{request.date}</td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm">
                       <ActionButton 
                         role="HM"
                         status={request.status}
-                        href={`/hiring-manager/view-rrf/${request.id}`}
+                        href={`/requests/${request.id}`}
                       />
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="9" className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={9 + (activeTab === 'approved' || activeTab === 'declined' || activeTab === 'on-hold' ? 1 : 0)} className="px-6 py-12 text-center text-gray-500">
                     <div className="flex flex-col items-center gap-3">
                       <div className="text-4xl opacity-50">📋</div>
                       <p className="text-lg font-medium">No requests found</p>
@@ -553,10 +570,19 @@ function MyRequestsContent() {
                 <div className="flex flex-wrap gap-2 mb-3">
                   {getPriorityBadge(request.priority)}
                   {getStatusBadge(request.status)}
+                  {activeTab === 'approved' && request.approvedByName && (
+                    <span className="text-xs text-gray-500">Approved by: {request.approvedByName}</span>
+                  )}
+                  {activeTab === 'declined' && request.declinedByName && (
+                    <span className="text-xs text-gray-500">Declined by: {request.declinedByName}</span>
+                  )}
+                  {activeTab === 'on-hold' && request.onHoldByName && (
+                    <span className="text-xs text-gray-500">On hold by: {request.onHoldByName}</span>
+                  )}
                   <span className="text-xs text-gray-500">{request.date}</span>
                 </div>
                 <div className="flex justify-end pt-2 border-t border-gray-100">
-                  <ActionButton role="HM" status={request.status} href={`/hiring-manager/view-rrf/${request.id}`} />
+                  <ActionButton role="HM" status={request.status} href={`/requests/${request.id}`} />
                 </div>
               </div>
             ))
@@ -604,7 +630,7 @@ function MyRequestsContent() {
   )
 }
 
-export default function MyRequestsPage() {
+function LegacyMyRequestsPage() {
   return (
     <Suspense fallback={
       <div className="p-8 flex items-center justify-center min-h-screen">

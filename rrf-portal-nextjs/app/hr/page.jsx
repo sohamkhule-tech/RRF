@@ -1,5 +1,15 @@
 'use client'
 
+/**
+ * PHASE 6 — Legacy compatibility redirect.
+ * Original implementation preserved below (non-exported) for rollback.
+ * Rollback: remove the redirect and restore `export default` on LegacyHRDashboard.
+ */
+import { redirect } from 'next/navigation'
+export default function Page() { redirect('/dashboard') }
+
+// ── Original implementation (preserved for rollback) ────────────────────────
+
 import { FolderOpenOutlined, CheckCircleOutlined, SearchOutlined, CloseCircleOutlined, ReloadOutlined } from '@ant-design/icons'
 import ActionButton from '@/components/ActionButton'
 import StatCard from '@/components/StatCard'
@@ -8,15 +18,18 @@ import { rrfApi } from '@/lib/api/rrfApi'
 import { useSmartFetch } from '@/lib/useSmartFetch'
 import { useVisibilityRefresh } from '@/lib/useVisibilityRefresh'
 import { CACHE_TTL } from '@/lib/apiCache'
+import { useAuth } from '@/contexts/AuthContext'
 
-export default function HRDashboard() {
+function LegacyHRDashboard() {
+  const { user } = useAuth()
+  const userId = user?.id
   const [searchTerm, setSearchTerm] = useState('')
 
   // Shared all-rrfs cache (also used by pmo/closed, pmo/sent-to-approvers, hr/closed)
   const {
     data: allRrfs,
     refresh: refreshAll,
-  } = useSmartFetch('all-rrfs', () => rrfApi.getAll({ limit: 1000 }), {
+  } = useSmartFetch(userId ? `all-rrfs-${userId}` : null, () => rrfApi.getAll({ limit: 1000 }), {
     ttl: CACHE_TTL.LIST,
     transform: (response) => response?.data?.data || response?.data || [],
   })
@@ -26,7 +39,7 @@ export default function HRDashboard() {
     data: openData,
     loading,
     refresh: refreshOpen,
-  } = useSmartFetch('hr-open-for-hiring', () => rrfApi.getOpenForHiring(), {
+  } = useSmartFetch(userId ? `hr-open-for-hiring-${userId}` : null, () => rrfApi.getOpenForHiring(), {
     ttl: CACHE_TTL.LIST,
     transform: (res) => {
       const data = res?.data || res || []
@@ -39,7 +52,8 @@ export default function HRDashboard() {
             positions: rrf.numberOfPositions || rrf.headcount || 1,
             priority: rrf.priority,
             status: rrf.status,
-            date: new Date(rrf.approvedAt || rrf.createdAt).toLocaleDateString('en-GB')
+            date: new Date(rrf.approvedAt || rrf.createdAt).toLocaleDateString('en-GB'),
+            approvedByName: rrf.approvedByName || null,
           }))
         : []
     },
@@ -127,6 +141,7 @@ export default function HRDashboard() {
           subtitle="Computed total filled positions"
           icon={<CheckCircleOutlined />}
           color="cyan"
+          href="/hr/closed"
         />
       </div>
 
@@ -173,13 +188,14 @@ export default function HRDashboard() {
                 <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">Positions</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Priority</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Approved By</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Approved Date</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8} className="px-6 py-8 text-center text-gray-500"><ReloadOutlined className="animate-spin" style={{ fontSize: '32px', color: '#6366f1' }} /></td></tr>
+                <tr><td colSpan={9} className="px-6 py-8 text-center text-gray-500"><ReloadOutlined className="animate-spin" style={{ fontSize: '32px', color: '#6366f1' }} /></td></tr>
               ) : filteredPositions.length > 0 ? (
                 filteredPositions.map((request) => (
                   <tr key={request.id} className="border-b border-gray-100 transition-all duration-300 hover:bg-gray-50">
@@ -191,15 +207,16 @@ export default function HRDashboard() {
                     </td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm">{getPriorityBadge(request.priority)}</td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm">{getStatusBadge(request.status)}</td>
+                    <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-700">{request.approvedByName || 'N/A'}</td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-600">{request.date}</td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm">
-                      <ActionButton role="HR" status={request.status} href={`/hr/view-rrf/${request.id}`} />
+                      <ActionButton role="HR" status={request.status} href={`/requests/${request.id}`} />
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
                     <SearchOutlined style={{ fontSize: '32px', color: '#9ca3af' }} />
                     <p className="text-sm font-medium mt-2">{searchTerm ? `No requests found matching "${searchTerm}"` : 'No open positions available'}</p>
                   </td>
@@ -230,7 +247,7 @@ export default function HRDashboard() {
                   <span className="text-xs text-gray-500">{request.date}</span>
                 </div>
                 <div className="flex justify-end pt-2 border-t border-gray-100">
-                  <ActionButton role="HR" status={request.status} href={`/hr/view-rrf/${request.id}`} />
+                  <ActionButton role="HR" status={request.status} href={`/requests/${request.id}`} />
                 </div>
               </div>
             ))

@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../guards/permission.guard';
-import { RequirePermission } from '../decorators/require-permission.decorator';
+import { RequirePermission } from '../decorators/permissions.decorator';
 import { RolePermissionsService } from './role-permissions.service';
 import { UpdateRolePermissionsDto } from './dto/update-role-permissions.dto';
 

@@ -1,5 +1,16 @@
 'use client'
 
+/**
+ * PHASE 6 — Legacy compatibility redirect.
+ * This route now delegates to the unified workflow page.
+ * Original implementation preserved below (non-exported) for rollback.
+ * Rollback: remove the redirect and restore `export default` on LegacyDraftsPage.
+ */
+import { redirect } from 'next/navigation'
+export default function Page() { redirect('/workflow?view=drafts') }
+
+// ── Original implementation (preserved for rollback) ────────────────────────
+
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -7,7 +18,7 @@ import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import toast from 'react-hot-toast'
 import { rrfApi } from '@/lib/api/rrfApi'
 
-export default function DraftsPage() {
+function LegacyDraftsPage() {
   const router = useRouter()
   const [drafts, setDrafts] = useState([])
   const [loading, setLoading] = useState(true)

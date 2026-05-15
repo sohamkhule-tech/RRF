@@ -1,0 +1,90 @@
+name: Deploy Frontend to EC2
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - 'rrf-portal-nextjs/**'
+      - '.github/workflows/frontend-deploy-dev.yml'
+
+jobs:
+  deploy-frontend:
+
+    runs-on: ubuntu-latest
+
+    concurrency:
+      group: deploy-frontend-ec2
+      cancel-in-progress: true
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # 🔥 Build ONLY here
+      - name: Build Frontend
+        working-directory: rrf-portal-nextjs
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+        run: |
+          npm ci --legacy-peer-deps
+          npm run build
+
+      - name: Check Build Output
+        run: |
+          echo "Listing .next folder"
+          ls -la rrf-portal-nextjs/.next
+          ls -la rrf-portal-nextjs/.next/standalone || echo "No standalone build"
+
+      - name: Start SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+
+      - name: Add Host
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Ensure Directory
+        run: |
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} \
+          "mkdir -p ${{ secrets.EC2_APP_DIR }}/rrf-portal-nextjs"
+
+      # 🔥 Sync EVERYTHING (including .next build)
+      - name: Sync Frontend to Server
+        run: |
+          rsync -az --delete \
+            --exclude='.env' \
+            rrf-portal-nextjs/.next \
+            rrf-portal-nextjs/package.json \
+            rrf-portal-nextjs/next.config.js \
+            rrf-portal-nextjs/jsconfig.json \
+            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:${{ secrets.EC2_APP_DIR }}/rrf-portal-nextjs/
+
+      # 🔥 LIGHTWEIGHT deploy (NO BUILD HERE)
+      - name: Deploy with PM2
+        run: |
+          ssh -o ServerAliveInterval=60 \
+              ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+
+            cd ${{ secrets.EC2_APP_DIR }}/rrf-portal-nextjs
+
+            export PATH=$PATH:/usr/bin:/usr/local/bin
+
+            npm install --omit=dev --legacy-peer-deps
+
+            pm2 delete frontend || true
+
+            pm2 start node_modules/next/dist/bin/next --name frontend -- start
+
+            pm2 save
+
+          EOF
+

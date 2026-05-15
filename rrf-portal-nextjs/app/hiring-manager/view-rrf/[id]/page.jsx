@@ -1,7 +1,22 @@
 'use client'
 
+/**
+ * PHASE 6 — Legacy compatibility redirect.
+ * This route now delegates to the unified workflow detail page.
+ * Original implementation preserved below (non-exported) for rollback.
+ * Rollback: remove the redirect and restore `export default` on LegacyHMViewRRFPage.
+ */
+import { useParams } from 'next/navigation'
+import { redirect } from 'next/navigation'
+export default function Page() {
+  const { id } = useParams()
+  redirect(`/workflow/${id}`)
+}
+
+// ── Original implementation (preserved for rollback) ────────────────────────
+
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
+const { useRouter } = require('next/navigation')
 import { useState, useCallback } from 'react'
 import {
   PrinterOutlined,
@@ -14,6 +29,7 @@ import {
   ExclamationCircleOutlined,
   PauseCircleOutlined,
   EditOutlined,
+  TeamOutlined,
 } from '@ant-design/icons'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
@@ -25,12 +41,17 @@ import InfoField from '@/components/InfoField'
 import StatusWithDetails from '@/components/StatusWithDetails'
 import RRFContentSections from '@/components/RRFContentSections'
 
-export default function HMViewRRFPage() {
+function LegacyHMViewRRFPage() {
   const params = useParams()
   const router = useRouter()
   const rrfId = params.id
 
+  // Fetch RRF details from hook
   const { rrf, loading, error, refresh } = useRRFDetail(rrfId)
+  
+  // Debug Logging
+  console.log('[HM View] Raw RRF:', rrf)
+  
   const isPending = rrf?.status === 'pending'
   const isDeclined = rrf?.status === 'declined' || rrf?.status === 'rejected'
   const isOnHold   = rrf?.status === 'on-hold'
@@ -70,7 +91,10 @@ export default function HMViewRRFPage() {
     customerName:   rrf.customerName,
     projectName:    rrf.projectName,
     jobTitle:       rrf.positionTitle,
-    billingStartDate: rrf.expectedStartDate ? new Date(rrf.expectedStartDate).toLocaleDateString('en-GB') : null,
+    billingStartDate: rrf.billingStartDate,
+    expectedOnboardingDate: rrf.expectedOnboardingDate,
+    billingRate: rrf.billingRate,
+    billingCurrency: rrf.billingCurrency,
     positionType:       rrf.positionType,
     employmentType:     rrf.employmentType,
     workMode:           rrf.workMode,
@@ -80,10 +104,14 @@ export default function HMViewRRFPage() {
     minimumExperience:  rrf.experienceMin && rrf.experienceMax
       ? `${rrf.experienceMin}-${rrf.experienceMax} years`
       : null,
-    requiredSkills:  rrf.requiredSkills,
-    preferredSkills: rrf.preferredSkills,
+    primaryTechnologies: rrf.technologies,
+    requiredSkills:      rrf.requiredSkills,
+    preferredSkills:     rrf.preferredSkills,
     jobDescription:  rrf.jobDescription,
     additionalNotes: rrf.notes || rrf.urgencyReason,
+    budgetMin:       rrf.budgetMin,
+    budgetMax:       rrf.budgetMax,
+    interviewers:    rrf.interviewers || [],
     // ── Decision fields ─────────────────────────────────────────────
     // declineReason: set by /decline endpoint; fallback to notes (on-hold) or statusHistory
     declineReason:  rrf.declineReason
@@ -237,8 +265,8 @@ export default function HMViewRRFPage() {
             </div>
             <div className="flex flex-wrap items-center gap-2 md:gap-3">
               {isEditable && (
-                <button 
-                  onClick={() => router.push(`/hiring-manager/create-rrf?draftId=${rrfData.id}`)}
+                <button
+                  onClick={() => router.push(`/hiring-manager/edit-rrf/${rrfData.id}`)}
                   className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 font-bold rounded-lg transition-all flex items-center gap-2 shadow-md"
                 >
                   <EditOutlined /> <span className="hidden sm:inline">Edit Request</span>

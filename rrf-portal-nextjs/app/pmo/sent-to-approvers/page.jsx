@@ -1,5 +1,15 @@
 'use client'
 
+/**
+ * PHASE 6 — Legacy compatibility redirect.
+ * Original implementation preserved below (non-exported) for rollback.
+ * Rollback: remove the redirect and restore `export default` on LegacyPMOSentToApproversPage.
+ */
+import { redirect } from 'next/navigation'
+export default function Page() { redirect('/workflow?view=sent-to-approvers') }
+
+// ── Original implementation (preserved for rollback) ────────────────────────
+
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -9,9 +19,12 @@ import { useSmartFetch } from '@/lib/useSmartFetch'
 import { CACHE_TTL } from '@/lib/apiCache'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import toast from 'react-hot-toast'
+import { useAuth } from '@/contexts/AuthContext'
 
-export default function PMOSentToApproversPage() {
+function LegacyPMOSentToApproversPage() {
   const router = useRouter()
+  const { user } = useAuth()
+  const userId = user?.id
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedDepartment, setSelectedDepartment] = useState('all')
   
@@ -19,7 +32,7 @@ export default function PMOSentToApproversPage() {
   const departments = ['HR', 'Talent Acquisition', 'Accounts', 'Sales & Marketing', 'PMO', 'SGINTL', 'VR', 'Support']
 
   // Shared all-rrfs cache (also used by hr/page, pmo/closed, hr/closed)
-  const { data: allRrfs, loading } = useSmartFetch('all-rrfs', () => rrfApi.getAll({ limit: 1000 }), {
+  const { data: allRrfs, loading } = useSmartFetch(userId ? `all-rrfs-${userId}` : null, () => rrfApi.getAll({ limit: 1000 }), {
     ttl: CACHE_TTL.LIST,
     transform: (response) => response?.data?.data || response?.data || [],
   })
@@ -219,7 +232,7 @@ export default function PMOSentToApproversPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{request.sentDate}</td>
                     <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(request.status)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <Link href={`/pmo/view-rrf/${request.submissionId}?from=sent`}>
+                      <Link href={`/requests/${request.submissionId}`}>
                         <button className="px-3 py-2 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-300 flex items-center gap-1" style={{ borderRadius: '8px' }}>
                           <EyeOutlined />
                           View
@@ -267,7 +280,7 @@ export default function PMOSentToApproversPage() {
                 </div>
                 <div className="text-xs text-gray-500 mb-3">Sent: {request.sentDate} · {request.subFunction}</div>
                 <div className="flex justify-end pt-2 border-t border-gray-100">
-                  <Link href={`/pmo/view-rrf/${request.submissionId}?from=sent`}>
+                  <Link href={`/requests/${request.submissionId}`}>
                     <button className="px-3 py-2 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-300 flex items-center gap-1 text-sm" style={{ borderRadius: '8px' }}>
                       <EyeOutlined />
                       View

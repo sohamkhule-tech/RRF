@@ -1,11 +1,20 @@
 'use client'
 
+/**
+ * PHASE 6 — Legacy compatibility redirect.
+ * Original implementation preserved below (non-exported) for rollback.
+ */
+import { redirect } from 'next/navigation'
+export default function Page() { redirect('/workflow?view=all') }
+
+// ── Original implementation (preserved for rollback) ────────────────────────
+
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeftOutlined, SearchOutlined } from '@ant-design/icons'
 
-export default function InProgressPage() {
+function LegacyInProgressPage() {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedDepartment, setSelectedDepartment] = useState('all')
@@ -157,7 +166,7 @@ export default function InProgressPage() {
                 </div>
                 <div className="flex items-center justify-between">
                   {getStatusBadge(request.status)}
-                  <Link href={`/hiring-manager/view-rrf/${request.id}`}>
+                  <Link href={`/requests/${request.id}`}>
                     <button className="px-4 py-2 text-xs font-medium text-white bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 rounded-lg transition-all duration-200 hover:shadow-md">
                       View Details
                     </button>
@@ -226,7 +235,7 @@ export default function InProgressPage() {
                       <span className="text-sm text-gray-600">{request.date}</span>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <Link href={`/hiring-manager/view-rrf/${request.id}`}>
+                      <Link href={`/requests/${request.id}`}>
                         <button className="px-4 py-2 text-xs font-medium text-white bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 rounded-lg transition-all duration-200 hover:shadow-md">
                           View Details
                         </button>

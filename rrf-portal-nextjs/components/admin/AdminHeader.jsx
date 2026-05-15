@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation'
 import { LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
 import { Modal } from 'antd'
 import { useAuth } from '@/contexts/AuthContext'
+import NotificationBell from '@/components/NotificationBell'
 
 export default function AdminHeader({ onToggleSidebar, isSidebarCollapsed = false, isMobile = false }) {
   const pathname = usePathname()
@@ -92,6 +93,9 @@ export default function AdminHeader({ onToggleSidebar, isSidebarCollapsed = fals
               {userInitials}
             </div>
           </div>
+
+          {/* Notification Bell */}
+          <NotificationBell />
 
           <button
             onClick={handleLogout}

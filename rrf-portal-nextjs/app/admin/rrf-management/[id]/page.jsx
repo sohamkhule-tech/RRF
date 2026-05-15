@@ -14,6 +14,7 @@ import {
   HistoryOutlined,
   SendOutlined,
   CheckCircleOutlined,
+  TeamOutlined,
 } from '@ant-design/icons'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
@@ -28,6 +29,7 @@ import { ErrorMessage } from '@/components/ErrorMessage'
 import InfoField from '@/components/InfoField'
 import StatusWithDetails from '@/components/StatusWithDetails'
 import MaskedDateInput from '@/components/MaskedDateInput'
+import RRFContentSections from '@/components/RRFContentSections'
 
 export default function AdminViewRRFPage() {
   const params = useParams()
@@ -36,7 +38,7 @@ export default function AdminViewRRFPage() {
   const { hasPermission } = usePermission()
 
   const { rrf, loading, error, refresh } = useRRFDetail(rrfId)
-  const { approveRequest, rejectRequest, putOnHold } = useApproverRequests()
+  const { approveRequest, declineRequest, putOnHold } = useApproverRequests()
   
   const [activeSection, setActiveSection] = useState('requisition')
   
@@ -104,6 +106,7 @@ export default function AdminViewRRFPage() {
     requiredSkills:  rrf.requiredSkills,
     preferredSkills: rrf.preferredSkills,
     primaryTechnologies: rrf.technologies,
+    interviewers:    rrf.interviewers || [],
     jobDescription:  rrf.jobDescription,
     additionalNotes: rrf.urgencyReason,
     declineReason:   rrf.declineReason || rrf.notes || null,
@@ -233,7 +236,7 @@ export default function AdminViewRRFPage() {
         result = await approveRequest(rrfId, reason || 'Approved')
         toast.success('RRF approved successfully!')
       } else if (modalType === 'decline') {
-        result = await rejectRequest(rrfId, reason)
+        result = await declineRequest(rrfId, reason)
         toast.success('RRF declined successfully!')
       } else if (modalType === 'onhold') {
         result = await putOnHold(rrfId, reason)
@@ -269,7 +272,7 @@ export default function AdminViewRRFPage() {
 
   // Permission checks for all actions
   const canApprove = hasPermission(PERMISSIONS.APPROVALS.APPROVE)
-  const canReject = hasPermission(PERMISSIONS.APPROVALS.REJECT)
+  const canDecline = hasPermission(PERMISSIONS.APPROVALS.REJECT)
   const canOnHold = hasPermission(PERMISSIONS.APPROVALS.ON_HOLD)
   const canUpdate = hasPermission(PERMISSIONS.RRF.UPDATE)
   const canOpenForHiring = hasPermission(PERMISSIONS.RRF.OPEN_FOR_HIRING)
@@ -283,12 +286,12 @@ export default function AdminViewRRFPage() {
   
   // Combined permission + status checks
   const showEditButton = canUpdate && ['draft', 'pending', 'declined', 'rejected', 'on-hold'].includes(rrf?.status)
-  const showApprovalButtons = isPending && (canApprove || canReject || canOnHold)
+  const showApprovalButtons = isPending && (canApprove || canDecline || canOnHold)
   const showPMOButtons = isApproved && (canOpenForHiring || canFillFromBench)
   const showCloseButton = isInProgress && canClose
   
   // Determine read-only state
-  const canTakeAction = canApprove || canReject || canOnHold || canUpdate || canOpenForHiring || canFillFromBench || canClose
+  const canTakeAction = canApprove || canDecline || canOnHold || canUpdate || canOpenForHiring || canFillFromBench || canClose
   const isReadOnly = !canTakeAction
 
   return (
@@ -373,7 +376,7 @@ export default function AdminViewRRFPage() {
                   )}
 
                   {/* Approval Actions - for pending RRFs */}
-                  {canReject && isPending && (
+                  {canDecline && isPending && (
                     <button
                       onClick={handleDecline}
                       className="px-4 py-2 bg-white border border-red-300 text-red-600 hover:bg-red-50 font-semibold rounded-lg transition-all"
@@ -465,68 +468,7 @@ export default function AdminViewRRFPage() {
           <div className="flex-1 overflow-y-auto bg-white rrf-content-area">
             <div className="p-4 md:p-8">
 
-              {/* Requisition Info */}
-              <div className={`space-y-8 ${activeSection === 'requisition' ? '' : 'hidden'}`}>
-                <h3 className="text-xl md:text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Requisition Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <InfoField label="Requisition Manager" value={rrfData.managerName} />
-                  <InfoField label="Entity"              value={rrfData.entity} />
-                  <InfoField label="Organisation"        value={rrfData.organisation} />
-                  <InfoField label="Function"            value={rrfData.function} />
-                  <InfoField label="Sub-function"        value={rrfData.subFunction} />
-                  <InfoField label="Department"          value={rrfData.department} />
-                  <InfoField label="Requisition Type"    value={rrfData.requisitionType} />
-                  <InfoField label="Customer Name"       value={rrfData.customerName} />
-                  <InfoField label="Project Name"        value={rrfData.projectName} />
-                  <InfoField label="Billing Start Date"  value={rrfData.billingStartDate} />
-                </div>
-              </div>
-
-              {/* Position Details */}
-              <div className={`space-y-8 ${activeSection === 'position' ? '' : 'hidden'}`}>
-                <h3 className="text-xl md:text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Position Details</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <InfoField label="Job Title"             value={rrfData.jobTitle} />
-                  <InfoField label="Position Type"         value={rrfData.positionType} />
-                  <InfoField label="Employment Type"       value={rrfData.employmentType} />
-                  <InfoField label="Work Mode"             value={rrfData.workMode} />
-                  <InfoField label="Number of Positions"   value={rrfData.numberOfPositions} />
-                  <InfoField label="Job Location"          value={rrfData.jobLocation} />
-                  <InfoField label="Experience Required"   value={rrfData.minimumExperience} />
-                  {rrfData.priorityLevel && (
-                    <div className="bg-blue-50 rounded-lg p-4 shadow-sm">
-                      <p className="text-[10px] font-bold uppercase text-slate-500 tracking-wider mb-1">Priority Level</p>
-                      <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-bold ${
-                        rrfData.priorityLevel === 'High'     ? 'bg-orange-100 text-orange-800 border border-orange-200' :
-                        rrfData.priorityLevel === 'Critical' ? 'bg-red-100 text-red-800 border border-red-200' :
-                        rrfData.priorityLevel === 'Medium'   ? 'bg-blue-100 text-blue-800 border border-blue-200' :
-                        'bg-gray-100 text-gray-800 border border-gray-200'
-                      }`}>
-                        {rrfData.priorityLevel}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Technical Requirements */}
-              <div className={`space-y-8 ${activeSection === 'technical' ? '' : 'hidden'}`}>
-                <h3 className="text-xl md:text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Technical Requirements</h3>
-                <div className="space-y-4">
-                  <InfoField label="Primary Technologies" value={rrfData.primaryTechnologies} rich />
-                  <InfoField label="Must-Have Skills"     value={rrfData.requiredSkills}  rich />
-                  <InfoField label="Nice-to-Have Skills"  value={rrfData.preferredSkills} rich />
-                </div>
-              </div>
-
-              {/* Job Description */}
-              <div className={`space-y-8 ${activeSection === 'description' ? '' : 'hidden'}`}>
-                <h3 className="text-xl md:text-2xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mb-6">Job Description</h3>
-                <div className="space-y-4">
-                  <InfoField label="Job Description"  value={rrfData.jobDescription}  rich />
-                  <InfoField label="Additional Notes" value={rrfData.additionalNotes} rich />
-                </div>
-              </div>
+              <RRFContentSections rrfData={rrfData} activeSection={activeSection} />
             </div>
           </div>
         </div>

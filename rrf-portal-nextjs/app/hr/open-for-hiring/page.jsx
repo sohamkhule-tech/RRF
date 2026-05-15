@@ -1,5 +1,15 @@
 'use client';
 
+/**
+ * PHASE 6 — Legacy compatibility redirect.
+ * Original implementation preserved below (non-exported) for rollback.
+ * Rollback: remove the redirect and restore `export default` on LegacyProtectedOpenForHiringPage.
+ */
+import { redirect } from 'next/navigation';
+export default function Page() { redirect('/workflow?view=open-for-hiring'); }
+
+// ── Original implementation (preserved for rollback) ────────────────────────
+
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { EyeOutlined, SearchOutlined, ReloadOutlined, LeftOutlined } from '@ant-design/icons';
@@ -189,7 +199,7 @@ function OpenForHiringPage() {
                     </td>
                     <td className="px-6 py-5 whitespace-nowrap text-left">
                       <button
-                        onClick={() => router.push(`/hr/view-rrf/${rrf.id}`)}
+                        onClick={() => router.push(`/requests/${rrf.id}`)}
                         className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all text-xs font-bold flex items-center gap-2"
                       >
                         <EyeOutlined /> View Details
@@ -250,7 +260,7 @@ function OpenForHiringPage() {
                 </div>
                 <div className="flex justify-end pt-2 border-t border-gray-100">
                   <button
-                    onClick={() => router.push(`/hr/view-rrf/${rrf.id}`)}
+                    onClick={() => router.push(`/requests/${rrf.id}`)}
                     className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all text-xs font-bold flex items-center gap-2"
                   >
                     <EyeOutlined /> View Details
@@ -285,7 +295,7 @@ function OpenForHiringPage() {
   );
 }
 
-export default function ProtectedOpenForHiringPage() {
+function LegacyProtectedOpenForHiringPage() {
   return (
     <ProtectedRoute>
       <OpenForHiringPage />

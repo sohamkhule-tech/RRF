@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Table, Tag, Select, Input, Button, Tooltip } from 'antd'
 import {
   SearchOutlined,
@@ -28,10 +28,11 @@ const STATUS_TAG_COLORS = {
 
 export default function AdminRrfManagement() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [rrfs, setRrfs] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchText, setSearchText] = useState('')
-  const [statusFilter, setStatusFilter] = useState(null)
+  const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || null)
   const [roleFilter, setRoleFilter] = useState(null)
 
   const loadData = async () => {
@@ -158,7 +159,7 @@ export default function AdminRrfManagement() {
           type="primary"
           size="small"
           icon={<EyeOutlined />}
-          onClick={() => router.push(`/admin/rrf-management/${record.id}`)}
+          onClick={() => router.push(`/requests/${record.id}`)}
           style={{ background: '#4f46e5', borderColor: '#4f46e5' }}
         >
           View

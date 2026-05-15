@@ -1,5 +1,16 @@
 'use client'
 
+/**
+ * PHASE 6 — Legacy compatibility redirect.
+ * This route now delegates to the unified dashboard.
+ * Original implementation preserved below (non-exported) for rollback.
+ * Rollback: remove the redirect and restore `export default` on LegacyApproverDashboard.
+ */
+import { redirect } from 'next/navigation'
+export default function Page() { redirect('/dashboard') }
+
+// ── Original implementation (preserved for rollback) ────────────────────────
+
 import { ClockCircleOutlined, CheckCircleOutlined, CloseCircleOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons'
 import ActionButton from '@/components/ActionButton'
 import StatCard from '@/components/StatCard'
@@ -12,8 +23,11 @@ import { useVisibilityRefresh } from '@/lib/useVisibilityRefresh'
 import { CACHE_TTL } from '@/lib/apiCache'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { ErrorMessage } from '@/components/ErrorMessage'
+import { useAuth } from '@/contexts/AuthContext'
 
-export default function ApproverDashboard() {
+function LegacyApproverDashboard() {
+  const { user } = useAuth()
+  const userId = user?.id
   const [searchTerm, setSearchTerm] = useState('')
 
   // Fetch pending approvals — cached + deduplicated
@@ -22,7 +36,7 @@ export default function ApproverDashboard() {
     loading: reqLoading,
     error: reqError,
     refresh: refreshRequests,
-  } = useSmartFetch('approver-pending-dash', () => rrfApi.getPendingApprovals(), {
+  } = useSmartFetch(userId ? `approver-pending-dash-${userId}` : null, () => rrfApi.getPendingApprovals(), {
     ttl: CACHE_TTL.LIST,
     transform: (data) => data || [],
   })
@@ -33,7 +47,7 @@ export default function ApproverDashboard() {
     loading: statsLoading,
     error: statsError,
     refresh: refreshStats,
-  } = useSmartFetch('statistics-true', () => rrfApi.getStatistics(true), {
+  } = useSmartFetch(userId ? `statistics-${userId}-true` : null, () => rrfApi.getStatistics(true), {
     ttl: CACHE_TTL.STATS,
     transform: (res) => (res?.success ? res.data : null),
   })
@@ -207,7 +221,7 @@ export default function ApproverDashboard() {
                         <ActionButton
                           role="APPROVER"
                           status={request.status}
-                          href={`/approver/view-rrf/${request.id}`}
+                          href={`/requests/${request.id}`}
                         />
                       </td>
                     </tr>
@@ -246,7 +260,7 @@ export default function ApproverDashboard() {
                     {getStatusBadge(request.status)}
                   </div>
                   <div className="flex justify-end pt-2 border-t border-gray-100">
-                    <ActionButton role="APPROVER" status={request.status} href={`/approver/view-rrf/${request.id}`} />
+                    <ActionButton role="APPROVER" status={request.status} href={`/requests/${request.id}`} />
                   </div>
                 </div>
               ))

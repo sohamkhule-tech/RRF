@@ -1,5 +1,15 @@
 'use client'
 
+/**
+ * PHASE 6 — Legacy compatibility redirect.
+ * Original implementation preserved below (non-exported) for rollback.
+ * Rollback: remove the redirect and restore `export default` on LegacyApproverApprovedPage.
+ */
+import { redirect } from 'next/navigation'
+export default function Page() { redirect('/workflow?view=approved') }
+
+// ── Original implementation (preserved for rollback) ────────────────────────
+
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -10,7 +20,7 @@ import { useApproverRequests } from '@/hooks/useApproverRequests'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { ErrorMessage } from '@/components/ErrorMessage'
 
-export default function ApproverApprovedPage() {
+function LegacyApproverApprovedPage() {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
   // ✅ REMOVED: selectedDepartment filter
@@ -172,6 +182,7 @@ export default function ApproverApprovedPage() {
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Role & Project</th>
                 <th className="px-3 py-3 text-center text-xs font-bold text-gray-700 uppercase">Positions</th>
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Priority</th>
+
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Approved Date</th>
                 <th className="px-3 py-3 text-center text-xs font-bold text-gray-700 uppercase">Action</th>
               </tr>
@@ -196,9 +207,10 @@ export default function ApproverApprovedPage() {
                     </span>
                   </td>
                   <td className="px-3 py-3 text-xs">{getPriorityBadge(request.priority)}</td>
+
                   <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-600">{(request.approvedAt || request.updatedAt) ? new Date(request.approvedAt || request.updatedAt).toLocaleDateString('en-GB') : 'N/A'}</td>
                   <td className="px-3 py-3 text-center">
-                    <Link href={`/approver/view-rrf/${request.id}`}>
+                    <Link href={`/requests/${request.id}`}>
                       <button className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-200 text-xs flex items-center gap-1 mx-auto" style={{ borderRadius: '6px' }}>
                         <EyeOutlined />
                         View
@@ -230,7 +242,7 @@ export default function ApproverApprovedPage() {
                   {getPriorityBadge(request.priority)}
                 </div>
                 <div className="flex justify-end pt-2 border-t border-gray-100">
-                  <Link href={`/approver/view-rrf/${request.id}`}>
+                  <Link href={`/requests/${request.id}`}>
                     <button className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 font-medium text-xs flex items-center gap-1 rounded-md">
                       <EyeOutlined /> View
                     </button>
@@ -251,7 +263,7 @@ export default function ApproverApprovedPage() {
             <div className="text-4xl mb-4">📋</div>
             <p className="text-lg font-medium text-gray-900">No approved requests found</p>
             <p className="text-sm text-gray-500 mt-2">
-              {searchTerm || selectedDepartment !== 'all' 
+              {searchTerm 
                 ? 'Try adjusting your search or filters' 
                 : 'Approved RRF requests will appear here'}
             </p>

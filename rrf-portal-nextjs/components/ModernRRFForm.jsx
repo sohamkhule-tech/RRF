@@ -1,19 +1,34 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import { Select, Spin, Avatar } from 'antd'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { CheckOutlined, RightOutlined, SaveOutlined, SendOutlined, ArrowLeftOutlined, BankOutlined, TeamOutlined, CodeOutlined } from '@ant-design/icons'
+import { CheckOutlined, RightOutlined, SaveOutlined, SendOutlined, ArrowLeftOutlined, BankOutlined, TeamOutlined, CodeOutlined, UserOutlined } from '@ant-design/icons'
 import toast from 'react-hot-toast'
 import TagInput from './TagInput'
 import RichTextEditor from './RichTextEditor'
 import DateInput from './DateInput'
 import DependentDropdown from './DependentDropdown'
 import { rrfApi } from '@/lib/api/rrfApi'
+import { usersApi } from '@/lib/api/usersApi'
 import { jobDescriptionsApi } from '@/lib/api/jobDescriptionsApi'
 import { useFormConfig } from '@/hooks/useFormConfig'
 
-export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
+export default function ModernRRFForm({ 
+  userRole            = 'hiring-manager',
+  initialData         = null,
+  isEditMode          = false,
+  onSubmitOverride    = null,
+  titleOverride       = null,
+  cancelPath          = null,
+  isSavingOverride    = false,
+  // ── Minimal extension points (added for HM resubmission UX) ──────────────
+  // Override the submit button label (e.g. "Save & Resubmit" for declined HM edits)
+  submitLabelOverride = null,
+  // Render a warning/info banner below the header gradient block (JSX or null)
+  warningBanner       = null,
+}) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuth()
@@ -52,6 +67,11 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
   const [loadingJds, setLoadingJds] = useState(false)
   const [jdFilterStatus, setJdFilterStatus] = useState('')
   
+  // Interview Panel state
+  const [suggestedInterviewers, setSuggestedInterviewers] = useState([])
+  const [allUsers, setAllUsers] = useState([])
+  const [loadingInterviewers, setLoadingInterviewers] = useState(false)
+  
   // Base formData structure
   const getBaseFormData = () => ({
     managerName: user?.name || user?.username || '',
@@ -59,6 +79,7 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
     organisation: 'DataFortune',
     function: '',
     subFunction: '',
+    subFunctionId: '',
     requisitionType: '',
     customerName: '',
     nonBillableSubType: '',
@@ -66,7 +87,7 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
     jobTitle: '',
     billingRate: '',
     billingCurrency: 'USD',
-    anticipatedBillingStartDate: '',
+    billingStartDate: '',
     expectedOnboardingDate: '',
     positionType: '',
     employmentType: '',
@@ -79,6 +100,7 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
     technologies: [],  // ✅ Array default
     mustHaveSkills: [],  // ✅ Array default
     niceToHaveSkills: [],  // ✅ Array default
+    interviewPanel: [], // ✅ User IDs array
     jobDescription: '',
     additionalNotes: '',
     saveAsTemplate: false
@@ -118,6 +140,41 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
     
     fetchJobDescriptions()
   }, [formData.subFunction])
+
+  // Fetch suggested interviewers when technologies change
+  useEffect(() => {
+    const fetchInterviewers = async () => {
+      if (!formData.technologies || formData.technologies.length === 0) {
+        setSuggestedInterviewers([]);
+        return;
+      }
+
+      try {
+        setLoadingInterviewers(true);
+        const data = await rrfApi.getSuggestedInterviewers(formData.technologies);
+        setSuggestedInterviewers(data || []);
+      } catch (error) {
+        console.error('Error fetching suggested interviewers:', error);
+      } finally {
+        setLoadingInterviewers(false);
+      }
+    };
+
+    fetchInterviewers();
+  }, [formData.technologies]);
+
+  // Fetch all users for manual panel assignment
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const res = await usersApi.getAll();
+        setAllUsers(res?.data || []);
+      } catch (error) {
+        console.error('Error fetching users:', error);
+      }
+    };
+    fetchUsers();
+  }, []);
   
   // Initialize formData with dynamic fields from config (runs after configs loads)
   useEffect(() => {
@@ -155,11 +212,42 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
     })
   }, [configs])
   
+  // Initialize from initialData if provided (Edit Mode)
+  useEffect(() => {
+    if (initialData) {
+      console.log('[ModernRRFForm] Initializing with data:', initialData)
+      setFormData(prev => ({ ...prev, ...initialData }))
+      
+      if (initialData.requisitionType) setRequisitionType(initialData.requisitionType)
+      if (initialData.nonBillableSubType) setNonBillableSubType(initialData.nonBillableSubType)
+      if (initialData.function) setSelectedFunction(initialData.function)
+      if (initialData.subFunction) setSelectedSubFunction(initialData.subFunction)
+      if (initialData.billingCurrency) setBillingCurrency(initialData.billingCurrency)
+      if (initialData.billingRate) {
+        setBillingRateType(initialData.billingRate === 'TBD' ? 'tbd' : 'amount')
+      }
+      if (initialData.location) {
+        const locs = Array.isArray(initialData.location) 
+          ? initialData.location 
+          : String(initialData.location).split(',').map(s => s.trim()).filter(Boolean)
+        setSelectedLocations(locs)
+        if (locs.some(l => !['Pune', 'Chennai', 'Bengaluru', 'US'].includes(l))) {
+           setShowOtherLocationInput(true)
+           const other = locs.find(l => !['Pune', 'Chennai', 'Bengaluru', 'US', 'Other'].includes(l))
+           if (other) setOtherLocation(other)
+        }
+      }
+    }
+  }, [initialData])
+  
   // Helper function to render dynamic fields
   const renderDynamicField = (config) => {
-    // Skip fields that have custom rendering logic
-    const skipFields = ['entity', 'function', 'subFunction', 'requisitionType', 'positionType', 
-                       'employmentType', 'priority', 'workMode', 'location', 'nonBillableSubType']
+    const skipFields = [
+      'entity', 'function', 'subFunction', 'requisitionType', 'positionType', 
+      'employmentType', 'priority', 'workMode', 'location', 'nonBillableSubType',
+      'technologies', 'primaryTechnologies', 'mustHaveSkills', 'niceToHaveSkills',
+      'jobDescription', 'additionalNotes', 'interviewPanel'
+    ]
     if (skipFields.includes(config.fieldName)) {
       return null
     }
@@ -216,7 +304,7 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
   // SubFunction options based on selected Function
   const subfunctionOptions = {
     'Delivery': ['SGINTL', 'VR', 'PMO'],
-    'Sales': ['BDE', 'Sales', 'MR', 'Marketing'],
+    'Sales & Marketing': ['BDE', 'Sales', 'MR', 'Marketing'],
     'Support': ['Human Resources', 'Talent Acquisition', 'Accounts', 'IT Networking']
   }
 
@@ -229,7 +317,7 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
       setFormData(prev => ({ ...prev, nonBillableSubType: '', projectName: '', expectedOnboardingDate: '' }))
     }
     if (value !== 'Billable') {
-      setFormData(prev => ({ ...prev, customerName: '', projectName: '', anticipatedBillingStartDate: '', billingRate: '' }))
+      setFormData(prev => ({ ...prev, customerName: '', projectName: '', billingStartDate: '', billingRate: '' }))
     }
   }
 
@@ -253,8 +341,8 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
     // Auto-set requisition type based on function
     let updatedFormData = { ...formData, function: value, subFunction: '' }
     
-    if (value === 'Support' || value === 'Sales') {
-      // Support and Sales are always Non-Billable
+    if (value === 'Support' || value === 'Sales & Marketing') {
+      // Support and Sales & Marketing are always Non-Billable
       updatedFormData.requisitionType = 'Non-Billable'
       setRequisitionType('Non-Billable')
     } else if (value === 'Delivery') {
@@ -390,6 +478,12 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
     }
     
     try {
+      // ─── Reusability Hook: If override provided, use it ───────────────────
+      if (onSubmitOverride) {
+        await onSubmitOverride(formData)
+        return
+      }
+
       // Map frontend fields to backend DTO fields
       // IMPORTANT: Strip empty string enum fields.
       // NestJS @IsOptional() only skips validation for null/undefined — NOT ""
@@ -404,6 +498,7 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
         organisation: formData.organisation || undefined,
         function: formData.function || undefined,
         subFunction: formData.subFunction || undefined,
+        subFunctionId: formData.subFunctionId ? parseInt(formData.subFunctionId) : undefined,
         
         department: formData.department || undefined,
         
@@ -432,6 +527,9 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
             ? formData.location
             : undefined,
         
+        // Interview Panel (array of user IDs)
+        interviewPanel: Array.isArray(formData.interviewPanel) ? formData.interviewPanel : [],
+        
         // Skills (arrays to comma-separated strings)
         // IMPORTANT: Backend expects string, not array
         technologies: Array.isArray(formData.technologies) && formData.technologies.length > 0
@@ -453,14 +551,24 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
         // Job Description (rich text HTML content)
         jobDescription: formData.jobDescription || '',
         
+        // Template Logic
+        saveAsTemplate: formData.saveAsTemplate || false,
+        
         // Other optional fields
         urgencyReason: formData.additionalNotes || undefined,
+        billingRate: formData.billingRate ? parseFloat(formData.billingRate) : undefined,
+        billingCurrency: formData.billingCurrency || undefined,
+        billingStartDate: formData.billingStartDate || undefined,
+        expectedOnboardingDate: formData.expectedOnboardingDate || undefined,
       }
       
       // Add all dynamic fields from config
+      // Skip UI-only skill field names that must not reach the backend DTO
+      const _submitSkipFields = ['mustHaveSkills', 'niceToHaveSkills'];
       if (configs && typeof configs === 'object') {
         Object.values(configs).forEach(config => {
-          if (config?.fieldName && formData.hasOwnProperty(config.fieldName) && 
+          if (config?.fieldName && !_submitSkipFields.includes(config.fieldName) &&
+              formData.hasOwnProperty(config.fieldName) && 
               !backendData.hasOwnProperty(config.fieldName)) {
             backendData[config.fieldName] = formData[config.fieldName] || undefined
           }
@@ -486,6 +594,13 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
           delete backendData[key]
         }
       })
+
+      // Remove raw skill field names that backend DTO rejects (UI uses mustHaveSkills/niceToHaveSkills,
+      // API expects requiredSkills/preferredSkills only)
+      delete backendData.mustHaveSkills;
+      delete backendData.niceToHaveSkills;
+
+      console.log('FINAL RRF PAYLOAD', backendData);
       
       // DEBUG: Log exact payload being sent (remove when no longer needed)
       console.log('[RRF Submit] Final validated payload to POST /rrf:', JSON.stringify(backendData, null, 2))
@@ -520,7 +635,7 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
       // The backend returns the updated RRF entity after submission. 
       // If PMO is submitting, it bypasses approval and gets an 'rrfNumber'.
       const submittedRrfData = submitResponse?.data?.data || submitResponse?.data || {}
-      const finalDisplayId = submittedRrfData.rrfNumber || submittedRrfData.subId || subId || `SUB-${rrfId}`
+      const finalDisplayId = submittedRrfData.rrfNumber || submittedRrfData.subId || subId || `REQ-${rrfId}`
       
       // Step 3: Clear localStorage draft reference if this was edited from drafts
       if (currentDraftId) {
@@ -614,14 +729,19 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
             ? formData.niceToHaveSkills
             : undefined,
         jobDescription: formData.jobDescription || '',
+        saveAsTemplate: formData.saveAsTemplate || false,
         department: formData.department || undefined,
         urgencyReason: formData.additionalNotes || undefined,
+        interviewPanel: Array.isArray(formData.interviewPanel) ? formData.interviewPanel : [],
       }
       
       // Add all dynamic fields from config
       if (configs && typeof configs === 'object') {
+        // Skip UI-only skill field names that must not reach the backend DTO
+        const _draftSkipFields = ['mustHaveSkills', 'niceToHaveSkills'];
         Object.values(configs).forEach(config => {
-          if (config?.fieldName && formData.hasOwnProperty(config.fieldName) && 
+          if (config?.fieldName && !_draftSkipFields.includes(config.fieldName) &&
+              formData.hasOwnProperty(config.fieldName) && 
               !backendData.hasOwnProperty(config.fieldName)) {
             // ✅ FIX: Convert array fields to strings if needed
             let fieldValue = formData[config.fieldName]
@@ -640,6 +760,11 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
         }
       })
 
+      // Remove raw skill field names that backend DTO rejects
+      delete backendData.mustHaveSkills;
+      delete backendData.niceToHaveSkills;
+
+      console.log('FINAL RRF PAYLOAD', backendData);
       console.log('[RRF Draft] Final validated payload to POST /rrf:', JSON.stringify(backendData, null, 2))
       
       // DEBUG: Log specific fields that might cause validation errors
@@ -904,18 +1029,40 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
             <div className="flex items-center gap-3 md:gap-4 min-w-0">
               <button
                 type="button"
-                onClick={() => router.push(userRole === 'pmo' ? '/pmo' : '/hiring-manager/dashboard')}
+                onClick={() => {
+                  const backPath = cancelPath || (userRole === 'pmo' ? '/pmo' : '/hiring-manager/dashboard')
+                  router.push(backPath)
+                }}
                 className="text-white/70 hover:text-white transition-colors flex-shrink-0"
               >
                 <ArrowLeftOutlined className="text-lg" />
               </button>
               <div className="min-w-0">
-                <h1 className="text-lg md:text-2xl font-semibold text-white truncate">New Resource Requisition</h1>
-                <p className="text-white/60 text-xs md:text-sm mt-1">Submission Date: {currentDate}</p>
+                <h1 className="text-lg md:text-2xl font-semibold text-white truncate">
+                  {titleOverride || (isEditMode ? 'Edit Request' : 'New Resource Requisition')}
+                </h1>
+                <p className="text-white/60 text-xs md:text-sm mt-1">
+                  {isEditMode ? 'Modify requisition details' : `Submission Date: ${currentDate}`}
+                </p>
               </div>
             </div>
+            {currentStep === 3 && (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={isSavingOverride}
+                className="flex items-center gap-2 px-4 md:px-6 py-2 md:py-2.5 bg-indigo-600 text-white font-bold rounded-lg md:rounded-xl hover:bg-indigo-700 disabled:opacity-60 transition-all shadow-lg text-sm md:text-base"
+              >
+                {isSavingOverride ? 'Saving…' : <><SendOutlined /> {submitLabelOverride || (isEditMode ? 'Save Changes' : 'Submit Request')}</>}
+              </button>
+            )}
           </div>
         </div>
+
+        {/* Warning banner slot — shown when warningBanner prop is provided (e.g. HM declined resubmission) */}
+        {warningBanner && (
+          <div className="mb-4 md:mb-6">{warningBanner}</div>
+        )}
 
         {/* Modern Stepper */}
         <div className="bg-white rounded-xl md:rounded-2xl shadow-sm border border-slate-200 p-4 md:p-8 mb-4 md:mb-6">
@@ -988,7 +1135,7 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
           </div>
           
           <div className="p-4 md:p-8">
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={(e) => e.preventDefault()}>
               {/* Step 1: Requisition Details */}
               {currentStep === 1 && (
                 <div>
@@ -1063,14 +1210,30 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
                     functionValue={formData.function}
                     subfunctionValue={formData.subFunction}
                     onFunctionChange={(id, name) => {
-                      // Call existing handler to preserve auto-set requisition type logic
-                      handleFunctionChange({ target: { value: name } });
+                      setSelectedFunction(name);
+                      setSelectedSubFunction('');
+                      setFormData(prev => {
+                        const updated = { ...prev, function: name, subFunction: '', subFunctionId: '' };
+                        if (name === 'Support' || name === 'Sales') {
+                          updated.requisitionType = 'Non-Billable';
+                          setRequisitionType('Non-Billable');
+                        }
+                        return updated;
+                      });
                     }}
                     onSubfunctionChange={(id, name) => {
-                      // Call existing handler to preserve PMO → Non-Billable logic
-                      handleSubFunctionChange({ target: { value: name } });
+                      // Consolidate both ID and name change into state to avoid race conditions
+                      setSelectedSubFunction(name);
+                      setFormData(prev => {
+                        const updated = { ...prev, subFunction: name, subFunctionId: id };
+                        if (name === 'PMO') {
+                          updated.requisitionType = 'Non-Billable';
+                          setRequisitionType('Non-Billable');
+                        }
+                        return updated;
+                      });
                     }}
-                    mode="name"  // Use names for backward compatibility
+                    mode="id"
                     required={true}
                   />
 
@@ -1587,14 +1750,42 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
                 </div>
                 <div className="grid grid-cols-1 gap-4 md:gap-6">
                   {/* Primary Technologies */}
-                  <TagInput
-                    value={formData.technologies}
-                    onChange={(tags) => setFormData({ ...formData, technologies: tags })}
-                    label="Primary Technologies"
-                    placeholder="Type a technology and press Enter or comma"
-                    required={true}
-                    helperText="Add technologies like React, Node.js, Python, etc."
-                  />
+                  <div className="space-y-2">
+                    <label className="block text-sm font-semibold text-slate-700">
+                      {getConfig('primaryTechnologies')?.label || getConfig('technologies')?.label || 'Primary Technologies'} <span className="text-red-500">*</span>
+                    </label>
+                    <Select
+                      mode="multiple"
+                      style={{ width: '100%' }}
+                      placeholder="Select technologies from master list"
+                      value={formData.technologies}
+                      onChange={(values) => setFormData({ ...formData, technologies: values })}
+                      className="modern-select-multiple"
+                      size="large"
+                      allowClear
+                    >
+                      {(getConfig('technologies')?.options || getConfig('primaryTechnologies')?.options || []).map(tech => (
+                        <Select.Option key={tech} value={tech}>{tech}</Select.Option>
+                      ))}
+                    </Select>
+                    <p className="text-[11px] text-slate-500">Manage these options in Admin &gt; Form Config</p>
+                  </div>
+
+                  {/* Dynamic Fields for Step 3 (Technical Requirements) */}
+                  {configs && typeof configs === 'object' && 
+                    Object.values(configs)
+                      .filter(config => 
+                        config?.step === 3 && 
+                        config?.isActive !== false &&
+                        !['technologies', 'primaryTechnologies', 'mustHaveSkills', 'niceToHaveSkills', 'jobDescription', 'additionalNotes', 'interviewPanel'].includes(config.fieldName)
+                      )
+                      .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0))
+                      .map(config => (
+                        <div key={config.fieldName}>
+                          {renderDynamicField(config)}
+                        </div>
+                      ))
+                  }
 
                   {/* Must Have Skills */}
                   <TagInput
@@ -1614,6 +1805,107 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
                     placeholder="Type a skill and press Enter or comma"
                     helperText="Optional skills that would be beneficial"
                   />
+
+                  {/* ─── Interview Panel Assignment Section ─────────────────── */}
+                  <div className="bg-indigo-50/40 p-5 md:p-7 rounded-2xl border border-indigo-100/80 my-2">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center">
+                        <TeamOutlined className="text-indigo-600 text-lg" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-800">Interview Panel</h3>
+                        <p className="text-xs text-slate-500">Assign technical experts to evaluate candidates</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-6">
+                      {/* suggested Row */}
+                      <div className="space-y-3">
+                        <label className="flex items-center gap-2 text-[11px] font-bold text-indigo-600 uppercase tracking-wider">
+                          Suggested Interviewers 
+                          {formData.technologies?.length > 0 && (
+                            <span className="normal-case font-medium text-slate-400 font-sans">
+                              (based on {formData.technologies.slice(0, 2).join(', ')}{formData.technologies.length > 2 ? '...' : ''})
+                            </span>
+                          )}
+                        </label>
+                        
+                        <div className="flex flex-wrap gap-2.5 min-h-[44px]">
+                          {loadingInterviewers ? (
+                            <div className="flex items-center gap-3 py-2 px-1 text-slate-400 text-sm italic">
+                              <Spin size="small" /> Finding technical experts...
+                            </div>
+                          ) : suggestedInterviewers.length > 0 ? (
+                            suggestedInterviewers.map(interviewer => (
+                              <button
+                                key={interviewer.id}
+                                type="button"
+                                onClick={() => {
+                                  const currentPanel = formData.interviewPanel || []
+                                  if (currentPanel.includes(interviewer.id)) {
+                                    setFormData({ 
+                                      ...formData, 
+                                      interviewPanel: currentPanel.filter(id => id !== interviewer.id) 
+                                    })
+                                  } else {
+                                    setFormData({ 
+                                      ...formData, 
+                                      interviewPanel: [...currentPanel, interviewer.id] 
+                                    })
+                                  }
+                                }}
+                                className={`flex items-center gap-2.5 px-3.5 py-2 rounded-xl text-sm transition-all border duration-200 shadow-sm ${
+                                  formData.interviewPanel?.includes(interviewer.id)
+                                    ? 'bg-indigo-600 text-white border-indigo-600 ring-2 ring-indigo-200 ring-offset-1'
+                                    : 'bg-white text-slate-700 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30'
+                                }`}
+                              >
+                                <Avatar 
+                                  size={22} 
+                                  icon={<UserOutlined />} 
+                                  className={formData.interviewPanel?.includes(interviewer.id) ? 'bg-indigo-400' : 'bg-slate-200'}
+                                />
+                                <span className="font-medium">{interviewer.fullName}</span>
+                                <span className="text-[10px] opacity-60 px-1.5 py-0.5 bg-black/5 rounded uppercase">
+                                  {interviewer.role?.roleName || 'Interviewer'}
+                                </span>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="w-full py-3 px-4 bg-slate-100/50 rounded-xl border border-dashed border-slate-300 text-slate-500 text-xs flex items-center gap-2">
+                              {formData.technologies?.length > 0 
+                                ? "No specific experts found for these technologies. Search manually below." 
+                                : "Select Primary Technologies above to see suggestions."}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Manual Selection Dropdown */}
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                          Assigned Members (Search/Add More)
+                        </label>
+                        <Select
+                          mode="multiple"
+                          style={{ width: '100%' }}
+                          placeholder="Search across all users..."
+                          className="modern-select-multiple"
+                          size="large"
+                          value={formData.interviewPanel}
+                          onChange={(vals) => setFormData({ ...formData, interviewPanel: vals })}
+                          filterOption={(input, option) =>
+                            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                          }
+                          options={allUsers.map(u => ({
+                            label: `${u.fullName} (${u.email}) - ${u.role?.roleName || ''}`,
+                            value: u.id,
+                          }))}
+                          allowClear
+                         />
+                      </div>
+                    </div>
+                  </div>
 
                    {/* Prefilled Job Description Selector */}
                   <div>
@@ -1660,7 +1952,11 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
                   <div className="space-y-4">
                     <RichTextEditor
                       value={formData.jobDescription}
-                      onChange={(content) => setFormData({ ...formData, jobDescription: content })}
+                      onChange={(content) => {
+                        if (content !== formData.jobDescription) {
+                          setFormData({ ...formData, jobDescription: content });
+                        }
+                      }}
                       label="Job Description"
                       placeholder="Provide detailed job description including responsibilities and requirements..."
                       helperText="Use the toolbar to format text, add lists, and highlight important points"
@@ -1692,7 +1988,11 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
                   {/* Additional Notes */}
                   <RichTextEditor
                     value={formData.additionalNotes}
-                    onChange={(content) => setFormData({ ...formData, additionalNotes: content })}
+                    onChange={(content) => {
+                      if (content !== formData.additionalNotes) {
+                        setFormData({ ...formData, additionalNotes: content });
+                      }
+                    }}
                     label="Additional Notes"
                     placeholder="Any additional information or special requirements..."
                     helperText="Optional notes about the position or hiring process"
@@ -1735,11 +2035,12 @@ export default function ModernRRFForm({ userRole = 'hiring-manager' }) {
                   </button>
                 ) : (
                   <button
-                    type="submit"
+                    type="button"
+                    onClick={handleSubmit}
                     className="px-6 md:px-8 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 flex-1 sm:flex-none"
                   >
                     <SendOutlined className="text-base" />
-                    Submit RRF
+                    {submitLabelOverride || (isEditMode ? 'Save Changes' : 'Submit RRF')}
                   </button>
                 )}
               </div>

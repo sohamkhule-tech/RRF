@@ -1,10 +1,21 @@
 'use client'
+
+/**
+ * PHASE 6 — Legacy compatibility redirect.
+ * Original implementation preserved below (non-exported) for rollback.
+ * Rollback: remove the redirect and restore `export default` on LegacyOpenHiringPage.
+ */
+import { redirect } from 'next/navigation'
+export default function Page() { redirect('/workflow?view=open-for-hiring') }
+
+// ── Original implementation (preserved for rollback) ────────────────────────
+
 import Link from 'next/link'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeftOutlined } from '@ant-design/icons'
 
-export default function OpenHiringPage() {
+function LegacyOpenHiringPage() {
   const router = useRouter()
   const [showDetailedView, setShowDetailedView] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -451,7 +462,7 @@ export default function OpenHiringPage() {
                     <div className="text-gray-500">Exp: {position.expectedDate}</div>
                   </td>
                   <td className="px-3 py-3 text-center">
-                    <Link href={`/hr/view-rrf/${position.id}`}>
+                    <Link href={`/requests/${position.id}`}>
                       <button className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-200 text-xs" style={{ borderRadius: '6px' }}>
                         View
                       </button>
@@ -519,7 +530,7 @@ export default function OpenHiringPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <Link href={`/hr/view-rrf/${position.id}`}>
+                      <Link href={`/requests/${position.id}`}>
                         <button className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-300 hover:scale-105 text-xs" style={{ borderRadius: '8px' }}>
                           View
                         </button>
@@ -573,7 +584,7 @@ export default function OpenHiringPage() {
                 </div>
               )}
               <div className="flex justify-end pt-2 border-t border-gray-100">
-                <Link href={`/hr/view-rrf/${position.id}`}>
+                <Link href={`/requests/${position.id}`}>
                   <button className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-200 text-xs" style={{ borderRadius: '6px' }}>
                     View
                   </button>

@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
 import { Modal } from 'antd'
 import { useAuth } from '@/contexts/AuthContext'
+import NotificationBell from '@/components/NotificationBell'
 
 export default function Header({ initialRole = 'hiring-manager', onToggleSidebar, isSidebarCollapsed = false, isMobile = false }) {
   const router = useRouter()
@@ -28,11 +29,31 @@ export default function Header({ initialRole = 'hiring-manager', onToggleSidebar
   }, [pathname, user])
 
   const getPageTitle = () => {
+    // ── Unified routes (new architecture) ──
+    if (pathname === '/dashboard') return 'Dashboard'
+    if (pathname === '/drafts') return 'Drafts'
+    if (pathname === '/workflow/create') return 'Create RRF'
+    if (pathname === '/workflow/edit' || pathname.startsWith('/workflow/edit/')) return 'Edit Request'
+    if (pathname === '/workflow') return 'Requests'
+    if (pathname.startsWith('/workflow')) return 'Requests'
+    if (pathname === '/reports') return 'Reports'
+    if (pathname.startsWith('/requests/') && pathname.includes('/edit')) return 'Edit Request'
+    if (pathname.startsWith('/requests/')) return 'View Request'
+
+    // ── Admin routes ──
+    if (pathname === '/admin') return 'Dashboard'
+    if (pathname === '/admin/users') return 'User Management'
+    if (pathname === '/admin/roles') return 'Role Management'
+    if (pathname.startsWith('/admin/rrf-management')) return 'RRF Management'
+    if (pathname === '/admin/form-config') return 'Form Configuration'
+    if (pathname === '/admin/reports') return 'Reports'
+    if (pathname === '/admin/audit-logs') return 'Audit Logs'
+
+    // ── Legacy routes (kept for backward-compat) ──
     if (pathname === '/hiring-manager/dashboard') return 'Dashboard'
     if (pathname === '/hiring-manager/create-rrf') return 'Create RRF Request'
     if (pathname === '/hiring-manager/drafts') return 'Saved Drafts'
     if (pathname === '/hiring-manager/my-requests') return 'RRF Requests'
-    if (pathname.includes('/hiring-manager/view-rrf/')) return 'View RRF Details'
     if (pathname === '/approver') return 'Dashboard'
     if (pathname === '/approver/pending') return 'Pending RRF Approvals'
     if (pathname === '/approver/on-hold') return 'On-hold Requests'
@@ -49,7 +70,6 @@ export default function Header({ initialRole = 'hiring-manager', onToggleSidebar
     if (pathname === '/pmo/pending') return 'Opened Positions'
     if (pathname === '/pmo/opened-positions') return 'Opened Positions'
     if (pathname === '/pmo/sent-to-approvers') return 'Sent to Talent Acquisition'
-    if (pathname.includes('/pmo/view-rrf/')) return 'View RRF'
     return 'RRF Portal'
   }
 
@@ -136,6 +156,9 @@ export default function Header({ initialRole = 'hiring-manager', onToggleSidebar
               </div>
             </div>
           </div>
+
+          {/* Notification Bell */}
+          <NotificationBell />
 
           {/* Logout Button */}
           <button

@@ -9,9 +9,12 @@ import { useCallback } from 'react';
 import { rrfApi, formatRrfForDisplay } from '@/lib/api/rrfApi';
 import { useSmartFetch } from '@/lib/useSmartFetch';
 import { CACHE_TTL } from '@/lib/apiCache';
+import { useAuth } from '@/contexts/AuthContext';
 
 export const useRRFDetail = (id) => {
-  const cacheKey = id ? `rrf-detail-${id}` : null;
+  const { user } = useAuth();
+  const userId = user?.id;
+  const cacheKey = (id && userId) ? `rrf-detail-${userId}-${id}` : null;
 
   const fetcher = useCallback(() => rrfApi.getById(id), [id]);
 

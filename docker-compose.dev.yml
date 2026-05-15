@@ -21,7 +21,7 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=rrf_portal
+      - POSTGRES_DB=rrf_portal_clean
     volumes:
       - postgres_data:/var/lib/postgresql/data  # ✅ Same volume as production
     networks:
@@ -37,6 +37,10 @@ services:
     build:
       context: ./rrf-portal-backend
       dockerfile: Dockerfile
+
+    env_file:
+     - ./rrf-portal-backend/.env
+     
     container_name: rrf-backend-dev
     command: npm run start:dev  # ✅ Run in development mode with hot reload
     ports:
@@ -50,10 +54,12 @@ services:
       - DB_PORT=5432
       - DB_USERNAME=postgres
       - DB_PASSWORD=postgres
-      - DB_DATABASE=rrf_portal
+      - DB_DATABASE=rrf_portal_clean
       - JWT_SECRET=RRF_PORTAL_SECRET_KEY_2026
       - JWT_EXPIRES_IN=24h
       - ALLOWED_ORIGINS=http://localhost:3000
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
     depends_on:
       postgres:
         condition: service_healthy

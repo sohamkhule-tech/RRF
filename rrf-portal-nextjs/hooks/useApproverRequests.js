@@ -10,10 +10,15 @@ import { rrfApi } from '@/lib/api/rrfApi';
 import { useSmartFetch } from '@/lib/useSmartFetch';
 import { invalidateCachePattern, CACHE_TTL } from '@/lib/apiCache';
 import toast from 'react-hot-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 export const useApproverRequests = (status = null, options = {}) => {
+  const { user } = useAuth();
+  const userId = user?.id;
   const { limit = 10 } = options;
-  const cacheKey = status ? `approver-${status}-${limit}` : `approver-all-${limit}`;
+  const cacheKey = userId
+    ? (status ? `approver-${userId}-${status}-${limit}` : `approver-${userId}-all-${limit}`)
+    : null;
 
   const fetcher = useCallback(() => {
     const params = { limit };
@@ -68,7 +73,7 @@ export const useApproverRequests = (status = null, options = {}) => {
     }
   }, [requests]);
 
-  const rejectRequest = useCallback(async (id, comments) => {
+  const declineRequest = useCallback(async (id, comments) => {
     if (!comments || comments.trim() === '') {
       toast.error('Please provide a reason for declining');
       return { success: false, error: 'Comments required' };
@@ -121,7 +126,7 @@ export const useApproverRequests = (status = null, options = {}) => {
     error,
     refresh,
     approveRequest,
-    rejectRequest,
+    declineRequest,
     putOnHold,
   };
 };

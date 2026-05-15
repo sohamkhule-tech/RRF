@@ -2,7 +2,7 @@ import { Controller, Get, Post, Put, Delete, UseGuards, Query, Body, Param, Pars
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../guards/permission.guard';
-import { RequirePermission } from '../decorators/require-permission.decorator';
+import { RequirePermission } from '../decorators/permissions.decorator';
 import { SubfunctionsService } from './subfunctions.service';
 import { CreateSubfunctionDto } from './dto/create-subfunction.dto';
 import { UpdateSubfunctionDto } from './dto/update-subfunction.dto';
@@ -67,7 +67,7 @@ export class SubfunctionsController {
   }
 
   @Delete(':id')
-  @RequirePermission('RRF.DELETE')
+  @RequirePermission('FORM_CONFIG.DELETE')
   @ApiOperation({ summary: 'Soft delete subfunction' })
   async remove(@Param('id', ParseIntPipe) id: number) {
     await this.subfunctionsService.remove(id);

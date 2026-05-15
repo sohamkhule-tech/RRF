@@ -61,4 +61,18 @@ export const usersApi = {
       throw error;
     }
   },
+
+  /**
+   * Delete user permanently
+   * Requires USERS.DELETE permission
+   */
+  delete: async (id) => {
+    try {
+      const response = await api.delete(`/users/${id}`);
+      return response;
+    } catch (error) {
+      console.error('[usersApi] delete error:', error);
+      throw error;
+    }
+  },
 };

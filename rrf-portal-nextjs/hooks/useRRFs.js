@@ -10,9 +10,12 @@ import { rrfApi, formatRrfListForDisplay } from '@/lib/api/rrfApi';
 import { useSmartFetch } from '@/lib/useSmartFetch';
 import { invalidateCachePattern, CACHE_TTL } from '@/lib/apiCache';
 import toast from 'react-hot-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 export const useRRFs = (initialFilters = {}) => {
-  const cacheKey = `rrfs-${JSON.stringify(initialFilters)}`;
+  const { user } = useAuth();
+  const userId = user?.id;
+  const cacheKey = userId ? `rrfs-${userId}-${JSON.stringify(initialFilters)}` : null;
 
   const fetcher = useCallback(
     () => rrfApi.getAll(initialFilters),

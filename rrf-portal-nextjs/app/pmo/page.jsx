@@ -1,5 +1,15 @@
 'use client'
 
+/**
+ * PHASE 6 — Legacy compatibility redirect.
+ * Original implementation preserved below (non-exported) for rollback.
+ * Rollback: remove the redirect and restore `export default` on LegacyPMODashboard.
+ */
+import { redirect } from 'next/navigation'
+export default function Page() { redirect('/dashboard') }
+
+// ── Original implementation (preserved for rollback) ────────────────────────
+
 import { ClockCircleOutlined, CheckCircleOutlined, SearchOutlined, SendOutlined, PlusOutlined, CloseCircleOutlined, ReloadOutlined, TeamOutlined, StopOutlined } from '@ant-design/icons'
 import ActionButton from '@/components/ActionButton'
 import { useRouter } from 'next/navigation'
@@ -9,16 +19,19 @@ import { rrfApi } from '@/lib/api/rrfApi'
 import { useSmartFetch } from '@/lib/useSmartFetch'
 import { useVisibilityRefresh } from '@/lib/useVisibilityRefresh'
 import { CACHE_TTL } from '@/lib/apiCache'
+import { useAuth } from '@/contexts/AuthContext'
 
-export default function PMODashboard() {
+function LegacyPMODashboard() {
   const router = useRouter()
+  const { user } = useAuth()
+  const userId = user?.id
   const [searchTerm, setSearchTerm] = useState('')
 
   // Fetch dashboard statistics — cached 60 s
   const {
     data: stats,
     refresh: refreshStats,
-  } = useSmartFetch('pmo-dashboard-stats', () => rrfApi.getPMODashboardStats(), {
+  } = useSmartFetch(userId ? `pmo-dashboard-stats-${userId}` : null, () => rrfApi.getPMODashboardStats(), {
     ttl: CACHE_TTL.STATS,
     transform: (response) => {
       const d = response?.data || response || {}
@@ -27,6 +40,11 @@ export default function PMODashboard() {
         sentToHR: d.sentToHR || 0,
         totalProcessed: d.totalProcessed || 0,
         closed: d.closed || 0,
+        closedByReason: {
+          RESOURCE_HIRED_EXTERNAL: d.closedByReason?.RESOURCE_HIRED_EXTERNAL || 0,
+          SOURCED_INTERNALLY: d.closedByReason?.SOURCED_INTERNALLY || 0,
+          CLOSED_BY_BUSINESS: d.closedByReason?.CLOSED_BY_BUSINESS || 0,
+        },
       }
     },
   })
@@ -36,14 +54,14 @@ export default function PMODashboard() {
     data: recentRequests,
     loading,
     refresh: refreshRecent,
-  } = useSmartFetch('pmo-open-positions', () => rrfApi.getOpenPositions(), {
+  } = useSmartFetch(userId ? `pmo-open-positions-${userId}` : null, () => rrfApi.getOpenPositions(), {
     ttl: CACHE_TTL.LIST,
     transform: (response) => {
       const rrfs = response?.data || response || []
       return Array.isArray(rrfs)
         ? rrfs.slice(0, 5).map(rrf => ({
             id: rrf.id,
-            rrfNumber: rrf.rrfNumber,
+            rrfNumber: rrf.rrfNumber || rrf.subId,
             role: rrf.positionTitle || '-',
             manager: rrf.createdBy?.fullName || rrf.createdBy?.name || '-',
             project: rrf.projectName || '-',
@@ -79,7 +97,7 @@ export default function PMODashboard() {
     )
   }
 
-  const effectiveStats = stats || { openedPositions: 0, sentToHR: 0, totalProcessed: 0, closed: 0 }
+  const effectiveStats = stats || { openedPositions: 0, sentToHR: 0, totalProcessed: 0, closed: 0, closedByReason: { RESOURCE_HIRED_EXTERNAL: 0, SOURCED_INTERNALLY: 0, CLOSED_BY_BUSINESS: 0 } }
   const effectiveRequests = recentRequests || []
 
   const filteredRequests = effectiveRequests.filter(request => {
@@ -103,7 +121,7 @@ export default function PMODashboard() {
           subtitle="Awaiting review" 
           icon={<ClockCircleOutlined />} 
           color="orange" 
-          href="/pmo/open-positions" 
+          href="/pmo/requests?status=request-positions" 
         />
         <StatCard 
           title="Open for Hiring" 
@@ -111,7 +129,7 @@ export default function PMODashboard() {
           subtitle="Forwarded successfully" 
           icon={<SendOutlined />} 
           color="blue" 
-          href="/pmo/sent-to-approvers" 
+          href="/pmo/requests?status=open-for-hiring" 
         />
         <StatCard 
           title="Closed" 
@@ -119,28 +137,31 @@ export default function PMODashboard() {
           subtitle="Completed positions" 
           icon={<CloseCircleOutlined />} 
           color="red" 
-          href="/pmo/closed"
+          href="/pmo/requests?status=closed"
         />
         <StatCard 
-          title="Filled Internally" 
-          value="0" 
-          subtitle="Internal bench" 
+          title="Sourced Internally" 
+          value={effectiveStats.closedByReason.SOURCED_INTERNALLY.toString()} 
+          subtitle="Internal fulfillment" 
           icon={<TeamOutlined />} 
-          color="purple" 
+          color="cyan" 
+          href="/pmo/requests?status=sourced-internally"
         />
         <StatCard 
           title="Closed by Business" 
-          value="0" 
+          value={effectiveStats.closedByReason.CLOSED_BY_BUSINESS.toString()} 
           subtitle="Business decision" 
           icon={<StopOutlined />} 
           color="cyan" 
+          href="/pmo/requests?status=closed-by-business"
         />
         <StatCard 
-          title="Total Processed" 
+          title="Processed Requests" 
           value={effectiveStats.totalProcessed.toString()} 
-          subtitle="All time" 
+          subtitle="All processed requests" 
           icon={<CheckCircleOutlined />} 
           color="green" 
+          href="/pmo/requests" 
         />
       </div>
 
@@ -225,7 +246,7 @@ export default function PMODashboard() {
                     <td className="px-6 py-5 whitespace-nowrap text-sm">{getPriorityBadge(request.priority)}</td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-600">{request.date}</td>
                     <td className="px-6 py-5 whitespace-nowrap text-sm">
-                      <ActionButton role="PMO" status={request.status} href={`/pmo/view-rrf/${request.id}`} />
+                      <ActionButton role="PMO" status={request.status} href={`/requests/${request.id}`} />
                     </td>
                   </tr>
                 ))
@@ -263,7 +284,7 @@ export default function PMODashboard() {
                   <span className="text-xs text-gray-500">{request.date}</span>
                 </div>
                 <div className="flex justify-end pt-2 border-t border-gray-100">
-                  <ActionButton role="PMO" status={request.status} href={`/pmo/view-rrf/${request.id}`} />
+                  <ActionButton role="PMO" status={request.status} href={`/requests/${request.id}`} />
                 </div>
               </div>
             ))

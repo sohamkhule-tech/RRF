@@ -1,5 +1,15 @@
 'use client'
 
+/**
+ * PHASE 6 — Legacy compatibility redirect.
+ * Original implementation preserved below (non-exported) for rollback.
+ * Rollback: remove the redirect and restore `export default` on LegacyApproverClosedPage.
+ */
+import { redirect } from 'next/navigation'
+export default function Page() { redirect('/workflow?view=closed') }
+
+// ── Original implementation (preserved for rollback) ────────────────────────
+
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -10,7 +20,7 @@ import { useApproverRequests } from '@/hooks/useApproverRequests'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { ErrorMessage } from '@/components/ErrorMessage'
 
-export default function ApproverClosedPage() {
+function LegacyApproverClosedPage() {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
   // ✅ REMOVED: selectedDepartment filter
@@ -206,7 +216,7 @@ export default function ApproverClosedPage() {
                     <div className="text-gray-500">Closed: {request.closedAt ? new Date(request.closedAt).toLocaleDateString('en-GB') : 'N/A'}</div>
                   </td>
                   <td className="px-3 py-3 text-center">
-                    <Link href={`/approver/view-rrf/${request.id}`}>
+                    <Link href={`/requests/${request.id}`}>
                       <button className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-200 text-xs flex items-center gap-1 mx-auto" style={{ borderRadius: '6px' }}>
                         <EyeOutlined />
                         View
@@ -247,7 +257,7 @@ export default function ApproverClosedPage() {
                 <span className="font-bold">Date:</span> {request.closedAt ? new Date(request.closedAt).toLocaleDateString('en-GB') : 'N/A'}
               </div>
               <div className="flex justify-end pt-2 border-t border-gray-100">
-                <Link href={`/approver/view-rrf/${request.id}`}>
+                <Link href={`/requests/${request.id}`}>
                   <button className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 font-medium text-xs flex items-center gap-1 rounded-md">
                     <EyeOutlined /> View
                   </button>

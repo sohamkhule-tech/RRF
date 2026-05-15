@@ -1,5 +1,16 @@
 'use client'
 
+/**
+ * PHASE 6 — Legacy compatibility redirect.
+ * This route now delegates to the unified workflow page.
+ * Original implementation preserved below (non-exported) for rollback.
+ * Rollback: remove the redirect and restore `export default` on LegacyApproverPendingPage.
+ */
+import { redirect } from 'next/navigation'
+export default function Page() { redirect('/workflow?view=pending-approval') }
+
+// ── Original implementation (preserved for rollback) ────────────────────────
+
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -10,7 +21,7 @@ import { rrfApi } from '@/lib/api/rrfApi'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { ErrorMessage } from '@/components/ErrorMessage'
 
-export default function ApproverPendingPage() {
+function LegacyApproverPendingPage() {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
   // ✅ REMOVED: selectedDepartment filter
@@ -192,6 +203,7 @@ export default function ApproverPendingPage() {
               <tr>
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">ID</th>
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Manager/Dept</th>
+                <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Created By</th>
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Role & Project</th>
                 <th className="px-3 py-3 text-center text-xs font-bold text-gray-700 uppercase">Positions</th>
                 <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase">Priority</th>
@@ -207,6 +219,7 @@ export default function ApproverPendingPage() {
                     <div className="font-medium text-gray-900">{request.createdBy?.fullName || 'Unknown'}</div>
                     <div className="text-gray-500">{request.department || 'N/A'}</div>
                   </td>
+                  <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-700">{request.createdBy?.fullName || 'N/A'}</td>
                   <td className="px-3 py-3 text-xs">
                     <div className="font-medium text-gray-900">{request.positionTitle}</div>
                     <div className="text-gray-500">{request.projectName || 'N/A'}</div>
@@ -219,7 +232,7 @@ export default function ApproverPendingPage() {
                   <td className="px-3 py-3 text-xs">{getPriorityBadge(request.priority)}</td>
                   <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-600">{(request.submittedAt || request.createdAt) ? new Date(request.submittedAt || request.createdAt).toLocaleDateString('en-GB') : 'N/A'}</td>
                   <td className="px-3 py-3 text-center">
-                    <Link href={`/approver/view-rrf/${request.id}`}>
+                    <Link href={`/requests/${request.id}`}>
                       <button className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-200 text-xs flex items-center gap-1 mx-auto" style={{ borderRadius: '6px' }}>
                         <EyeOutlined />
                         View
@@ -251,7 +264,7 @@ export default function ApproverPendingPage() {
                   {getPriorityBadge(request.priority)}
                 </div>
                 <div className="flex justify-end pt-2 border-t border-gray-100">
-                  <Link href={`/approver/view-rrf/${request.id}`}>
+                  <Link href={`/requests/${request.id}`}>
                     <button className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 font-medium text-xs flex items-center gap-1 rounded-md">
                       <EyeOutlined /> View
                     </button>

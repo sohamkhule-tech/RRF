@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../guards/permission.guard';
-import { RequirePermission } from '../decorators/require-permission.decorator';
+import { RequirePermission } from '../decorators/permissions.decorator';
 import { FunctionsService } from './functions.service';
 import { CreateFunctionDto } from './dto/create-function.dto';
 import { UpdateFunctionDto } from './dto/update-function.dto';
@@ -58,7 +58,7 @@ export class FunctionsController {
 
   // Get unassigned subfunctions
   @Get('subfunctions/unassigned')
-  @RequirePermission('RRF.UPDATE')
+  @RequirePermission('RRF.READ')
   async getUnassignedSubfunctions() {
     const subfunctions = await this.functionsService.getUnassignedSubfunctions();
     return {
@@ -96,7 +96,7 @@ export class FunctionsController {
 
   // Soft delete function
   @Delete(':id')
-  @RequirePermission('RRF.DELETE')
+  @RequirePermission('FORM_CONFIG.DELETE')
   async remove(@Param('id', ParseIntPipe) id: number) {
     await this.functionsService.remove(id);
     return {
@@ -107,7 +107,7 @@ export class FunctionsController {
 
   // Hard delete function (admin only)
   @Delete(':id/hard')
-  @RequirePermission('RRF.DELETE')
+  @RequirePermission('FORM_CONFIG.DELETE')
   @HttpCode(HttpStatus.NO_CONTENT)
   async hardDelete(@Param('id', ParseIntPipe) id: number) {
     await this.functionsService.hardDelete(id);

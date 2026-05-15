@@ -72,6 +72,11 @@ export const usePermission = () => {
     permissions,
 
     /**
+     * Raw user object — use user.role for identity checks, permissions for capability checks
+     */
+    user,
+
+    /**
      * Convenient permission flags (most commonly used)
      */
     canCreateRRF: hasPermission('RRF.CREATE', permissions),
@@ -80,7 +85,7 @@ export const usePermission = () => {
     canDeleteRRF: hasPermission('RRF.DELETE', permissions),
     
     canApprove: hasPermission('APPROVALS.APPROVE', permissions),
-    canReject: hasPermission('APPROVALS.REJECT', permissions),
+    canDecline: hasPermission('APPROVALS.REJECT', permissions),
     canViewApprovals: hasPermission('APPROVALS.READ', permissions),
     
     canViewDashboard: hasPermission('DASHBOARD.READ', permissions),

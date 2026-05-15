@@ -1,42 +1,25 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Layout } from 'antd'
-import AdminSidebar from '@/components/admin/AdminSidebar'
-import AdminHeader from '@/components/admin/AdminHeader'
 import { useAuth } from '@/contexts/AuthContext'
 
-const { Content } = Layout
-
+/**
+ * AdminLayout — ADMIN role guard only.
+ *
+ * Layout rendering (sidebar, header, content shell) is now handled by the
+ * unified AppShell via ClientLayout. This layout file retains ONLY the
+ * ADMIN role authentication guard to prevent non-admin users from accessing
+ * /admin/* routes.
+ *
+ * ROLLBACK: If you need to revert to the standalone admin layout, restore
+ * the previous version of this file from version control and re-add the
+ * admin bypass in ClientLayout.jsx:
+ *   if (pathname.startsWith('/admin')) { return <>{children}</> }
+ */
 export default function AdminLayout({ children }) {
   const router = useRouter()
   const { user, loading } = useAuth()
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
-  const [isMobile, setIsMobile] = useState(false)
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
-
-  useEffect(() => {
-    const checkMobile = () => {
-      const mobile = window.innerWidth < 768
-      setIsMobile(mobile)
-      if (mobile) setIsMobileSidebarOpen(false)
-    }
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
-  }, [])
-
-  useEffect(() => {
-    const savedState = localStorage.getItem('adminSidebarCollapsed')
-    if (savedState !== null) {
-      setIsSidebarCollapsed(savedState === 'true')
-    }
-  }, [])
-
-  useEffect(() => {
-    localStorage.setItem('adminSidebarCollapsed', isSidebarCollapsed.toString())
-  }, [isSidebarCollapsed])
 
   // Redirect non-admin users
   useEffect(() => {
@@ -65,7 +48,7 @@ export default function AdminLayout({ children }) {
     )
   }
 
-  // Not authorized
+  // Not authorized — synchronous render guard
   const roleCode = user?.role?.code || user?.role
   if (!user || roleCode !== 'ADMIN') {
     return (
@@ -78,43 +61,6 @@ export default function AdminLayout({ children }) {
     )
   }
 
-  const handleToggleSidebar = () => {
-    if (isMobile) {
-      setIsMobileSidebarOpen(!isMobileSidebarOpen)
-    } else {
-      setIsSidebarCollapsed(!isSidebarCollapsed)
-    }
-  }
-
-  const sidebarWidth = isMobile ? 0 : (isSidebarCollapsed ? 80 : 260)
-
-  return (
-    <Layout style={{ minHeight: '100vh' }}>
-      {isMobile && isMobileSidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 transition-opacity duration-300"
-          onClick={() => setIsMobileSidebarOpen(false)}
-        />
-      )}
-      <AdminSidebar
-        isCollapsed={isMobile ? false : isSidebarCollapsed}
-        isMobile={isMobile}
-        isMobileOpen={isMobileSidebarOpen}
-        onMobileClose={() => setIsMobileSidebarOpen(false)}
-      />
-      <Layout
-        style={{
-          marginLeft: sidebarWidth,
-          transition: 'margin-left 0.3s ease-in-out',
-        }}
-      >
-        <AdminHeader
-          onToggleSidebar={handleToggleSidebar}
-          isSidebarCollapsed={isSidebarCollapsed}
-          isMobile={isMobile}
-        />
-        <Content style={{ marginTop: '73px' }}>{children}</Content>
-      </Layout>
-    </Layout>
-  )
+  // Auth passed — render children directly (shell is handled by AppShell)
+  return <>{children}</>
 }

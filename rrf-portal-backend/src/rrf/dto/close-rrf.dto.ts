@@ -49,4 +49,14 @@ export class CloseRrfDto {
   @IsOptional()
   @MaxLength(1000)
   notes?: string;
+
+  @ApiProperty({
+    description: 'Classification key for the closure reason',
+    example: 'RESOURCE_HIRED_EXTERNAL',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  @MaxLength(50)
+  closeReason?: string;
 }

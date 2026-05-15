@@ -1,5 +1,15 @@
 'use client'
 
+/**
+ * PHASE 6 — Legacy compatibility redirect.
+ * Original implementation preserved below (non-exported) for rollback.
+ * Rollback: remove the redirect and restore `export default` on LegacyHRClosedPositionsPage.
+ */
+import { redirect } from 'next/navigation'
+export default function Page() { redirect('/workflow?view=closed') }
+
+// ── Original implementation (preserved for rollback) ────────────────────────
+
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -9,9 +19,12 @@ import { useSmartFetch } from '@/lib/useSmartFetch'
 import { CACHE_TTL } from '@/lib/apiCache'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import toast from 'react-hot-toast'
+import { useAuth } from '@/contexts/AuthContext'
 
-export default function HRClosedPositionsPage() {
+function LegacyHRClosedPositionsPage() {
   const router = useRouter()
+  const { user } = useAuth()
+  const userId = user?.id
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedDepartment, setSelectedDepartment] = useState('all')
   
@@ -19,7 +32,7 @@ export default function HRClosedPositionsPage() {
   const departments = ['HR', 'Talent Acquisition', 'Accounts', 'Sales & Marketing', 'PMO', 'SGINTL', 'VR', 'Support']
 
   // Shared all-rrfs cache (also used by hr/page, pmo/closed, pmo/sent-to-approvers)
-  const { data: allRrfs, loading } = useSmartFetch('all-rrfs', () => rrfApi.getAll({ limit: 1000 }), {
+  const { data: allRrfs, loading } = useSmartFetch(userId ? `all-rrfs-${userId}` : null, () => rrfApi.getAll({ limit: 1000 }), {
     ttl: CACHE_TTL.LIST,
     transform: (response) => response?.data?.data || response?.data || [],
   })
@@ -240,7 +253,7 @@ export default function HRClosedPositionsPage() {
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-600 max-w-[150px] truncate" title={request.candidateName}>{request.candidateName}</td>
                     <td className="px-3 py-3 text-center whitespace-nowrap text-sm">
-                      <Link href={`/hr/view-rrf/${request.submissionId}`}>
+                      <Link href={`/requests/${request.submissionId}`}>
                         <button className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-200 text-xs flex items-center gap-1 mx-auto" style={{ borderRadius: '6px' }}>
                           <EyeOutlined /> View RRF
                         </button>
@@ -297,7 +310,7 @@ export default function HRClosedPositionsPage() {
                   <div>Closed: {request.closedDate}</div>
                 </div>
                 <div className="flex justify-end pt-2 border-t border-gray-100">
-                  <Link href={`/hr/view-rrf/${request.submissionId}`}>
+                  <Link href={`/requests/${request.submissionId}`}>
                     <button className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 font-medium transition-all duration-200 text-xs flex items-center gap-1" style={{ borderRadius: '6px' }}>
                       <EyeOutlined /> View RRF
                     </button>

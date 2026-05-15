@@ -5,6 +5,7 @@ import { Table, Modal, Form, Input, Select, Switch, Tag, Button, Space, Tooltip,
 import {
   PlusOutlined,
   EditOutlined,
+  DeleteOutlined,
   SearchOutlined,
   UserOutlined,
   ReloadOutlined,
@@ -12,12 +13,14 @@ import {
 } from '@ant-design/icons'
 import { usersApi } from '@/lib/api/usersApi'
 import { subfunctionsApi } from '@/lib/api/subfunctionsApi'
+import { fetchFormConfig } from '@/lib/api/formConfig'
 import toast from 'react-hot-toast'
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState([])
   const [roles, setRoles] = useState([])
   const [subfunctions, setSubfunctions] = useState([])
+  const [techOptions, setTechOptions] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchText, setSearchText] = useState('')
 
@@ -34,14 +37,20 @@ export default function AdminUsersPage() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [usersRes, rolesRes, subfunctionsRes] = await Promise.all([
+      const [usersRes, rolesRes, subfunctionsRes, configRes] = await Promise.all([
         usersApi.getAll(),
         usersApi.getRoles(),
         subfunctionsApi.getAll(),
+        fetchFormConfig(),
       ])
       setUsers(usersRes?.data || [])
       setRoles(rolesRes?.data || [])
-      setSubfunctions(subfunctionsRes?.data || [])
+      // ✅ FIX: subfunctionsApi.getAll() already returns response.data (the array)
+      setSubfunctions(Array.isArray(subfunctionsRes) ? subfunctionsRes : subfunctionsRes?.data || [])
+      
+      // Extract technologies from form config
+      const techConfig = configRes.find(c => c.fieldName === 'technologies' || c.fieldName === 'primaryTechnologies')
+      setTechOptions(techConfig?.options || [])
     } catch (error) {
       toast.error('Failed to load users')
       console.error('Load error:', error)
@@ -84,6 +93,9 @@ export default function AdminUsersPage() {
 
   // ─── Edit User ──────────────────────────────────────────────
   const openEditModal = (user) => {
+    // Extract assigned subfunction IDs (backend returns subfunctions: [{ id: 1, name: "SGINTL" }])
+    const assignedIds = (user.subfunctions || []).map(sf => Number(sf.id))
+    
     setEditingUser(user)
     editForm.setFieldsValue({
       fullName: user.fullName,
@@ -91,7 +103,8 @@ export default function AdminUsersPage() {
       phone: user.phone || '',
       roleId: user.role?.id,
       isActive: user.isActive,
-      subfunctionIds: user.subfunctions?.map(sf => sf.id) || [],
+      subfunctionIds: assignedIds,
+      technologies: user.technologies || [],
     })
     setIsEditOpen(true)
   }
@@ -112,9 +125,34 @@ export default function AdminUsersPage() {
     }
   }
 
+  // ─── Delete User with Confirmation ────────────────────────
+  const handleDelete = (user) => {
+    Modal.confirm({
+      title: 'Delete User',
+      icon: <ExclamationCircleOutlined />,
+      content: (
+        <div>
+          <p>Are you sure you want to permanently delete <strong>{user.fullName}</strong>?</p>
+          <p className="text-red-500 text-sm mt-2">This action cannot be undone.</p>
+        </div>
+      ),
+      okText: 'Yes, Delete',
+      cancelText: 'Cancel',
+      okButtonProps: { danger: true },
+      async onOk() {
+        try {
+          await usersApi.delete(user.id)
+          toast.success(`${user.fullName} deleted successfully`)
+          await loadData()
+        } catch (error) {
+          toast.error(error.message || 'Failed to delete user')
+        }
+      },
+    })
+  }
+
   // ─── Toggle Active with Confirmation ────────────────────────
-  const handleToggleActive = (user) => {
-    const newStatus = !user.isActive
+  const handleToggleActive = (user) => {    const newStatus = !user.isActive
     Modal.confirm({
       title: `${newStatus ? 'Activate' : 'Deactivate'} User`,
       icon: <ExclamationCircleOutlined />,
@@ -220,6 +258,14 @@ export default function AdminUsersPage() {
               size="small"
               checked={record.isActive}
               onChange={() => handleToggleActive(record)}
+            />
+          </Tooltip>
+          <Tooltip title="Delete User">
+            <Button
+              type="text"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => handleDelete(record)}
             />
           </Tooltip>
         </Space>
@@ -363,8 +409,23 @@ export default function AdminUsersPage() {
               </Form.Item>
             </div>
 
-            <Form.Item name="phone" label="Phone">
-              <Input placeholder="+91 9876543210" />
+            <Form.Item
+              name="technologies"
+              label="Technical Expertise"
+              tooltip="Technologies this user can interview for"
+            >
+              <Select
+                mode="multiple"
+                placeholder="Select technologies"
+                allowClear
+                style={{ width: '100%' }}
+              >
+                {techOptions.map((tech) => (
+                  <Select.Option key={tech} value={tech}>
+                    {tech}
+                  </Select.Option>
+                ))}
+              </Select>
             </Form.Item>
 
             {/* Conditional Subfunction Selection for APPROVER Role */}
@@ -401,7 +462,7 @@ export default function AdminUsersPage() {
                     <Checkbox.Group style={{ width: '100%' }}>
                       <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
                         {subfunctions.map(sf => (
-                          <Checkbox key={sf.id} value={sf.id}>
+                          <Checkbox key={sf.id} value={Number(sf.id)}>
                             <span className="text-sm">
                               {sf.name}
                               <span className="text-xs text-gray-500 ml-1">
@@ -477,8 +538,23 @@ export default function AdminUsersPage() {
               </Form.Item>
             </div>
 
-            <Form.Item name="phone" label="Phone">
-              <Input />
+            <Form.Item
+              name="technologies"
+              label="Technical Expertise"
+              tooltip="Technologies this user can interview for"
+            >
+              <Select
+                mode="multiple"
+                placeholder="Select technologies"
+                allowClear
+                style={{ width: '100%' }}
+              >
+                {techOptions.map((tech) => (
+                  <Select.Option key={tech} value={tech}>
+                    {tech}
+                  </Select.Option>
+                ))}
+              </Select>
             </Form.Item>
 
             {/* Conditional Subfunction Selection for APPROVER Role */}
@@ -515,7 +591,7 @@ export default function AdminUsersPage() {
                     <Checkbox.Group style={{ width: '100%' }}>
                       <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
                         {subfunctions.map(sf => (
-                          <Checkbox key={sf.id} value={sf.id}>
+                          <Checkbox key={sf.id} value={Number(sf.id)}>
                             <span className="text-sm">
                               {sf.name}
                               <span className="text-xs text-gray-500 ml-1">
