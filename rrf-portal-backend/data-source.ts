@@ -35,6 +35,16 @@ const AppDataSource = new DataSource({
     ),
   ],
 
+  // SSL — mirrors AppModule's runtime TypeORM config.
+  // Set DB_SSL=true in .env (or environment) for AWS RDS / staging / production.
+  // Leave unset or DB_SSL=false for local Docker / local Postgres.
+  ssl:
+    process.env.DB_SSL === 'true'
+      ? {
+          rejectUnauthorized: false,
+        }
+      : false,
+
   migrationsTableName: 'typeorm_migrations',
   synchronize: false,
   logging: ['query', 'error', 'warn', 'migration'],
