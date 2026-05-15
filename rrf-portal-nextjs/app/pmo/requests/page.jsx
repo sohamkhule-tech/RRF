@@ -1,5 +1,15 @@
 'use client'
 
+/**
+ * PHASE 6 — Legacy compatibility redirect.
+ * Original implementation preserved below (non-exported) for rollback.
+ * Rollback: remove the redirect and restore `export default` on LegacyRequestsPage.
+ */
+import { redirect } from 'next/navigation'
+export default function Page() { redirect('/workflow?view=total-processed') }
+
+// ── Original implementation (preserved for rollback) ────────────────────────
+
 import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import ActionButton from '@/components/ActionButton'
@@ -522,7 +532,7 @@ function PMORequestsContent() {
   )
 }
 
-export default function RequestsPage() {
+function LegacyRequestsPage() {
   return (
     <Suspense fallback={
       <div className="p-8 flex items-center justify-center min-h-screen">

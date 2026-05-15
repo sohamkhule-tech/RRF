@@ -123,7 +123,7 @@ export const rrfApi = {
   update: async (id, rrfData) => {
     const sanitized = sanitizeRrfPayload(rrfData);
     console.log('[RRF API] Sanitized update payload:', sanitized);
-    return api.put(`/rrf/${id}`, sanitized);
+    return api.patch(`/rrf/${id}`, sanitized);
   },
 
   /**

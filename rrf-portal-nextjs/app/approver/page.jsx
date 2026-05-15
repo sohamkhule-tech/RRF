@@ -1,5 +1,16 @@
 'use client'
 
+/**
+ * PHASE 6 — Legacy compatibility redirect.
+ * This route now delegates to the unified dashboard.
+ * Original implementation preserved below (non-exported) for rollback.
+ * Rollback: remove the redirect and restore `export default` on LegacyApproverDashboard.
+ */
+import { redirect } from 'next/navigation'
+export default function Page() { redirect('/dashboard') }
+
+// ── Original implementation (preserved for rollback) ────────────────────────
+
 import { ClockCircleOutlined, CheckCircleOutlined, CloseCircleOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons'
 import ActionButton from '@/components/ActionButton'
 import StatCard from '@/components/StatCard'
@@ -14,7 +25,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { ErrorMessage } from '@/components/ErrorMessage'
 import { useAuth } from '@/contexts/AuthContext'
 
-export default function ApproverDashboard() {
+function LegacyApproverDashboard() {
   const { user } = useAuth()
   const userId = user?.id
   const [searchTerm, setSearchTerm] = useState('')

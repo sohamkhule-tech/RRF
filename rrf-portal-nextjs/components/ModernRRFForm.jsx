@@ -16,13 +16,18 @@ import { jobDescriptionsApi } from '@/lib/api/jobDescriptionsApi'
 import { useFormConfig } from '@/hooks/useFormConfig'
 
 export default function ModernRRFForm({ 
-  userRole         = 'hiring-manager',
-  initialData      = null,
-  isEditMode       = false,
-  onSubmitOverride = null,
-  titleOverride    = null,
-  cancelPath       = null,
-  isSavingOverride = false
+  userRole            = 'hiring-manager',
+  initialData         = null,
+  isEditMode          = false,
+  onSubmitOverride    = null,
+  titleOverride       = null,
+  cancelPath          = null,
+  isSavingOverride    = false,
+  // ── Minimal extension points (added for HM resubmission UX) ──────────────
+  // Override the submit button label (e.g. "Save & Resubmit" for declined HM edits)
+  submitLabelOverride = null,
+  // Render a warning/info banner below the header gradient block (JSX or null)
+  warningBanner       = null,
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -1048,11 +1053,16 @@ export default function ModernRRFForm({
                 disabled={isSavingOverride}
                 className="flex items-center gap-2 px-4 md:px-6 py-2 md:py-2.5 bg-indigo-600 text-white font-bold rounded-lg md:rounded-xl hover:bg-indigo-700 disabled:opacity-60 transition-all shadow-lg text-sm md:text-base"
               >
-                {isSavingOverride ? 'Saving…' : <><SendOutlined /> {isEditMode ? 'Save Changes' : 'Submit Request'}</>}
+                {isSavingOverride ? 'Saving…' : <><SendOutlined /> {submitLabelOverride || (isEditMode ? 'Save Changes' : 'Submit Request')}</>}
               </button>
             )}
           </div>
         </div>
+
+        {/* Warning banner slot — shown when warningBanner prop is provided (e.g. HM declined resubmission) */}
+        {warningBanner && (
+          <div className="mb-4 md:mb-6">{warningBanner}</div>
+        )}
 
         {/* Modern Stepper */}
         <div className="bg-white rounded-xl md:rounded-2xl shadow-sm border border-slate-200 p-4 md:p-8 mb-4 md:mb-6">
@@ -2030,7 +2040,7 @@ export default function ModernRRFForm({
                     className="px-6 md:px-8 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 flex-1 sm:flex-none"
                   >
                     <SendOutlined className="text-base" />
-                    {isEditMode ? 'Save Changes' : 'Submit RRF'}
+                    {submitLabelOverride || (isEditMode ? 'Save Changes' : 'Submit RRF')}
                   </button>
                 )}
               </div>

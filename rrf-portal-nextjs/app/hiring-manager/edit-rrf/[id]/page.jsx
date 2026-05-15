@@ -1,5 +1,30 @@
 'use client'
 
+/**
+ * /hiring-manager/edit-rrf/[id]
+ *
+ * UI-layer migration: now uses ModernRRFForm as the shared form engine while
+ * preserving ALL HM-specific business workflow semantics exactly:
+ *
+ *   1. HM status guard  — only allow editing for HM_EDITABLE_STATUSES
+ *   2. Two-phase save   — PUT /rrf/:id  (always)
+ *                         POST /rrf/:id/submit  (only when coming from DECLINED/REJECTED)
+ *   3. Resubmit path    — resets approver records, transitions → PENDING, fires
+ *                         rrf.resubmitted notification (all handled by the backend submit endpoint)
+ *   4. Non-declined     — patch-only, no workflow reset
+ *
+ * STRANGLER PATTERN — the old form implementation is preserved below as
+ * LegacyHMEditRRFPage (non-exported) until full validation passes.
+ *
+ * Field mapping (HM payload → ModernRRFForm formData keys):
+ *   anticipatedBillingStartDate ← formData.billingStartDate   (ModernRRFForm convention)
+ *   requiredSkills              ← formData.mustHaveSkills      (mapped by ModernRRFForm)
+ *   preferredSkills             ← formData.niceToHaveSkills    (mapped by ModernRRFForm)
+ *   technologies                ← formData.technologies
+ *   urgencyReason               ← formData.additionalNotes     (ModernRRFForm convention)
+ *   interviewPanel              ← formData.interviewPanel
+ */
+
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
@@ -15,8 +40,13 @@ import {
 import toast from 'react-hot-toast'
 import { rrfApi } from '@/lib/api/rrfApi'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
+import ModernRRFForm from '@/components/ModernRRFForm'
 import TagInput from '@/components/TagInput'
 import RichTextEditor from '@/components/RichTextEditor'
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Constants — shared between new and legacy implementations
+// ─────────────────────────────────────────────────────────────────────────────
 
 const STEPS = [
   { number: 1, title: 'Requisition Details', icon: BankOutlined, description: 'Basic Information' },
@@ -32,10 +62,242 @@ const SUBFUNCTIONS = {
 
 const ALL_LOCATIONS = ['Pune', 'Chennai', 'Bengaluru', 'US', 'Other']
 
-// Statuses where HM is allowed to edit
+// Statuses where HM is allowed to edit — MUST match backend hmAllowedStatuses exactly
 const HM_EDITABLE_STATUSES = ['draft', 'pending', 'submitted', 'declined', 'rejected', 'on-hold']
 
+// ─────────────────────────────────────────────────────────────────────────────
+// NEW: HMEditRRFPage — ModernRRFForm-based, full HM workflow semantics preserved
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function HMEditRRFPage() {
+  const params  = useParams()
+  const router  = useRouter()
+  const rrfId   = params.id
+
+  const [loading,       setLoading]      = useState(true)
+  const [saving,        setSaving]       = useState(false)
+  const [existingData,  setExistingData] = useState(null)
+  // originalStatus captured at load time — drives the resubmit decision
+  const [originalStatus, setOriginalStatus] = useState(null)
+
+  // ── Load & guard ────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!rrfId) {
+      toast.error('Invalid RRF ID')
+      setLoading(false)
+      return
+    }
+
+    const load = async () => {
+      try {
+        const response = await rrfApi.getById(rrfId)
+        const rrf = response?.data || response
+
+        if (!rrf) {
+          toast.error('RRF not found')
+          return
+        }
+
+        // ── Status guard — block editing for disallowed statuses ──────────────
+        const status = String(rrf.status || '').toLowerCase()
+        if (!HM_EDITABLE_STATUSES.includes(status)) {
+          toast.error(`This RRF (status: ${rrf.status}) cannot be edited.`)
+          router.replace(`/requests/${rrfId}`)
+          return
+        }
+
+        setOriginalStatus(status)
+
+        // ── Map backend entity → ModernRRFForm initialData shape ──────────────
+        const toArr = (v) =>
+          Array.isArray(v) ? v : v ? String(v).split(',').map(s => s.trim()).filter(Boolean) : []
+
+        const toDateStr = (v) =>
+          v ? new Date(v).toISOString().split('T')[0] : ''
+
+        setExistingData({
+          entity:               rrf.entity             || '',
+          organisation:         rrf.organisation       || 'DataFortune',
+          function:             rrf.function           || '',
+          subFunction:          rrf.subFunction        || '',
+          requisitionType:      rrf.requisitionType    || '',
+          nonBillableSubType:   rrf.nonBillableSubType || '',
+          customerName:         rrf.customerName       || '',
+          projectName:          rrf.projectName        || '',
+          // ModernRRFForm field name for job title
+          jobTitle:             rrf.positionTitle      || rrf.jobTitle || '',
+          billingRate:          rrf.billingRate        || '',
+          billingCurrency:      rrf.billingCurrency    || 'USD',
+          // ModernRRFForm uses billingStartDate; HM backend stores either field —
+          // load from whichever is populated (anticipatedBillingStartDate takes precedence)
+          billingStartDate:     toDateStr(rrf.anticipatedBillingStartDate || rrf.billingStartDate),
+          expectedOnboardingDate: toDateStr(rrf.expectedOnboardingDate),
+          positionType:         rrf.positionType       || '',
+          employmentType:       rrf.employmentType     || '',
+          positions:            rrf.headcount          || rrf.positions || '',
+          priority:             rrf.priority           || '',
+          workMode:             rrf.workMode           || '',
+          location:             toArr(rrf.location),
+          experienceMin:        rrf.experienceMin      ?? 0,
+          experienceMax:        rrf.experienceMax      ?? 0,
+          // ModernRRFForm conventions:
+          //   technologies   = primary tech stack (rrf.technologies or rrf.requiredSkills)
+          //   mustHaveSkills = required skills (rrf.requiredSkills or rrf.mustHaveSkills)
+          //   niceToHaveSkills = preferred skills
+          technologies:         toArr(rrf.technologies || rrf.requiredSkills),
+          mustHaveSkills:       toArr(rrf.requiredSkills || rrf.mustHaveSkills),
+          niceToHaveSkills:     toArr(rrf.preferredSkills || rrf.niceToHaveSkills),
+          jobDescription:       rrf.jobDescription     || '',
+          // ModernRRFForm stores urgencyReason as additionalNotes
+          additionalNotes:      rrf.urgencyReason      || rrf.additionalNotes || '',
+          interviewPanel:       Array.isArray(rrf.interviewPanel) ? rrf.interviewPanel : [],
+        })
+      } catch (err) {
+        toast.error(err?.message || 'Failed to load RRF data')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    load()
+  }, [rrfId])
+
+  // ── HM-specific submit handler passed to ModernRRFForm via onSubmitOverride ──
+  //
+  // Preserves the two-phase save sequence:
+  //   Phase 1 (always):   PUT  /rrf/:id            — update metadata
+  //   Phase 2 (declined): POST /rrf/:id/submit     — resubmit → PENDING
+  //
+  // The backend submit() endpoint, on resubmission, atomically:
+  //   • resets all RrfApprover records back to PENDING
+  //   • clears declineReason, approvedAt, rejectedAt, comments
+  //   • sets status = PENDING, submittedAt = now
+  //   • appends statusHistory entry "Resubmitted after decline"
+  //   • emits rrf.resubmitted → sends RRF_RESUBMITTED notifications to all approvers
+  //
+  const isDeclined = originalStatus === 'declined' || originalStatus === 'rejected'
+
+  const handleUpdate = async (formData) => {
+    setSaving(true)
+    try {
+      // Build payload using ModernRRFForm field conventions.
+      // Arrays are joined to comma-strings (rrfApi.update runs sanitizeRrfPayload,
+      // but we normalise here for explicitness and safety).
+      const toStr = (v) =>
+        Array.isArray(v) && v.length > 0
+          ? v.join(', ')
+          : typeof v === 'string' && v.trim()
+            ? v
+            : undefined
+
+      const payload = {
+        entity:                formData.entity          || undefined,
+        organisation:          formData.organisation    || undefined,
+        function:              formData.function        || undefined,
+        subFunction:           formData.subFunction     || undefined,
+        requisitionType:       formData.requisitionType || undefined,
+        nonBillableSubType:    formData.nonBillableSubType || undefined,
+        customerName:          formData.customerName    || undefined,
+        projectName:           formData.projectName     || undefined,
+        positionTitle:         formData.jobTitle,
+        positionType:          formData.positionType    || undefined,
+        employmentType:        formData.employmentType  || undefined,
+        headcount:             Number(formData.positions) || 1,
+        priority:              formData.priority        || undefined,
+        workMode:              formData.workMode        || undefined,
+        billingRate:           formData.billingRate ? Number(formData.billingRate) : undefined,
+        billingCurrency:       formData.billingCurrency || undefined,
+        // Send as billingStartDate (consistent with backend UpdateRrfDto)
+        billingStartDate:      formData.billingStartDate || undefined,
+        expectedOnboardingDate: formData.expectedOnboardingDate || undefined,
+        location:              toStr(formData.location),
+        experienceMin:         Number(formData.experienceMin) || 0,
+        experienceMax:         Number(formData.experienceMax) || 0,
+        // ModernRRFForm skill field → backend DTO field mapping:
+        //   technologies   → technologies
+        //   mustHaveSkills → requiredSkills
+        //   niceToHaveSkills → preferredSkills
+        technologies:          toStr(formData.technologies),
+        requiredSkills:        toStr(formData.mustHaveSkills),
+        preferredSkills:       toStr(formData.niceToHaveSkills),
+        jobDescription:        formData.jobDescription  || '',
+        // ModernRRFForm's additionalNotes maps to backend urgencyReason
+        urgencyReason:         formData.additionalNotes || undefined,
+        interviewPanel:        Array.isArray(formData.interviewPanel) ? formData.interviewPanel : [],
+      }
+
+      // ── Phase 1: PATCH — update metadata ────────────────────────────────
+      const updateResponse = await rrfApi.update(rrfId, payload)
+      if (updateResponse?.success === false) {
+        toast.error(updateResponse?.message || 'Failed to update RRF')
+        return
+      }
+
+      // ── Phase 2: Resubmit only for DECLINED / REJECTED ──────────────────
+      if (isDeclined) {
+        const submitResponse = await rrfApi.submit(rrfId)
+        if (submitResponse?.success === false) {
+          toast.error(submitResponse?.message || 'Changes saved but resubmission failed')
+          router.push(`/requests/${rrfId}`)
+          return
+        }
+        toast.success('RRF updated and resubmitted for approval!')
+      } else {
+        toast.success('RRF updated successfully!')
+      }
+
+      router.push(`/requests/${rrfId}`)
+    } catch (err) {
+      toast.error(err?.message || 'Failed to update RRF')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // ── Loading state ───────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    )
+  }
+
+  // ── Warning banner for declined resubmission (passed into ModernRRFForm) ────
+  const declinedWarning = isDeclined ? (
+    <div className="flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 text-sm font-medium">
+      <span className="flex-shrink-0 text-base">⚠</span>
+      <span>
+        This request was <strong>declined</strong>. Saving will resubmit it for approval —
+        approver states will reset and approvers will be notified.
+      </span>
+    </div>
+  ) : null
+
+  // ── Render via ModernRRFForm ─────────────────────────────────────────────────
+  return (
+    <ModernRRFForm
+      userRole="hiring-manager"
+      isEditMode={true}
+      initialData={existingData}
+      onSubmitOverride={handleUpdate}
+      isSavingOverride={saving}
+      titleOverride="Edit Request"
+      cancelPath={`/requests/${rrfId}`}
+      submitLabelOverride={isDeclined ? 'Save & Resubmit' : null}
+      warningBanner={declinedWarning}
+    />
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LEGACY: LegacyHMEditRRFPage — original custom 3-step form
+// Preserved until the ModernRRFForm-based implementation passes full validation.
+// DO NOT delete until sign-off.
+// To re-enable: change `export default HMEditRRFPage` above to export this instead.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function LegacyHMEditRRFPage() {
   const params = useParams()
   const router = useRouter()
   const rrfId  = params.id

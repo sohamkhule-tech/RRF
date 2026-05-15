@@ -1,5 +1,15 @@
 'use client';
 
+/**
+ * PHASE 6 — Legacy compatibility redirect.
+ * Original implementation preserved below (non-exported) for rollback.
+ * Rollback: remove the redirect and restore `export default` on LegacyProtectedOpenForHiringPage.
+ */
+import { redirect } from 'next/navigation';
+export default function Page() { redirect('/workflow?view=open-for-hiring'); }
+
+// ── Original implementation (preserved for rollback) ────────────────────────
+
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { EyeOutlined, SearchOutlined, ReloadOutlined, LeftOutlined } from '@ant-design/icons';
@@ -285,7 +295,7 @@ function OpenForHiringPage() {
   );
 }
 
-export default function ProtectedOpenForHiringPage() {
+function LegacyProtectedOpenForHiringPage() {
   return (
     <ProtectedRoute>
       <OpenForHiringPage />

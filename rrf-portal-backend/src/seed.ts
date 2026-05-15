@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
-import { SeedModule } from './database/seed.module';
-import { SeedService } from './database/seed.service';
+import { SeedModule } from './database/seeders/seed.module';
+import { SeedService } from './database/seeders/seed.service';
 
 async function runSeed() {
   console.log('\n🌱 Bootstrapping seed context...');

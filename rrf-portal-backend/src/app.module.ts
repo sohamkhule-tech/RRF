@@ -12,7 +12,7 @@ import { FunctionsModule } from './functions/functions.module';
 import { SubfunctionsModule } from './subfunctions/subfunctions.module';
 import { UserSubfunctionsModule } from './user-subfunctions/user-subfunctions.module';
 import { JobDescriptionsModule } from './job-descriptions/job-descriptions.module';
-import { SeedModule } from './database/seed.module';
+import { SeedModule } from './database/seeders/seed.module';
 import { RrfModule } from './rrf/rrf.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ReportsModule } from './reports/reports.module';

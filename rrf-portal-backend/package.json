@@ -9,15 +9,9 @@
     "build": "nest build",
     "typeorm": "typeorm-ts-node-commonjs",
     "migration:generate": "npm run typeorm -- migration:generate -d data-source.ts",
-    "migration:create": "npm run typeorm -- migration:create",
-    "migration:run": "npm run typeorm -- migration:run -d data-source.ts",
-    "migration:revert": "npm run typeorm -- migration:revert -d data-source.ts",
-    "migration:show": "npm run typeorm -- migration:show -d data-source.ts",
-    "schema:sync": "npm run typeorm -- schema:sync -d data-source.ts",
-    "schema:drop": "npm run typeorm -- schema:drop -d data-source.ts",
-    "db:seed": "ts-node src/seed.ts",
-    "db:reset": "npm run schema:drop && npm run migration:run && npm run db:seed",
-    "db:fresh": "npm run schema:drop && npm run migration:run"
+    "migration:show:dist": "typeorm migration:show -d dist/data-source.js",
+    "migration:run:dist": "typeorm migration:run -d dist/data-source.js",
+    "db:seed": "ts-node src/seed.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",

@@ -268,13 +268,13 @@ export function ActionModal({ modalType, isOpen, onClose, onSubmit, roleCode }) 
                 <>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-2">
-                      Candidate Name <span className="text-red-500">*</span>
+                      Candidate Name{closureStatus === 'Sourced Internally' ? '(s)' : ''} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={candidateName}
                       onChange={(e) => setCandidateName(e.target.value)}
-                      placeholder="Enter candidate name"
+                      placeholder={closureStatus === 'Sourced Internally' ? "Enter candidate name(s), comma-separated" : "Enter candidate name"}
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>

@@ -1,5 +1,15 @@
 'use client'
 
+/**
+ * PHASE 6 — Legacy compatibility redirect.
+ * Original implementation preserved below (non-exported) for rollback.
+ * Rollback: remove the redirect and restore `export default` on LegacyPMOMyRequests.
+ */
+import { redirect } from 'next/navigation'
+export default function Page() { redirect('/workflow?view=my-requests') }
+
+// ── Original implementation (preserved for rollback) ────────────────────────
+
 import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import { SearchOutlined, ReloadOutlined, PlusOutlined } from '@ant-design/icons'
@@ -9,7 +19,7 @@ import { useVisibilityRefresh } from '@/lib/useVisibilityRefresh'
 import { CACHE_TTL } from '@/lib/apiCache'
 import { useAuth } from '@/contexts/AuthContext'
 
-export default function PMOMyRequests() {
+function LegacyPMOMyRequests() {
   const { user } = useAuth()
   const userId = user?.id
   const [searchTerm, setSearchTerm] = useState('')

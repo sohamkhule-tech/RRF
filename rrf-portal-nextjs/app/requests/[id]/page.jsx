@@ -128,6 +128,8 @@ function buildRrfData(rrf) {
           ?.changedAt
       return ts ? new Date(ts).toLocaleString('en-GB') : null
     })(),
+
+    internalRrfNo: rrf.internalRrfNo || null,
   }
 }
 
@@ -314,6 +316,9 @@ export default function UnifiedViewRRFPage() {
               </div>
               <div className="text-xs text-slate-300 font-medium space-y-1">
                 <div>{rrfData.displayId}</div>
+                {rrfData.internalRrfNo && (
+                  <div className="text-purple-300">Internal: {rrfData.internalRrfNo}</div>
+                )}
                 <div>Requested on: {rrfData.submittedDate}</div>
               </div>
             </div>

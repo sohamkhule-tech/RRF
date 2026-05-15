@@ -1,14 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Role } from '../roles/role.entity';
-import { Module } from '../modules/module.entity';
-import { Permission } from '../permissions/permission.entity';
-import { RolePermission } from '../role-permissions/role-permission.entity';
-import { User } from '../users/user.entity';
-import { RrfFormConfig } from '../rrf/entities/rrf-form-config.entity';
-import { Subfunction } from '../subfunctions/subfunction.entity';
-import { Function } from '../functions/function.entity';
+import { Role } from '../../roles/role.entity';
+import { Module } from '../../modules/module.entity';
+import { Permission } from '../../permissions/permission.entity';
+import { RolePermission } from '../../role-permissions/role-permission.entity';
+import { User } from '../../users/user.entity';
+import { RrfFormConfig } from '../../rrf/entities/rrf-form-config.entity';
+import { Subfunction } from '../../subfunctions/subfunction.entity';
+import { Function } from '../../functions/function.entity';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()

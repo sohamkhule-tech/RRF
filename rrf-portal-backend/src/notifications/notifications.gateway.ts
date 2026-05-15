@@ -4,6 +4,7 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
+import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -19,6 +20,8 @@ import { Notification } from './notification.entity';
 export class NotificationsGateway
   implements OnGatewayConnection, OnGatewayDisconnect
 {
+  private readonly logger = new Logger(NotificationsGateway.name);
+
   @WebSocketServer()
   server: Server;
 
@@ -62,9 +65,9 @@ export class NotificationsGateway
       }
       this.connectedUsers.get(userId).add(client.id);
 
-      console.log(`[WS] User ${userId} connected (socket: ${client.id})`);
+      this.logger.log(`User ${userId} connected (socket: ${client.id})`);
     } catch (error: any) {
-      console.warn(`[WS] Auth failed: ${error.message}`);
+      this.logger.warn(`Auth failed: ${error.message}`);
       client.disconnect();
     }
   }
@@ -79,7 +82,7 @@ export class NotificationsGateway
           this.connectedUsers.delete(userId);
         }
       }
-      console.log(`[WS] User ${userId} disconnected (socket: ${client.id})`);
+      this.logger.log(`User ${userId} disconnected (socket: ${client.id})`);
     }
   }
 

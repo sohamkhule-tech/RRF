@@ -1,5 +1,15 @@
 'use client'
 
+/**
+ * PHASE 6 — Legacy compatibility redirect.
+ * Original implementation preserved below (non-exported) for rollback.
+ * Rollback: remove the redirect and restore `export default` on LegacyHRDashboard.
+ */
+import { redirect } from 'next/navigation'
+export default function Page() { redirect('/dashboard') }
+
+// ── Original implementation (preserved for rollback) ────────────────────────
+
 import { FolderOpenOutlined, CheckCircleOutlined, SearchOutlined, CloseCircleOutlined, ReloadOutlined } from '@ant-design/icons'
 import ActionButton from '@/components/ActionButton'
 import StatCard from '@/components/StatCard'
@@ -10,7 +20,7 @@ import { useVisibilityRefresh } from '@/lib/useVisibilityRefresh'
 import { CACHE_TTL } from '@/lib/apiCache'
 import { useAuth } from '@/contexts/AuthContext'
 
-export default function HRDashboard() {
+function LegacyHRDashboard() {
   const { user } = useAuth()
   const userId = user?.id
   const [searchTerm, setSearchTerm] = useState('')

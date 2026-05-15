@@ -1,5 +1,15 @@
 'use client'
 
+/**
+ * PHASE 6 — Legacy compatibility redirect.
+ * Original implementation preserved below (non-exported) for rollback.
+ * Rollback: remove the redirect and restore `export default` on LegacyHRClosedPositionsPage.
+ */
+import { redirect } from 'next/navigation'
+export default function Page() { redirect('/workflow?view=closed') }
+
+// ── Original implementation (preserved for rollback) ────────────────────────
+
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -11,7 +21,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner'
 import toast from 'react-hot-toast'
 import { useAuth } from '@/contexts/AuthContext'
 
-export default function HRClosedPositionsPage() {
+function LegacyHRClosedPositionsPage() {
   const router = useRouter()
   const { user } = useAuth()
   const userId = user?.id

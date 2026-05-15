@@ -1,5 +1,16 @@
 'use client'
 
+/**
+ * PHASE 6 — Legacy compatibility redirect.
+ * This route now delegates to the unified workflow page.
+ * Original implementation preserved below (non-exported) for rollback.
+ * Rollback: remove the redirect and restore `export default` on LegacyApproverPendingPage.
+ */
+import { redirect } from 'next/navigation'
+export default function Page() { redirect('/workflow?view=pending-approval') }
+
+// ── Original implementation (preserved for rollback) ────────────────────────
+
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -10,7 +21,7 @@ import { rrfApi } from '@/lib/api/rrfApi'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { ErrorMessage } from '@/components/ErrorMessage'
 
-export default function ApproverPendingPage() {
+function LegacyApproverPendingPage() {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
   // ✅ REMOVED: selectedDepartment filter

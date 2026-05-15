@@ -1,11 +1,20 @@
 'use client'
 
+/**
+ * PHASE 6 — Legacy compatibility redirect.
+ * Original implementation preserved below (non-exported) for rollback.
+ */
+import { redirect } from 'next/navigation'
+export default function Page() { redirect('/workflow?view=all') }
+
+// ── Original implementation (preserved for rollback) ────────────────────────
+
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeftOutlined, SearchOutlined } from '@ant-design/icons'
 
-export default function InProgressPage() {
+function LegacyInProgressPage() {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedDepartment, setSelectedDepartment] = useState('all')

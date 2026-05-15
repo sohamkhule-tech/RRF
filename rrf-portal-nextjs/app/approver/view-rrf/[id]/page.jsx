@@ -1,7 +1,22 @@
 'use client'
 
+/**
+ * PHASE 6 — Legacy compatibility redirect.
+ * This route now delegates to the unified workflow detail page.
+ * Original implementation preserved below (non-exported) for rollback.
+ * Rollback: remove the redirect and restore `export default` on LegacyApproverViewRRFPage.
+ */
+import { useParams } from 'next/navigation'
+import { redirect } from 'next/navigation'
+export default function Page() {
+  const { id } = useParams()
+  redirect(`/workflow/${id}`)
+}
+
+// ── Original implementation (preserved for rollback) ────────────────────────
+
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
+const { useRouter } = require('next/navigation')
 import { useState } from 'react'
 import { 
   CheckCircleOutlined, 
@@ -25,7 +40,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { ErrorMessage } from '@/components/ErrorMessage'
 import InfoField from '@/components/InfoField'
 
-export default function ApproverViewRRFPage() {
+function LegacyApproverViewRRFPage() {
   const params = useParams()
   const router = useRouter()
   const rrfId = params.id

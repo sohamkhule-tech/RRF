@@ -1,5 +1,16 @@
 'use client'
 
+/**
+ * PHASE 6 — Legacy compatibility redirect.
+ * This route now delegates to the unified dashboard.
+ * Original implementation preserved below (non-exported) for rollback.
+ * Rollback: remove the redirect and restore `export default` on LegacyDashboardPage.
+ */
+import { redirect } from 'next/navigation'
+export default function Page() { redirect('/dashboard') }
+
+// ── Original implementation (preserved for rollback) ────────────────────────
+
 import Link from 'next/link'
 import ActionButton from '@/components/ActionButton'
 import { PlusOutlined, DownloadOutlined, FileTextOutlined, PlayCircleOutlined, ClockCircleOutlined, CheckCircleOutlined, LockOutlined, CloseCircleOutlined, SearchOutlined, EditOutlined, PauseCircleOutlined, ReloadOutlined } from '@ant-design/icons'
@@ -11,7 +22,7 @@ import { useVisibilityRefresh } from '@/lib/useVisibilityRefresh'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { ErrorMessage } from '@/components/ErrorMessage'
 
-export default function DashboardPage() {
+function LegacyDashboardPage() {
   const [searchTerm, setSearchTerm] = useState('')
   
   // Fetch statistics from API (hook fetches on mount via useSmartFetch — no manual trigger needed)

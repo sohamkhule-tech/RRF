@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { NotificationsService } from './notifications.service';
 import { NotificationRecipientResolver } from './notification-recipient.resolver';
@@ -14,6 +14,8 @@ import {
 
 @Injectable()
 export class NotificationListener {
+  private readonly logger = new Logger(NotificationListener.name);
+
   constructor(
     private notificationsService: NotificationsService,
     private recipientResolver: NotificationRecipientResolver,
@@ -221,7 +223,7 @@ export class NotificationListener {
         this.gateway.sendToUser(notification.userId, notification);
       }
     } catch (error: any) {
-      console.error(`[NotificationListener] Error processing ${event.type}:`, error.message);
+      this.logger.error(`Error processing ${event.type}: ${error.message}`);
     }
   }
 
@@ -269,7 +271,7 @@ export class NotificationListener {
         this.gateway.sendToUser(notification.userId, notification);
       }
     } catch (error: any) {
-      console.error(`[NotificationListener] Error processing ${event.type}:`, error.message);
+      this.logger.error(`Error processing ${event.type}: ${error.message}`);
     }
   }
 }

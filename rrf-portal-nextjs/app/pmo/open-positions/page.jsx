@@ -1,5 +1,15 @@
 'use client';
 
+/**
+ * PHASE 6 — Legacy compatibility redirect.
+ * Original implementation preserved below (non-exported) for rollback.
+ * Rollback: remove the redirect and restore `export default` on the original component.
+ */
+import { redirect } from 'next/navigation';
+export default function Page() { redirect('/workflow?view=open-positions'); }
+
+// ── Original implementation (preserved for rollback) ────────────────────────
+
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { ReloadOutlined, SearchOutlined, LeftOutlined } from '@ant-design/icons';
@@ -270,4 +280,4 @@ function OpenPositionsPage() {
   );
 }
 
-export default OpenPositionsPage;
+// Legacy: was `export default OpenPositionsPage;`

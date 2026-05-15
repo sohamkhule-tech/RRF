@@ -1,5 +1,15 @@
 'use client'
 
+/**
+ * PHASE 6 — Legacy compatibility redirect.
+ * Original implementation preserved below (non-exported) for rollback.
+ * Rollback: remove the redirect and restore `export default` on LegacyApproverApprovedPage.
+ */
+import { redirect } from 'next/navigation'
+export default function Page() { redirect('/workflow?view=approved') }
+
+// ── Original implementation (preserved for rollback) ────────────────────────
+
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -10,7 +20,7 @@ import { useApproverRequests } from '@/hooks/useApproverRequests'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { ErrorMessage } from '@/components/ErrorMessage'
 
-export default function ApproverApprovedPage() {
+function LegacyApproverApprovedPage() {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
   // ✅ REMOVED: selectedDepartment filter

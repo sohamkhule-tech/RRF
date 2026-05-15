@@ -1,7 +1,22 @@
 'use client'
 
+/**
+ * PHASE 6 — Legacy compatibility redirect.
+ * This route now delegates to the unified workflow detail page.
+ * Original implementation preserved below (non-exported) for rollback.
+ * Rollback: remove the redirect and restore `export default` on LegacyHMViewRRFPage.
+ */
+import { useParams } from 'next/navigation'
+import { redirect } from 'next/navigation'
+export default function Page() {
+  const { id } = useParams()
+  redirect(`/workflow/${id}`)
+}
+
+// ── Original implementation (preserved for rollback) ────────────────────────
+
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
+const { useRouter } = require('next/navigation')
 import { useState, useCallback } from 'react'
 import {
   PrinterOutlined,
@@ -26,7 +41,7 @@ import InfoField from '@/components/InfoField'
 import StatusWithDetails from '@/components/StatusWithDetails'
 import RRFContentSections from '@/components/RRFContentSections'
 
-export default function HMViewRRFPage() {
+function LegacyHMViewRRFPage() {
   const params = useParams()
   const router = useRouter()
   const rrfId = params.id

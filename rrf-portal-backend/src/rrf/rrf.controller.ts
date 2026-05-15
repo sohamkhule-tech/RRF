@@ -12,6 +12,7 @@ import {
   HttpCode,
   HttpStatus,
   ParseIntPipe,
+  Logger,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionGuard } from '../guards/permission.guard';
@@ -29,6 +30,8 @@ import { UpdateRrfFormConfigDto } from './dto/update-rrf-form-config.dto';
 @Controller('rrf')
 @UseGuards(JwtAuthGuard, PermissionGuard)
 export class RrfController {
+  private readonly logger = new Logger(RrfController.name);
+
   constructor(
     private readonly rrfService: RrfService,
     private readonly formConfigService: RrfFormConfigService,
@@ -426,7 +429,7 @@ export class RrfController {
     @Body('joiningDate') joiningDate: string,
     @CurrentUser() user: AuthUser,
   ) {
-    console.log(`[Controller] fillByBench called - RRF ID: ${id}, User: ${user.id}`);  // 🔍 Debug log
+    this.logger.log(`fillByBench called - RRF ID: ${id}, User: ${user.id}`);
 
     try {
       // ✅ Add timeout protection to prevent infinite hanging
@@ -439,7 +442,7 @@ export class RrfController {
       // Race between service call and timeout
       const rrf = await Promise.race([servicePromise, timeoutPromise]) as any;
 
-      console.log(`[Controller] fillByBench completed - RRF ID: ${id}`);  // 🔍 Debug log
+      this.logger.log(`fillByBench completed - RRF ID: ${id}`);
 
       return {
         success: true,
@@ -447,7 +450,7 @@ export class RrfController {
         data: rrf,
       };
     } catch (error) {
-      console.error(`[Controller] fillByBench error - RRF ID: ${id}:`, error.message);  // 🔍 Debug log
+      this.logger.error(`fillByBench error - RRF ID: ${id}: ${error.message}`);
       throw error;  // NestJS will handle the error response
     }
   }
