@@ -13,23 +13,10 @@ import { Function } from '../../functions/function.entity';
 
 @Module({
   imports: [
-    // ✅ Database connection initialization for standalone seed context
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      host: process.env.DB_HOST,
-      port: parseInt(process.env.DB_PORT || '5432', 10),
-      username: process.env.DB_USERNAME,
-      password: process.env.DB_PASSWORD,
-      database: process.env.DB_DATABASE,
-      entities: [__dirname + '/../../**/*.entity{.ts,.js}'],
-      synchronize: false,
-      logging: false,
-      retryAttempts: 10,
-      retryDelay: 3000,
-      // Conditional SSL for local Docker vs production
-      ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
-    }),
-    // Repository registration for entities used in SeedService
+    // Repository registration for entities used in SeedService.
+    // Uses the global DataSource registered by AppModule via TypeOrmModule.forRootAsync().
+    // Do NOT declare TypeOrmModule.forRoot() here — SeedModule is a runtime module
+    // imported by AppModule, so it must share the app's single DataSource.
     TypeOrmModule.forFeature([
       Role,
       ModuleEntity,
